@@ -1,4 +1,8 @@
 {
+  "type": "module",
+  "scripts": {
+    "test:engine": "node --test \"test/engine/*.test.js\""
+  },
   "dependencies": {
     "ponytail": "^1.0.57"
   }
