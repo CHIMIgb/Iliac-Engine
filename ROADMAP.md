@@ -631,7 +631,7 @@ demo/                    ← consumidor de solo "pegado"
 └── project.js (o data)  ← mapa + texturas de la demo (datos, no lógica)
 ```
 
-**Pasos de F1 (mapeados al tutorial de Lode), cada uno con su demo verificable. Todo incremental, cada paso suma una pieza y deja la demo jugable:**
+**Pasos de F1 (mapeados al tutorial de Lode), cada uno con su demo verificable. Todo incremental, cada paso suma una pieza y deja la demo jugable. **[PASOS 1-4 COMPLETADOS Y VALIDADOS]**:**
 1. **Raycaster sin textura** — mapa 2D grid (`0`=vacío, `>0`=muro), DDA para colisión de rayos por columna, `perpWallDist` (distancia al plano de cámara, sin fisheye), `lineHeight`/`drawStart`/`drawEnd`, color por tile + oscurecido según lado (x/y).
 2. **Cámara y FOV vectoriales** — dirección + plano de cámara perpendiculares, `cameraX = 2x/w - 1`, rayos `dir + plane*cameraX`, rotación con la matriz 2x2.
 3. **Input y colisión** — mover (adelante/atrás) y rotar (izq/der) con `frameTime` (velocidad independiente de la CPU), colisión simple contra muros.

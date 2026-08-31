@@ -2,6 +2,7 @@ import { Camera } from './core/camera.js';
 import { castRay } from './core/dda.js';
 import { wallProjection } from './core/projection.js';
 import { loadTextures } from './core/textures.js';
+import { castFloorCeiling } from './core/floorcasting.js';
 
 export class Raycaster {
   constructor(project) {
@@ -32,22 +33,32 @@ export class Raycaster {
     const h = canvas.height;
     const img = ctx.createImageData(w, h);
     const buf = img.data;
-    const { map, floorColor, ceilColor } = this.world;
+    const { map, floorTexNum, ceilTexNum } = this.world;
 
-    for (let y = 0; y < h; y++) {
-      const color = y < h / 2 ? ceilColor : floorColor;
-      const r = (color >> 16) & 255;
-      const g = (color >> 8) & 255;
-      const b = color & 255;
-      for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        buf[i] = r;
-        buf[i + 1] = g;
-        buf[i + 2] = b;
-        buf[i + 3] = 255;
-      }
+    // 1. Dibujar suelo y techo con texturas (floorcasting)
+    const floorCeilingBuffer = castFloorCeiling(
+      map,
+      this.camera.posX,
+      this.camera.posY,
+      this.camera.dirX,
+      this.camera.dirY,
+      this.camera.planeX,
+      this.camera.planeY,
+      w,
+      h,
+      floorTexNum,
+      ceilTexNum,
+      this.textures
+    );
+    // Copiar los píxeles del floorcasting al buffer de imagen
+    for (let i = 0; i < buf.length; i++) {
+      buf[i * 4 + 0] = (floorCeilingBuffer[i] >> 16) & 255; // R
+      buf[i * 4 + 1] = (floorCeilingBuffer[i] >> 8) & 255;  // G
+      buf[i * 4 + 2] = floorCeilingBuffer[i] & 255;        // B
+      buf[i * 4 + 3] = 255;                                 // A
     }
 
+    // 2. Renderizado de muros (código existente, sin modificar)
     const cam = this.camera;
     const { texWidth, texHeight, textures } = this;
 
