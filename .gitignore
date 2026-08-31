@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.log
+
+# assets con copyright (sprites de Daggerfall) — nunca versionar
+assets/
