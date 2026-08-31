@@ -15,9 +15,15 @@ export class Raycaster {
       project.camera.planeX,
       project.camera.planeY,
     );
-    this.textures = loadTextures(project.world.textures);
     this.texWidth = 64;
     this.texHeight = 64;
+    this.loaded = false;
+  }
+
+  async load() {
+    this.textures = await loadTextures(this.project.world.textures, this.texWidth, this.texHeight);
+    this.loaded = true;
+    return this;
   }
 
   render(canvas) {

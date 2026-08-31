@@ -6,6 +6,7 @@ canvas.width = 640;
 canvas.height = 480;
 
 const engine = new Raycaster(project);
+await engine.load();
 
 const keys = {};
 addEventListener('keydown', (e) => (keys[e.key] = true));

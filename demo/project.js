@@ -24,7 +24,7 @@ export const project = {
       3: 0x0000cc,
     },
     textures: {
-      1: 0xcc0000,
+      1: './textures/muro.svg',
       2: 0x00cc00,
       3: 0x0000cc,
     },
