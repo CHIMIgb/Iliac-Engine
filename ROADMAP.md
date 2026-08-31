@@ -608,18 +608,20 @@ Para aprender el motor a fondo se rehace en JS vanilla el motor clásico de **Wo
 
 ### F1 — Motor de raycast base (JS vanilla, siguiendo a Lode)
 
-Se reconstruye el raycaster del tutorial *"Raycasting"* de Lode's Computer Graphics Tutorial ([lodev.org/cgtutor/raycasting.html](https://lodev.org/cgtutor/raycasting.html)) en **JavaScript vanilla puro**, para conocer cada concepto a fondo que se va a extrapolar a la verticalidad después.
+Se reconstruye el raycaster del tutorial *"Raycasting"* de Lode's Computer Graphics Tutorial ([raycasting.html](https://lodev.org/cgtutor/raycasting.html), continuado en [raycasting2.html](https://lodev.org/cgtutor/raycasting2.html) y [raycasting3.html](https://lodev.org/cgtutor/raycasting3.html)) en **JavaScript vanilla puro**, para conocer cada concepto a fondo que se va a extrapolar a la verticalidad después.
 
 **Estructura (motor aislado en `engine/` + consumidor en `demo/`):**
 ```
 engine/                  ← lógica del motor, aislada (ESModules, import/export)
 ├── core/                ← piezas puras del algoritmo
 │   ├── math.js          ← vectores, rotación (matriz 2x2), utilidades
-│   ├── camera.js        ← posición, dirección y plano de cámara del jugador
+│   ├── camera.js        ← posición 2D + dirección + plano de cámara del jugador
 │   ├── dda.js           ← algoritmo DDA: sideDist/deltaDist/step/map (hallar muro)
 │   ├── projection.js    ← perpWallDist (sin efecto ojo de pez), lineHeight
+│   ├── floorcasting.js  ← suelos/techos por scanlines (posZ, rowDistance)
+│   ├── zbuffer.js       ← Z-buffer 1D por columna (base de oclusión y sprites)
 │   ├── textures.js      ← carga y mapeo de texturas (wallX, texX/texY)
-│   └── sprites.js       ← sprites billboard (renderización ordenada por z)
+│   └── sprites.js       ← sprites billboard (proyección, ordenado por distancia, Z)
 ├── Raycaster.js         ← clase principal: consume project.json → render(ctx)
 └── index.js             ← exporta el API público del motor
 
@@ -629,31 +631,42 @@ demo/                    ← consumidor de solo "pegado"
 └── project.js (o data)  ← mapa + texturas de la demo (datos, no lógica)
 ```
 
-**Pasos de F1 (mapeados al tutorial de Lode), cada uno con su demo verificable:**
-1. **Raycaster sin textura** — mapa 2D grid (`0`=vacío, `>0`=muro), DDA para colisión de rayos por columna de pantalla, `perpWallDist` (distancia al plano de cámara, sin fisheye), `lineHeight`/`drawStart`/`drawEnd`, color por tile + oscurecido según lado (x/y).
+**Pasos de F1 (mapeados al tutorial de Lode), cada uno con su demo verificable. Todo incremental, cada paso suma una pieza y deja la demo jugable:**
+1. **Raycaster sin textura** — mapa 2D grid (`0`=vacío, `>0`=muro), DDA para colisión de rayos por columna, `perpWallDist` (distancia al plano de cámara, sin fisheye), `lineHeight`/`drawStart`/`drawEnd`, color por tile + oscurecido según lado (x/y).
 2. **Cámara y FOV vectoriales** — dirección + plano de cámara perpendiculares, `cameraX = 2x/w - 1`, rayos `dir + plane*cameraX`, rotación con la matriz 2x2.
 3. **Input y colisión** — mover (adelante/atrás) y rotar (izq/der) con `frameTime` (velocidad independiente de la CPU), colisión simple contra muros.
 4. **Con texturas** — buffer de pantalla, texturas 64×64, `wallX`, `texX`/`texY` con `step` y `texPos` (affine mapping), oscurecer lados "y".
-5. **Sprites** — sprites billboard (enemigos/objetos 2D), ordenados por distancia (z-buffer) y proyectados tras los muros.
-6. **Refactor a API de clase + project.json** — extraer toda la lógica a `engine/` y dejar `demo/` como mero consumidor de la clase `Raycaster`.
+5. **Suelo y techo (floor/ceiling casting)** — *[Lode II]* suelos y techos con textura por **scanlines horizontales**: `posZ` (altura del ojo en el eje Z), `rowDistance = posZ / p`, `floorStep`, mapeo de texel (`cellX/cellY`, `tx/ty`, checkerboard). **Introduce el eje Z y la altura del jugador**, la base sobre la que F2 construye toda la verticalidad.
+6. **Z-buffer 1D** — mientras se raycastan muros, guardar `perpWallDist` por columna en `zbuffer[]`. No es visual por sí solo; es la herramienta de oclusión que usan los sprites (y luego la verticalidad).
+7. **Sprites** — *[Lode III]* sprites billboard (enemigos/objetos 2D): proyectar con la inversa de la cámara, ordenar de lejos a cerca por distancia, y dibujar **solo donde `transformY < ZBuffer[stripe]`** (ocluidos por muros). Incluye: **escalado `uDiv`/`vDiv`**, **desplazamiento vertical `vMove`/`vMoveScreen`** (ancla el sprite a una altura Z: flota, cuelga, se hunde), **transparencia/translucidez** y color invisible.
+8. **Refactor a API de clase + project.json** — extraer toda la lógica a `engine/` y dejar `demo/` como mero consumidor de la clase `Raycaster`. El `project.json` pasa a describir el mundo (mapa, alturas, sprites con `pos.z`, flags) en vez de datos embutidos.
 
 **Alcance explícito (JS vanilla puro):** sin TypeScript, sin build, sin framework, sin librerías. La demo se abre directo con `<script type="module">`.
 
 ### F2 — Verticalidad / 3D (sobre el motor F1)
 
-Transformar el raycaster plano (muros todos de la misma altura) en un **motor 2.5D/3D con verticalidad real**, el salto Wolf3D → Doom → Daggerfall. Es el núcleo diferenciador del proyecto.
+Transformar el raycaster plano (muros todos de la misma altura, suelo/techo fijos) en un **motor 2.5D/3D con verticalidad real**, el salto Wolf3D → Doom → Daggerfall. Es el núcleo diferenciador del proyecto.
 
-**Qué se añade al motor (`engine/`), siempre en JS vanilla:**
-- **Sector system**: mapa ya no por tiles de altura única, sino por **sectores** con altura de piso y techo independientes (`sectors[]` con `floorH`, `ceilH`). Es el paso que Wolf3D no soporta.
-- **Rampas / suelos y techos inclinados** (variar altura dentro de un sector).
-- **Pisos superpuestos y portales** (ventanas por las que se ve otro sector, estilo Doom).
-- **Proyección vertical**: el rayo ya no pinta una sola franja de muro, sino el tramo entre piso y techo, con su textura correspondiente (suelo/techo por sector).
-- **Colisión por altura + gravedad/saltos** (física cinemática de género, §2): subir/bajar, escaleras, elevadores.
-- **Sprites ajustados a la verticalidad** (ocluidos correctamente por altura y Z).
+> **Enfoque incremental, NO clonar Doom/Daggerfall.** No se copia el motor de Doom (sin BSP tree, sin moteado de polígonos). La verticalidad y los efectos 3D se construyen **evolucionando las técnicas ya aprendidas en F1** (floorcasting, Z-buffer, sprites con `vMove`), paso a paso, de lo más simple a lo más avanzado. Cada paso deja la demo jugable y verificable.
 
-**La demo se extiende** para mostrar verticalidad: un mapa con rampa, escaleras y un piso superior recorrible (verificación de F2 en §15).
+**Estado de entrada (tras F1):** suelos/techos a **una sola altura** (`posZ` fijo), muros de altura uniforme, sprites con `vMove` manual. **Estado de salida (fin F2):** sectores con `floorH`/`ceilH` independientes, el jugador sube/baja plataformas y escaleras, objetos anclados a distinta altura, aberturas que dejan ver otro sector, y efectos de luz que dan profundidad.
 
-> Nota: todo esto es *motor*; sigue sin dependencias y sin chrome. Three.js/WebGL (modo `3d`, §2) queda como evolución futura del mismo motor, compartiendo el mismo `project.json`.
+**Pasos incrementales de F2, cada uno verificado en la demo:**
+
+1. **Suelos y techos por sector (altura variable)** — cada tile pasa a pertenecer a un **sector** con `floorH` y `ceilH` propios (ya no un único `posZ`). El floorcasting usa la altura del sector bajo el rayo (`rowDistance` depende de `floorH - posZ`). Resultado visual: **terrazas/plataformas horizontales a distintas alturas** — el primer salto real sobre Wolf3D (que no soporta ningún desnivel).
+2. **Colisión por altura + pasos** — el jugador gana `posZ` vertical. Puede **subir un paso** si el desnivel entre sectores ≤ umbral (escala automática), **caer** si hay hueco, y tiene un piso que lo sostiene. Empieza la verticalidad *jugable*.
+3. **Entidades ancladas a altura (Z)** — aplicar el `vMove` de F1 de forma controlada y **por entidad**: objetos encima de mesas/plataformas, luces colgantes del techo, enemigos elevados, proyectiles volando. Da "cosas 3D" sin geometría poligonal.
+4. **Escaleras (pasos consecutivos)** — una hilera de pasos que suman subida/bajada de altura; el jugador los recorre. Introduce el concepto de **recorridos verticales** sobre el que montar rampas y, antes, verificar que la colisión por altura es sólida.
+5. **Aberturas / muros con hueco (portales ligeros)** — dejar un hueco vertical en una pared por el que se ve el **sector de atrás** (pintar su suelo/techo y muros a través de la abertura). Es el germen de las **ventanas/portales tipo Doom**, sin BSP: solo combinar el Z-buffer con el raycast del sector contiguo.
+6. **Rampas / techos inclinados** — variar `floorH` de forma **continua dentro de un sector**; el floorcasting pasa a interpolar la altura (el scanline deja de ser perfectamente horizontal). Omitido en F1 por ser más costoso; entra aquí como desnivel gradual (rampas de acceso, taludes).
+7. **Iluminación y efectos 3D** — aprovechar las técnicas de F1 para profundidad percibida: `dark por lado` para sombras de muros, `translucidez` para luces/ventanas, una **caída de luz por distancia**, y **sprites emisores de luz**. Refuerza la sensación volumétrica sin coste de geometría.
+8. **Pisos superpuestos (opcional/avanzado)** — dos sectores que se superponen en Z (recorrer un pasillo y ver, por una abertura, otro piso encima). Es el punto más ambicioso; se habilita solo si los pasos 5–6 están solidificados. *(ponytail: se deja como hito de cierre; si se vuelve inmanejable, el modo `3d` real de WebGL lo sustituye en §15.)*
+
+**Verificación de F2 (criterio de aceptación):** la demo muestra una **plataforma elevada a la que se sube** (pasos 1–2), objetos **anclados a distinta altura** (paso 3), una **escalera** también bajable (paso 4), y se ve **otro sector a través de una abertura** (paso 5). Rampas y luz (pasos 6–7) presentes. Todo en JS vanilla; `engine/` aislado y sin dependencias.
+
+> **Nota conceptual:** este sector-based "ligero" (Z-buffer + raycast de sector contiguo) da la *experiencia* Doom/Daggerfall sin la complejidad de un BSP. El salto a un motor poligonal real tipo Daggerfall (Three.js/WebGL, modo `3d`) queda como evolución futura (§2, §15), compartiendo el mismo `project.json`.
+
+> **Recursos:** las técnicas de F2 se fundamentan en [raycasting2.html](https://lodev.org/cgtutor/raycasting2.html) (floor/ceiling casting, altura variable, checkerboard por sector) y [raycasting3.html](https://lodev.org/cgtutor/raycasting3.html) (sprites con `vMove`, Z-buffer). `build-your-own-x` **no** ofrece un tutorial de motores sector-based/Doom; la verticalidad se diseña desde estas técnicas (evolución incremental), no se copia de un motor existente.
 
 ---
 
@@ -664,7 +677,7 @@ Transformar el raycaster plano (muros todos de la misma altura) en un **motor 2.
 | Fase | Entregable | Depende de | Criterio de aceptación |
 |------|-----------|-----------|------------------------|
 | **F1** | **Motor de raycast base JS vanilla** (engine/ + demo/, según §14) | — | La demo `demo/index.html` muestra y recorre un mundo raycast con texturas y sprites, abriéndola directo, sin build; toda la lógica vive en `engine/` aislada |
-| **F2** | **Verticalidad/3D** sobre el motor F1 (sector system, rampas, pisos superpuestos, gravedad/saltos) | F1 | Se camina por una rampa y un piso superior en la demo; el motor sigue aislado y sin dependencias |
+| **F2** | **Verticalidad/3D** sobre el motor F1 (incremental: suelos/techos por sector → colisión por altura/pasos → escaleras → aberturas/portales → rampas → iluminación) | F1 | Se sube a una plataforma elevada, se sube/baja una escalera, hay objetos anclados a distinta altura y se ve otro sector por una abertura; el motor sigue aislado, sin dependencias |
 | **F3** | **Studio TS/Vite arranca**: toolchain (Vite+TS+Vitest), Asset Manager, Sprite tools, Font manager, Loading editor | F2 | El Studio (TS) consume el motor JS vanilla; un asset se importa y aparece en la demo/playtest |
 | **F4** | Studio: **Level Editor** (mapa + sectores + verticalidad) + viewport + playtest en vivo | F3 | Pinto un mapa con rampas/pisos en TS, lo camino en el motor JS vanilla y guardo/cargo `project.json` |
 | **F5** | **Blueprint Editor + runtime** (visual scripting, sin código) + IA + catálogo de bloques | F4 | Un enemigo con blueprints persigue/ataca; bloque predefinido arrastrado a una entidad |
