@@ -39,6 +39,7 @@ Creador web de RPG 2.5D/3D retro (estilo Wolf3D→Doom→Daggerfall).
 
 - **Cada fase, tarea o implementación del ROADMAP se marca como `realizada`** en la tabla de "Estado del plan" (`ROADMAP.md` §12) en cuanto termina la implementación. No quedarse en código: el plan debe reflejar el avance.
 - **El flujo de trabajo es paso-a-paso:** implemento una fase/tarea → la marco `realizada` → el usuario la valida (abriendo la demo/verificando) → **solo entonces** cambio su estado a `validada`. No se avanza al siguiente paso hasta que el usuario valida el actual.
+- **Nunca tocar lo que ya está realizado.** Si una tarea/fase está completada y es necesario modificarla, **preguntar primero** y explicar exactamente qué modificaciones se harán antes de actuar; no proceder sin la aprobación del usuario.
 - **Toda implementación nueva lleva su test.** Cada fase, tarea o feature nueva debe incluir al menos un test que compruebe que funciona. Los tests viven en la carpeta raíz `test/`, divididos en `test/engine/` (para el motor JS vanilla) y `test/studio/` (para el Studio TS, cuando exista). Un test que falla = feature no cerrada.
 - **No hardcodear valores.** Toda constante que sea dato del juego (mapa, texturas, sprites, config) debe declararse en el `project.json` (datos), no embutirse en el código del motor ni en la UI. Los únicos datos permitidos en código son configuración de infraestructura y constantes sin representación en el modelo.
 - **El motor JS vanilla no debe depender del Studio TS** ni de ninguna UI; ambas capas solo se comunican por datos (`project.json`).
