@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { castRay } from '../../engine/core/dda.js';
 import { wallProjection } from '../../engine/core/projection.js';
+import { Camera } from '../../engine/core/camera.js';
 import { Raycaster } from '../../engine/Raycaster.js';
 import { project } from '../../demo/project.js';
 
@@ -30,4 +31,11 @@ test('el desglose de color respeta 0xRRGGBB', () => {
 
 test('el motor se instancia con el proyecto', () => {
   assert.ok(new Raycaster(project) instanceof Raycaster);
+});
+
+test('la rotación de cámara gira dir y plane y conserva el FOV', () => {
+  const c = new Camera(0, 0, 1, 0, 0, 0.66);
+  c.rotate(Math.PI / 2);
+  assert.ok(Math.abs(c.dirX - 0) < 1e-9 && Math.abs(c.dirY - 1) < 1e-9, 'dir(1,0) rotado 90° debe ser aprox (0,1)');
+  assert.equal(c.dirX * c.planeX + c.dirY * c.planeY, 0, 'dir y plane siguen perpendiculares (FOV constante)');
 });

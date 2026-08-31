@@ -6,4 +6,22 @@ canvas.width = 640;
 canvas.height = 480;
 
 const engine = new Raycaster(project);
-engine.renderSimple(canvas);
+
+const keys = {};
+addEventListener('keydown', (e) => (keys[e.key] = true));
+addEventListener('keyup', (e) => (keys[e.key] = false));
+
+const rotSpeed = 2.5;
+let last = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+
+  if (keys['ArrowLeft']) engine.camera.rotate(-rotSpeed * dt);
+  if (keys['ArrowRight']) engine.camera.rotate(rotSpeed * dt);
+
+  engine.renderSimple(canvas);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
