@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { castRay } from '../../engine/core/dda.js';
+import { castRay, checkCollision } from '../../engine/core/dda.js';
 import { wallProjection } from '../../engine/core/projection.js';
 import { Camera } from '../../engine/core/camera.js';
 import { Raycaster } from '../../engine/Raycaster.js';
@@ -38,4 +38,29 @@ test('la rotación de cámara gira dir y plane y conserva el FOV', () => {
   c.rotate(Math.PI / 2);
   assert.ok(Math.abs(c.dirX - 0) < 1e-9 && Math.abs(c.dirY - 1) < 1e-9, 'dir(1,0) rotado 90° debe ser aprox (0,1)');
   assert.equal(c.dirX * c.planeX + c.dirY * c.planeY, 0, 'dir y plane siguen perpendiculares (FOV constante)');
+});
+
+test('checkCollision detecta muros', () => {
+  assert.ok(checkCollision(map, 0.5, 0.5), 'tile (0,0) es muro');
+  assert.ok(checkCollision(map, 0.5, 7.5), 'tile (0,7) es muro');
+  assert.ok(checkCollision(map, 7.5, 0.5), 'tile (7,0) es muro');
+  assert.ok(!checkCollision(map, 1.5, 1.5), 'tile (1,1) es suelo');
+  assert.ok(checkCollision(map, -1, 1.5), 'fuera del mapa colisiona');
+  assert.ok(checkCollision(map, 8, 1.5), 'fuera del mapa colisiona');
+});
+
+test('Camera.move avanza y retrocede con colisión', () => {
+  const c = new Camera(3.5, 3.5, 1, 0, 0, 0.66);
+  c.move(map, true, 3.0, 1.0);
+  assert.ok(c.posX > 3.5, 'avanza en dirección dirX positivo');
+  
+  c.move(map, false, 3.0, 1.0);
+  assert.ok(Math.abs(c.posX - 3.5) < 0.1, 'retrocede a posición original');
+});
+
+test('Camera.move no atraviesa muro', () => {
+  const c = new Camera(3.5, 3.5, 1, 0, 0, 0.66);
+  // muro en x=7, distancia ~3.5
+  c.move(map, true, 10.0, 1.0);
+  assert.ok(c.posX < 7, 'no atraviesa muro en x=7');
 });

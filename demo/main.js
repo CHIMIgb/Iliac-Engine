@@ -12,6 +12,7 @@ addEventListener('keydown', (e) => (keys[e.key] = true));
 addEventListener('keyup', (e) => (keys[e.key] = false));
 
 const rotSpeed = 2.5;
+const moveSpeed = 3.0;
 let last = performance.now();
 
 function frame(now) {
@@ -20,6 +21,8 @@ function frame(now) {
 
   if (keys['ArrowLeft']) engine.camera.rotate(-rotSpeed * dt);
   if (keys['ArrowRight']) engine.camera.rotate(rotSpeed * dt);
+  if (keys['ArrowUp'] || keys['KeyW']) engine.camera.move(engine.world.map, true, moveSpeed, dt);
+  if (keys['ArrowDown'] || keys['KeyS']) engine.camera.move(engine.world.map, false, moveSpeed, dt);
 
   engine.renderSimple(canvas);
   requestAnimationFrame(frame);
