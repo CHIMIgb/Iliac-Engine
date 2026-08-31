@@ -19,8 +19,8 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
-  if (keys['ArrowLeft']) engine.camera.rotate(-rotSpeed * dt);
-  if (keys['ArrowRight']) engine.camera.rotate(rotSpeed * dt);
+  if (keys['ArrowLeft']) engine.camera.rotate(rotSpeed * dt);
+  if (keys['ArrowRight']) engine.camera.rotate(-rotSpeed * dt);
   if (keys['ArrowUp'] || keys['KeyW']) engine.camera.move(engine.world.map, true, moveSpeed, dt);
   if (keys['ArrowDown'] || keys['KeyS']) engine.camera.move(engine.world.map, false, moveSpeed, dt);
 
