@@ -23,6 +23,11 @@ export const project = {
       2: 0x00cc00,
       3: 0x0000cc,
     },
+    textures: {
+      1: 0xcc0000,
+      2: 0x00cc00,
+      3: 0x0000cc,
+    },
     floorColor: 0x202020,
     ceilColor: 0x404040,
   },

@@ -24,7 +24,7 @@ function frame(now) {
   if (keys['ArrowUp'] || keys['KeyW']) engine.camera.move(engine.world.map, true, moveSpeed, dt);
   if (keys['ArrowDown'] || keys['KeyS']) engine.camera.move(engine.world.map, false, moveSpeed, dt);
 
-  engine.renderSimple(canvas);
+  engine.render(canvas);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { castRay, checkCollision } from '../../engine/core/dda.js';
 import { wallProjection } from '../../engine/core/projection.js';
 import { Camera } from '../../engine/core/camera.js';
+import { makeTexture, loadTextures } from '../../engine/core/textures.js';
 import { Raycaster } from '../../engine/Raycaster.js';
 import { project } from '../../demo/project.js';
 
@@ -63,4 +64,22 @@ test('Camera.move no atraviesa muro', () => {
   // muro en x=7, distancia ~3.5
   c.move(map, true, 10.0, 1.0);
   assert.ok(c.posX < 7, 'no atraviesa muro en x=7');
+});
+
+test('makeTexture genera una textura 64x64 del color base', () => {
+  const tex = makeTexture(0xcc0000, 64, 64);
+  assert.equal(tex.length, 64 * 64);
+  const r = (tex[0] >> 16) & 255;
+  assert.ok(r > 100 && r <= 0xcc, 'el canal rojo dominante del color base');
+});
+
+test('loadTextures carga una textura por tile', () => {
+  const textures = loadTextures(project.world.textures, 64, 64);
+  assert.ok(textures[1] && textures[2] && textures[3], 'existen texturas para los tiles 1, 2 y 3');
+  assert.equal(textures[1].length, 64 * 64);
+});
+
+test('Raycaster carga las texturas del proyecto', () => {
+  const engine = new Raycaster(project);
+  assert.ok(engine.textures[1], 'las texturas se cargan en el motor');
 });
