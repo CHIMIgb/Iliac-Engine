@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Player, checkCollision } from '../../engine/core/player.js';
+import { Player } from '../../engine/core/player.js';
+import { checkCollision } from '../../engine/core/collision.js';
+import { moveWithCollision, updateVertical } from '../../engine/core/physics.js';
 import { Engine3D } from '../../engine/Engine3D.js';
 import { project } from '../../demo/project.js';
 
@@ -28,43 +30,43 @@ test('checkCollision detecta muros', () => {
   assert.ok(checkCollision(map, 8, 1.5), 'fuera del mapa colisiona');
 });
 
-test('Player.move avanza y retrocede con colisión', () => {
+test('moveWithCollision avanza y retrocede', () => {
   const p = new Player(3.5, 3.5, 0.5, 0, 0);
-  p.move(map, 1, 0, 3.0, 1.0);
+  moveWithCollision(p, map, 1, 0, 3.0, 1.0);
   assert.ok(p.posX > 3.5, 'avanza en dirección X positivo');
 
-  p.move(map, -1, 0, 3.0, 1.0);
+  moveWithCollision(p, map, -1, 0, 3.0, 1.0);
   assert.ok(Math.abs(p.posX - 3.5) < 0.1, 'retrocede a posición original');
 });
 
-test('Player.move no atraviesa muro', () => {
+test('moveWithCollision no atraviesa muro', () => {
   const p = new Player(3.5, 3.5, 0.5, 0, 0);
-  p.move(map, 1, 0, 10.0, 1.0);
+  moveWithCollision(p, map, 1, 0, 10.0, 1.0);
   assert.ok(p.posX < 7, 'no atraviesa muro en x=7');
 });
 
-test('Player.updateZ sube a plataforma si el desnivel es <= stepHeight', () => {
+test('updateVertical sube a plataforma si el desnivel es <= stepHeight', () => {
   const sectorMap = [[0, 1]];
   const sectors = [
     { floorH: 0.0, ceilH: 1.0 },
     { floorH: 0.4, ceilH: 1.4 },
   ];
   const p = new Player(0.5, 0.5, 0.5, 0, 0);
-  p.updateZ(sectorMap, sectors);
+  updateVertical(p, sectorMap, sectors);
   assert.ok(Math.abs(p.posZ - 0.5) < 0.01, 'sigue en suelo bajo');
 
   p.posX = 1.5;
-  p.updateZ(sectorMap, sectors);
+  updateVertical(p, sectorMap, sectors);
   assert.ok(Math.abs(p.posZ - 0.9) < 0.01, 'sube a plataforma de floorH=0.4 + eye=0.5');
 });
 
-test('Player.updateZ cae por gravedad a sector más bajo', () => {
+test('updateVertical cae por gravedad a sector más bajo', () => {
   const sectorMap = [[0, 1]];
   const sectors = [
     { floorH: 0.0, ceilH: 1.0 },
     { floorH: -0.5, ceilH: 0.5 },
   ];
   const p = new Player(1.5, 0.5, 0.5, 0, 0);
-  p.updateZ(sectorMap, sectors);
+  updateVertical(p, sectorMap, sectors);
   assert.ok(p.posZ < 0.5, 'cae hacia sector más bajo');
 });

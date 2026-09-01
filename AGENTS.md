@@ -42,3 +42,8 @@ Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 - **Toda implementación nueva lleva su test.** Cada fase, tarea o feature nueva debe incluir al menos un test que compruebe que funciona. Los tests viven en la carpeta raíz `test/`, divididos en `test/engine/` (para el motor JS vanilla) y `test/studio/` (para el Studio TS, cuando exista). Un test que falla = feature no cerrada.
 - **No hardcodear valores.** Toda constante que sea dato del juego (mapa, texturas, sprites, config) debe declararse en el `project.json` (datos), no embutirse en el código del motor ni en la UI. Los únicos datos permitidos en código son configuración de infraestructura y constantes sin representación en el modelo.
 - **El motor JS vanilla no debe depender del Studio TS** ni de ninguna UI; ambas capas solo se comunican por datos (`project.json`).
+- **Separación de responsabilidades en `engine/`:** cada archivo del motor cumple UNA responsabilidad. No acumular lógica ajena en un mismo archivo. Regla de mapeo:
+  - `core/` = lógica de juego pura (sin Three.js): datos, física, colisión, matemáticas. Un archivo por concepto (`physics.js`, `collision.js`, `math.js`, `player.js`).
+  - `three/` = todo lo que toca Three.js/WebGL: renderer, construcción de mallas, materiales, texturas. Un archivo por concepto (`Renderer3D.js`, `WorldMesh.js`, `textures.js`).
+  - `Engine3D.js` = solo orquestación (gestiona el ciclo de vida), delega en los módulos, NO implementa física ni render.
+  - Nunca importar Three.js dentro de `core/`, ni poner lógica de juego dentro de `three/`. Cada módulo debe poder testearse de forma aislada.

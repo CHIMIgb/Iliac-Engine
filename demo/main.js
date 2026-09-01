@@ -1,4 +1,4 @@
-import { Engine3D } from '../engine/index.js';
+import { Engine3D, moveWithCollision } from '../engine/index.js';
 import { project } from './project.js';
 
 const canvas = document.getElementById('screen');
@@ -40,10 +40,10 @@ function frame(now) {
 
   if (keys['ArrowLeft']) p.rotateYaw(-rotSpeed * dt);
   if (keys['ArrowRight']) p.rotateYaw(rotSpeed * dt);
-  if (keys['ArrowUp'] || keys['KeyW']) p.move(engine.world.map, fwdX, fwdY, moveSpeed, dt);
-  if (keys['ArrowDown'] || keys['KeyS']) p.move(engine.world.map, -fwdX, -fwdY, moveSpeed, dt);
-  if (keys['KeyA']) p.move(engine.world.map, rightX, rightY, moveSpeed, dt);
-  if (keys['KeyD']) p.move(engine.world.map, -rightX, -rightY, moveSpeed, dt);
+  if (keys['ArrowUp'] || keys['KeyW']) moveWithCollision(p, engine.world.map, fwdX, fwdY, moveSpeed, dt);
+  if (keys['ArrowDown'] || keys['KeyS']) moveWithCollision(p, engine.world.map, -fwdX, -fwdY, moveSpeed, dt);
+  if (keys['KeyA']) moveWithCollision(p, engine.world.map, rightX, rightY, moveSpeed, dt);
+  if (keys['KeyD']) moveWithCollision(p, engine.world.map, -rightX, -rightY, moveSpeed, dt);
 
   engine.update(dt);
   engine.render();
