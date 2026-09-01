@@ -1,7 +1,12 @@
 export const project = {
+  meta: {
+    name: 'RayCast Demo',
+    renderMode: 'retro',
+  },
   camera: {
     posX: 3.5,
     posY: 3.5,
+    posZ: 0.5,
     dirX: -1,
     dirY: 0,
     planeX: 0,
@@ -17,6 +22,19 @@ export const project = {
       [1, 0, 0, 0, 0, 0, 0, 1],
       [1, 0, 0, 0, 0, 0, 0, 1],
       [1, 1, 1, 1, 1, 1, 1, 1],
+    ],
+    sectorMap: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+    sectors: [
+      { floorH: 0.0, ceilH: 1.0 },
     ],
     colors: {
       1: 0xcc0000,
