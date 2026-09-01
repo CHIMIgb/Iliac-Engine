@@ -1,16 +1,28 @@
-import { Raycaster } from '../engine/index.js';
+import { Engine3D } from '../engine/index.js';
 import { project } from './project.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = 640;
 canvas.height = 480;
 
-const engine = new Raycaster(project);
-await engine.load();
+const engine = new Engine3D(project);
+await engine.load(canvas);
 
 const keys = {};
+let pointerLocked = false;
+
 addEventListener('keydown', (e) => (keys[e.key] = true));
 addEventListener('keyup', (e) => (keys[e.key] = false));
+
+canvas.addEventListener('click', () => canvas.requestPointerLock());
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === canvas;
+});
+document.addEventListener('mousemove', (e) => {
+  if (!pointerLocked) return;
+  engine.player.rotateYaw(-e.movementX * 0.002);
+  engine.player.rotatePitch(-e.movementY * 0.002);
+});
 
 const rotSpeed = 2.5;
 const moveSpeed = 3.0;
@@ -20,15 +32,21 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
-  if (keys['ArrowLeft']) engine.camera.rotate(rotSpeed * dt);
-  if (keys['ArrowRight']) engine.camera.rotate(-rotSpeed * dt);
-  if (keys['ArrowUp'] || keys['KeyW']) engine.camera.move(engine.world.map, true, moveSpeed, dt);
-  if (keys['ArrowDown'] || keys['KeyS']) engine.camera.move(engine.world.map, false, moveSpeed, dt);
+  const p = engine.player;
+  const fwdX = Math.cos(p.yaw);
+  const fwdY = Math.sin(p.yaw);
+  const rightX = Math.cos(p.yaw + Math.PI / 2);
+  const rightY = Math.sin(p.yaw + Math.PI / 2);
 
-  // Actualiza la altura del ojo según el sector actual (step height + gravedad)
-  engine.camera.updateZ(engine.world.sectorMap, engine.world.sectors);
+  if (keys['ArrowLeft']) p.rotateYaw(rotSpeed * dt);
+  if (keys['ArrowRight']) p.rotateYaw(-rotSpeed * dt);
+  if (keys['ArrowUp'] || keys['KeyW']) p.move(engine.world.map, fwdX, fwdY, moveSpeed, dt);
+  if (keys['ArrowDown'] || keys['KeyS']) p.move(engine.world.map, -fwdX, -fwdY, moveSpeed, dt);
+  if (keys['KeyA']) p.move(engine.world.map, rightX, rightY, moveSpeed, dt);
+  if (keys['KeyD']) p.move(engine.world.map, -rightX, -rightY, moveSpeed, dt);
 
-  engine.render(canvas);
+  engine.update(dt);
+  engine.render();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

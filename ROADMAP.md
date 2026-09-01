@@ -643,30 +643,36 @@ demo/                    ← consumidor de solo "pegado"
 
 **Alcance explícito (JS vanilla puro):** sin TypeScript, sin build, sin framework, sin librerías. La demo se abre directo con `<script type="module">`.
 
-### F2 — Verticalidad / 3D (sobre el motor F1)
+### F2 — Verticalidad / 3D puro WebGL/Three.js
 
-Transformar el raycaster plano (muros todos de la misma altura, suelo/techo fijos) en un **motor 2.5D/3D con verticalidad real**, el salto Wolf3D → Doom → Daggerfall. Es el núcleo diferenciador del proyecto.
+Migrar el motor de un **raycaster Canvas** a un **motor 3D real con WebGL/Three.js**. Se abandona el render por columnas (DDA/floorcasting) y se adopta un pipeline poligonal único: geometría por sectores con `floorH`/`ceilH`, cámara en perspectiva real, iluminación básica y texturas SVG. El objetivo es eliminar la duplicidad de render y tener una sola representación del mundo.
 
-> **Enfoque incremental, NO clonar Doom/Daggerfall.** No se copia el motor de Doom (sin BSP tree, sin moteado de polígonos). La verticalidad y los efectos 3D se construyen **evolucionando las técnicas ya aprendidas en F1** (floorcasting, Z-buffer, sprites con `vMove`), paso a paso, de lo más simple a lo más avanzado. Cada paso deja la demo jugable y verificable.
+> **Decisión:** motor único 3D (Three.js). No hay modo retro paralelo. El look and feel es perspectiva real con verticalidad.
 
-**Estado de entrada (tras F1):** suelos/techos a **una sola altura** (`posZ` fijo), muros de altura uniforme, sprites con `vMove` manual. **Estado de salida (fin F2):** sectores con `floorH`/`ceilH` independientes, el jugador sube/baja plataformas y escaleras, objetos anclados a distinta altura, aberturas que dejan ver otro sector, y efectos de luz que dan profundidad.
+**Estructura del motor 3D:**
 
-**Pasos incrementales de F2, cada uno verificado en la demo:**
+```
+engine/
+├── core/
+│   ├── math.js          → utilidades (rotación 2D)
+│   └── player.js        → posición (X,Y,Z), yaw/pitch, movimiento, colisión, step height, gravedad
+├── three/
+│   └── Renderer3D.js    → escena Three.js, mallas por sector, cámara sincronizada, luces
+├── Engine3D.js          → orquestador: carga texturas, construye mundo, expone player + renderer
+└── index.js             → API pública: Engine3D, Player, Renderer3D
+```
 
-1. **Suelos y techos por sector (altura variable)** — cada tile pasa a pertenecer a un **sector** con `floorH` y `ceilH` propios (ya no un único `posZ`). El floorcasting usa la altura del sector bajo el rayo (`rowDistance` depende de `floorH - posZ`). Resultado visual: **terrazas/plataformas horizontales a distintas alturas** — el primer salto real sobre Wolf3D (que no soporta ningún desnivel).
-2. **Colisión por altura + pasos** — el jugador gana `posZ` vertical. Puede **subir un paso** si el desnivel entre sectores ≤ umbral (escala automática), **caer** si hay hueco, y tiene un piso que lo sostiene. Empieza la verticalidad *jugable*.
-3. **Entidades ancladas a altura (Z)** — aplicar el `vMove` de F1 de forma controlada y **por entidad**: objetos encima de mesas/plataformas, luces colgantes del techo, enemigos elevados, proyectiles volando. Da "cosas 3D" sin geometría poligonal.
-4. **Escaleras (pasos consecutivos)** — una hilera de pasos que suman subida/bajada de altura; el jugador los recorre. Introduce el concepto de **recorridos verticales** sobre el que montar rampas y, antes, verificar que la colisión por altura es sólida.
-5. **Aberturas / muros con hueco (portales ligeros)** — dejar un hueco vertical en una pared por el que se ve el **sector de atrás** (pintar su suelo/techo y muros a través de la abertura). Es el germen de las **ventanas/portales tipo Doom**, sin BSP: solo combinar el Z-buffer con el raycast del sector contiguo.
-6. **Rampas / techos inclinados** — variar `floorH` de forma **continua dentro de un sector**; el floorcasting pasa a interpolar la altura (el scanline deja de ser perfectamente horizontal). Omitido en F1 por ser más costoso; entra aquí como desnivel gradual (rampas de acceso, taludes).
-7. **Iluminación y efectos 3D** — aprovechar las técnicas de F1 para profundidad percibida: `dark por lado` para sombras de muros, `translucidez` para luces/ventanas, una **caída de luz por distancia**, y **sprites emisores de luz**. Refuerza la sensación volumétrica sin coste de geometría.
-8. **Pisos superpuestos (opcional/avanzado)** — dos sectores que se superponen en Z (recorrer un pasillo y ver, por una abertura, otro piso encima). Es el punto más ambicioso; se habilita solo si los pasos 5–6 están solidificados. *(ponytail: se deja como hito de cierre; si se vuelve inmanejable, el modo `3d` real de WebGL lo sustituye en §15.)*
+**Pasos de implementación (realizados):**
 
-**Verificación de F2 (criterio de aceptación):** la demo muestra una **plataforma elevada a la que se sube** (pasos 1–2), objetos **anclados a distinta altura** (paso 3), una **escalera** también bajable (paso 4), y se ve **otro sector a través de una abertura** (paso 5). Rampas y luz (pasos 6–7) presentes. Todo en JS vanilla; `engine/` aislado y sin dependencias.
+1. **Core 3D del jugador** — `Player` reemplaza al modelo `dir/plane` 2D del raycaster. Usa `{posX,posY,posZ,yaw,pitch}`, movimiento relativo a la orientación, colisión contra tile y física vertical (`stepHeight` + `gravity` + `updateZ`).
+2. **Renderer Three.js por sectores** — por cada tile se genera una malla: muros como cajas con altura `ceilH - floorH`, suelo/techo como planos a la altura del sector. Las texturas SVG se cargan con `THREE.TextureLoader`.
+3. **Orquestador `Engine3D`** — consume `project.json`, instancia `Player` y `Renderer3D`, y expone `update()` + `render()` para el loop de juego.
+4. **Eliminación del path retro** — se borran `Raycaster.js`, `core/dda.js` (`castRay`), `core/projection.js`, `core/floorcasting.js`, `core/textures.js` (ImageData) y `core/camera.js` 2D.
+5. **Demo 3D** — `demo/main.js` usa WASD + ratón (pointer lock) para mover al jugador en el mundo 3D; `demo/project.js` define sectores con alturas variables (plataforma elevada, zona baja).
 
-> **Nota conceptual:** este sector-based "ligero" (Z-buffer + raycast de sector contiguo) da la *experiencia* Doom/Daggerfall sin la complejidad de un BSP. El salto a un motor poligonal real tipo Daggerfall (Three.js/WebGL, modo `3d`) queda como evolución futura (§2, §15), compartiendo el mismo `project.json`.
+**Verificación de F2:** la demo `demo/index.html` muestra un mundo 3D en perspectiva real donde el jugador recorre el mapa, **sube a una plataforma elevada** (`stepHeight`), **cae a una zona más baja** (`gravity`) y los muros/suelos/techos respetan las alturas de sector. Los tests del engine pasan (`npm run test:engine`).
 
-> **Recursos:** las técnicas de F2 se fundamentan en [raycasting2.html](https://lodev.org/cgtutor/raycasting2.html) (floor/ceiling casting, altura variable, checkerboard por sector) y [raycasting3.html](https://lodev.org/cgtutor/raycasting3.html) (sprites con `vMove`, Z-buffer). `build-your-own-x` **no** ofrece un tutorial de motores sector-based/Doom; la verticalidad se diseña desde estas técnicas (evolución incremental), no se copia de un motor existente.
+> **Nota técnica:** aunque F1 se aprendió con el tutorial de Lode (raycasting), F2 lo abandona como renderer. El conocimiento adquirido (cámara vectorial, DDA, proyección) se traduce al modelo 3D: la física de colisión sigue siendo tile-based, pero el dibujado es poligonal vía Three.js. El `project.json` mantiene `map`, `sectorMap` y `sectors` como fuente de verdad.
 
 ---
 

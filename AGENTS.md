@@ -1,13 +1,11 @@
 # AGENTS.md — RayCast Studio
 
-Creador web de RPG 2.5D/3D retro (estilo Wolf3D→Doom→Daggerfall).
+Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 **Plan maestro y estado de fases: `ROADMAP.md`** (leer antes de proponer features; secciones clave §13 arquitectura de capas, §14–§15 fases).
-
-**Reinicio desde cero.** El repo aún no contiene código.
 
 ## Arquitectura (dos capas, ver `ROADMAP.md` §13)
 
-- **Motor del juego (`engine/`) = JS vanilla puro, aislado e independiente.** Toda la lógica de procesado y render (raycasting, verticalidad/3D, física, audio, visual scripting) vive sin TypeScript, sin build, sin framework y sin acoplarse a ninguna UI. Expone una API pública mínima (ESModules). **No mezclarlo con el Studio.**
+- **Motor del juego (`engine/`) = JS vanilla puro, aislado e independiente.** Toda la lógica de procesado y render (3D WebGL/Three.js, física cinemática, audio, visual scripting) vive sin TypeScript, sin build, sin framework y sin acoplarse a ninguna UI. Expone una API pública mínima (ESModules). **No mezclarlo con el Studio.**
 - **Demo (`demo/`) = consumidor.** Solo importa el motor, arma un `project.json` de ejemplo y lanza el loop. No contiene lógica de motor.
 - **Studio (`studio/`) = TypeScript + Vite (visión futura).** Herramientas de creación / interfaz para construir juegos sin escribir código (arrastrar y unir). Otro consumidor del motor: escribe `project.json` y se lo pasa al motor.
 - **Contrato = `project.json`**: las herramientas escriben datos, los motores leen datos. Nunca duplicar esa lógica en ambas capas.
@@ -15,7 +13,8 @@ Creador web de RPG 2.5D/3D retro (estilo Wolf3D→Doom→Daggerfall).
 
 ## Estado actual
 
-- **No hay código ni commits.** El primer bloque de trabajo es **F1 — Motor de raycast base en JS vanilla** (`engine/` + `demo/`, siguiendo el tutorial de Lode), y luego **F2 — verticalidad/3D**. Ver `ROADMAP.md` §14–§15.
+- **F1 validada:** motor de raycast base en JS vanilla (tutorial de Lode).
+- **F2 realizada:** migración a **motor 3D puro con WebGL/Three.js**. Se eliminó el raycaster Canvas; el render es ahora poligonal con sectores de altura (`floorH`/`ceilH`), cámara perspectiva real e iluminación. Ver `ROADMAP.md` §14.
 - El backend (API + Postgres), la Game Library, el Design System y el Publisher son **visión a largo plazo** (F3+), no trabajo hecho.
 - `opencode.json` declara el plugin `@dietrichgebert/ponytail` y MCP `context7`: reutilizar librerías antes que reinventar (regla del plan).
 

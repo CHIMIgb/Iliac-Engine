@@ -1,44 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { castRay, checkCollision } from '../../engine/core/dda.js';
-import { wallProjection } from '../../engine/core/projection.js';
-import { Camera } from '../../engine/core/camera.js';
-import { makeTexture } from '../../engine/core/textures.js';
-import { Raycaster } from '../../engine/Raycaster.js';
+import { Player, checkCollision } from '../../engine/core/player.js';
+import { Engine3D } from '../../engine/Engine3D.js';
 import { project } from '../../demo/project.js';
 
 const map = project.world.map;
-const cam = project.camera;
 
-test('el rayo frontal impacta en un muro', () => {
-  const hit = castRay(map, cam.posX, cam.posY, cam.dirX, cam.dirY);
-  assert.ok(hit.tile > 0, 'debe impactar un tile de muro');
+test('Engine3D se instancia con el proyecto', () => {
+  const engine = new Engine3D(project);
+  assert.ok(engine instanceof Engine3D);
+  assert.equal(engine.player.posX, project.camera.posX);
 });
 
-test('perpWallDist es positiva y la pared cabe en pantalla', () => {
-  const hit = castRay(map, cam.posX, cam.posY, cam.dirX, cam.dirY);
-  assert.ok(hit.perpWallDist > 0);
-  const proj = wallProjection(hit.perpWallDist, 480);
-  assert.ok(proj.drawEnd - proj.drawStart > 50, 'la pared ocupa más de 50px');
-  assert.ok(proj.drawStart >= 0 && proj.drawEnd < 480, 'la pared cabe en pantalla');
-});
-
-test('el desglose de color respeta 0xRRGGBB', () => {
-  const color = 0xcc0000;
-  assert.equal((color >> 16) & 255, 0xcc);
-  assert.equal((color >> 8) & 255, 0x00);
-  assert.equal(color & 255, 0x00);
-});
-
-test('el motor se instancia con el proyecto', () => {
-  assert.ok(new Raycaster(project) instanceof Raycaster);
-});
-
-test('la rotación de cámara gira dir y plane y conserva el FOV', () => {
-  const c = new Camera(0, 0, 1, 0, 0, 0.66);
-  c.rotate(Math.PI / 2);
-  assert.ok(Math.abs(c.dirX - 0) < 1e-9 && Math.abs(c.dirY - 1) < 1e-9, 'dir(1,0) rotado 90° debe ser aprox (0,1)');
-  assert.equal(c.dirX * c.planeX + c.dirY * c.planeY, 0, 'dir y plane siguen perpendiculares (FOV constante)');
+test('Player rota yaw y conserva forward perpendicular al right', () => {
+  const p = new Player(0, 0, 0.5, 0, 0);
+  p.rotateYaw(Math.PI / 2);
+  assert.ok(Math.abs(p.forwardX - 0) < 1e-9 && Math.abs(p.forwardY - 1) < 1e-9, 'forward rotado 90° apunta a (0,1)');
+  assert.ok(Math.abs(p.forwardX * p.rightX + p.forwardY * p.rightY) < 1e-9, 'forward y right son perpendiculares');
 });
 
 test('checkCollision detecta muros', () => {
@@ -50,31 +28,43 @@ test('checkCollision detecta muros', () => {
   assert.ok(checkCollision(map, 8, 1.5), 'fuera del mapa colisiona');
 });
 
-test('Camera.move avanza y retrocede con colisión', () => {
-  const c = new Camera(3.5, 3.5, 1, 0, 0, 0.66);
-  c.move(map, true, 3.0, 1.0);
-  assert.ok(c.posX > 3.5, 'avanza en dirección dirX positivo');
-  
-  c.move(map, false, 3.0, 1.0);
-  assert.ok(Math.abs(c.posX - 3.5) < 0.1, 'retrocede a posición original');
+test('Player.move avanza y retrocede con colisión', () => {
+  const p = new Player(3.5, 3.5, 0.5, 0, 0);
+  p.move(map, 1, 0, 3.0, 1.0);
+  assert.ok(p.posX > 3.5, 'avanza en dirección X positivo');
+
+  p.move(map, -1, 0, 3.0, 1.0);
+  assert.ok(Math.abs(p.posX - 3.5) < 0.1, 'retrocede a posición original');
 });
 
-test('Camera.move no atraviesa muro', () => {
-  const c = new Camera(3.5, 3.5, 1, 0, 0, 0.66);
-  // muro en x=7, distancia ~3.5
-  c.move(map, true, 10.0, 1.0);
-  assert.ok(c.posX < 7, 'no atraviesa muro en x=7');
+test('Player.move no atraviesa muro', () => {
+  const p = new Player(3.5, 3.5, 0.5, 0, 0);
+  p.move(map, 1, 0, 10.0, 1.0);
+  assert.ok(p.posX < 7, 'no atraviesa muro en x=7');
 });
 
-test('makeTexture genera una textura 64x64 con ImageData', () => {
-  const tex = makeTexture(0xcc0000, 64, 64);
-  assert.ok(tex.data, 'tiene ImageData');
-  assert.equal(tex.data.length, 64 * 64 * 4);
-  assert.equal(tex.width, 64);
-  assert.equal(tex.height, 64);
+test('Player.updateZ sube a plataforma si el desnivel es <= stepHeight', () => {
+  const sectorMap = [[0, 1]];
+  const sectors = [
+    { floorH: 0.0, ceilH: 1.0 },
+    { floorH: 0.4, ceilH: 1.4 },
+  ];
+  const p = new Player(0.5, 0.5, 0.5, 0, 0);
+  p.updateZ(sectorMap, sectors);
+  assert.ok(Math.abs(p.posZ - 0.5) < 0.01, 'sigue en suelo bajo');
+
+  p.posX = 1.5;
+  p.updateZ(sectorMap, sectors);
+  assert.ok(Math.abs(p.posZ - 0.9) < 0.01, 'sube a plataforma de floorH=0.4 + eye=0.5');
 });
 
-test('Raycaster instanciado sin cargar texturas', () => {
-  const engine = new Raycaster(project);
-  assert.ok(engine instanceof Raycaster);
+test('Player.updateZ cae por gravedad a sector más bajo', () => {
+  const sectorMap = [[0, 1]];
+  const sectors = [
+    { floorH: 0.0, ceilH: 1.0 },
+    { floorH: -0.5, ceilH: 0.5 },
+  ];
+  const p = new Player(1.5, 0.5, 0.5, 0, 0);
+  p.updateZ(sectorMap, sectors);
+  assert.ok(p.posZ < 0.5, 'cae hacia sector más bajo');
 });

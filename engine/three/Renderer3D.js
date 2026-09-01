@@ -1,117 +1,116 @@
 import * as THREE from 'three';
 
 export class Renderer3D {
-  constructor(map, colors, canvas) {
-    this.map = map;
-    this.colors = colors;
+  constructor(canvas) {
     this.canvas = canvas;
-    this.paused = false;
-
-    // Escena
     this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x202020);
 
-    // Cámara
     this.camera = new THREE.PerspectiveCamera(
-      60,
-      this.canvas.clientWidth / this.canvas.clientHeight,
-      0.1,
-      100
+      75,
+      canvas.width / canvas.height,
+      0.05,
+      200,
     );
-    this.camera.position.set(4, 5, 12);
-    this.camera.lookAt(0, 0, 0);
 
-    // Renderer
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: false,
-      alpha: false,
     });
-    this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+    this.renderer.setSize(canvas.width, canvas.height);
 
-    // Luz direccional
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 10, 7.5);
-    this.scene.add(dirLight);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    this.scene.add(ambient);
 
-    // Luz ambiental
-    this.scene.add(new THREE.AmbientLight(0x404040));
-
-    // Crear cubos del mapa
-    this.tileSize = 1;
-    this.createMap();
-
-    // Loop de render
-    this.animateId = null;
-    this.render();
+    const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+    dir.position.set(5, 10, 5);
+    this.scene.add(dir);
   }
 
-  createMap() {
-    const map = this.map;
-    const tileSize = this.tileSize;
-
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[y].length; x++) {
-        const tile = map[y][x];
-        if (tile === 0) continue;
-
-        const position = new THREE.Vector3(
-          x * tileSize,
-          -y * tileSize,
-          0
-        );
-
-        const geometry = new THREE.BoxGeometry(tileSize, tileSize, tileSize);
-
-        let color;
-        switch (tile) {
-          case 1:
-            color = this.colors.wall || 0xcc0000;
-            break;
-          case 2:
-            color = this.colors.floor || 0x00cc00;
-            break;
-          case 3:
-            color = this.colors.ceiling || 0x0000cc;
-            break;
-          case 4:
-          case 5:
-            color = this.colors.floor2 || 0x555555;
-            break;
-          case 6:
-            color = this.colors.ceiling || 0x888888;
-            break;
-          default:
-            color = 0xffffff;
+  clearWorld() {
+    for (let i = this.scene.children.length - 1; i >= 0; i--) {
+      const child = this.scene.children[i];
+      if (child.isMesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach((m) => m.dispose());
+        } else {
+          child.material.dispose();
         }
-
-        const material = new THREE.MeshStandardMaterial({ color });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.copy(position);
-        this.scene.add(cube);
+        this.scene.remove(child);
       }
     }
   }
 
-  animate() {
-    this.scene.rotation.y += 0.005;
-    this.render();
+  buildWorld(project, textures) {
+    this.clearWorld();
+
+    const { map, sectorMap, sectors } = project.world;
+
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[y].length; x++) {
+        const tile = map[y][x];
+        const sectorId = sectorMap[y][x];
+        const sector = sectors[sectorId] || { floorH: 0, ceilH: 1 };
+
+        if (tile > 0) {
+          const h = sector.ceilH - sector.floorH;
+          const geo = new THREE.BoxGeometry(1, h, 1);
+          const mat = this.materialFor(textures, tile, 0xffffff);
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(x + 0.5, sector.floorH + h / 2, y + 0.5);
+          this.scene.add(mesh);
+        } else {
+          this.buildFloor(x, y, sector, textures);
+          this.buildCeiling(x, y, sector, textures);
+        }
+      }
+    }
+  }
+
+  buildFloor(x, y, sector, textures) {
+    const mat = this.materialFor(textures, 4, 0x555555);
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x + 0.5, sector.floorH, y + 0.5);
+    this.scene.add(mesh);
+  }
+
+  buildCeiling(x, y, sector, textures) {
+    const mat = this.materialFor(textures, 6, 0x888888);
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.set(x + 0.5, sector.ceilH, y + 0.5);
+    this.scene.add(mesh);
+  }
+
+  materialFor(textures, id, fallbackColor) {
+    const tex = textures[id];
+    if (tex) {
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return new THREE.MeshStandardMaterial({ map: tex });
+    }
+    return new THREE.MeshStandardMaterial({ color: fallbackColor });
+  }
+
+  syncCamera(player) {
+    const px = player.posX;
+    const py = player.posZ;
+    const pz = player.posY;
+
+    const fx = Math.cos(player.pitch) * Math.cos(player.yaw);
+    const fy = Math.sin(player.pitch);
+    const fz = Math.cos(player.pitch) * Math.sin(player.yaw);
+
+    this.camera.position.set(px, py, pz);
+    this.camera.lookAt(px + fx, py + fy, pz + fz);
   }
 
   render() {
     this.renderer.render(this.scene, this.camera);
-    this.animateId = requestAnimationFrame(this.animate);
-  }
-
-  start() {
-    if (!this.paused) {
-      this.render();
-    }
-  }
-
-  stop() {
-    this.paused = true;
-    if (this.animateId) {
-      cancelAnimationFrame(this.animateId);
-    }
   }
 }

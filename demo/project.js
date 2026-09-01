@@ -7,10 +7,8 @@ export const project = {
     posX: 3.5,
     posY: 3.5,
     posZ: 0.5,
-    dirX: -1,
-    dirY: 0,
-    planeX: 0,
-    planeY: 0.66,
+    yaw: -Math.PI / 2,
+    pitch: 0,
   },
   world: {
     map: [
@@ -27,7 +25,7 @@ export const project = {
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 1, 0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 2, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -35,6 +33,8 @@ export const project = {
     ],
     sectors: [
       { floorH: 0.0, ceilH: 1.0 },
+      { floorH: 0.4, ceilH: 1.4 },
+      { floorH: -0.5, ceilH: 0.5 },
     ],
     colors: {
       1: 0xcc0000,
@@ -49,7 +49,7 @@ export const project = {
       5: './textures/suelo2.svg',
       6: './textures/techo.svg',
     },
-    floorTextures: [4, 5], // patrón de ajedrez: alterna textura 4 y 5
+    floorTextures: [4, 5],
     ceilTexNum: 6,
   },
 };
