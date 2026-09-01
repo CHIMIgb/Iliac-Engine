@@ -1,7 +1,7 @@
 export const project = {
   meta: {
     name: 'RayCast Demo',
-    renderMode: 'retro',
+    renderMode: '3d',
   },
   camera: {
     posX: 3.5,

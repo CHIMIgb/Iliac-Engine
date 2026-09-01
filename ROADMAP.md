@@ -24,7 +24,7 @@ Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir v
 | Decisión | Justificación |
 |---|---|
 | **Web, no escritorio** | El XnGine original es propietario de Bethesda y su código nunca llegó a publicarse; `kevinmkchin/XNGINE` es un renderer C++ sin relación con él. No hay motor C++ que incrustar → se escribe uno propio. WebGL da GPU desde el navegador y la app entera corre sin instalación. Si algún día se quiere desktop, Electron/Tauri envuelve el mismo TypeScript sin reescribir nada. |
-| **Motor dual (retro + 3d)** | Decide el autor por proyecto. `retro` conserva el look Wolf3D puro (el raycaster actual); `3d` aporta verticalidad real (alturas de piso/techo, rampas, pisos superpuestos, terreno ondulado). Ambos comparten el mismo `project.json`. |
+| **Motor 3D (Three.js)** | El motor usa Three.js para renderizar todo en perspectiva real con verticalidad (pisos/techos con altura, rampas, pisos superpuestos, terreno ondulado). El modo retro/Canvas se elimina del motor para evitar duplicidad de lógica y consistencia del mundo. El `project.json` define `renderMode: '3d'` fijo. |
 | **TypeScript + Vite + Vitest** | El proyecto pasará de ~500 líneas a decenas de miles. Tipado para el modelo de datos (un cambio en `project.json` se propaga a todas las herramientas), build modular, dev-server `npm run dev` y tests integrados. |
 | **Three.js para 3D (no WebGL a mano)** | Reutilizar una librería madura en lugar de escribir un renderer propio: escena, cámara, mallas, texturas, raycasting del editor. El trabajo propio es el *sector system* (verticalidad) encima, no el pipeline gráfico. |
 | **Formato de datos propio, único** | Desacopla herramientas ↔ motores. Un editor escribe JSON; otro motor puede leer el mismo JSON sin tocar las herramientas. Schema versionado. |
@@ -41,7 +41,7 @@ Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir v
 
 | Componente | ¿Se crea? | Forma concreta | Justificación |
 |---|---|---|---|
-| **Sistema de renderizado** | ✅ Sí | Motor **dual**: `retro` (raycaster TS sobre Canvas 2D) y `3d` (Three.js/WebGL) con cámara **perspectiva** (juego) y **ortográfica** (vista top-down del editor). | Ya decidido; Three.js evita reinventar WebGL. |
+| **Sistema de renderizado** | ✅ Sí | Motor **3D** (Three.js/WebGL) con cámara **perspectiva** (juego) y **ortográfica** (vista top-down del editor). Three.js evita reinventar WebGL y une retro+3d en un solo pipeline consistente. |
 | **Motor de físicas** | ✅ Sí (ligero) | Módulo `src/core/physics` **cinemático para el género**: mover-y-colisionar contra sectores (muros, alturas piso/techo), gravedad para saltos, escaleras/elevadores, zonas trigger. | Ver §2: física *de género* cubre el 100% de las mecánicas pedidas (saltos, rampas, pisos) sin el costo de un Rigidbody completo. |
 | **Gestor de audio** | ✅ Sí | Módulo `src/core/audio` sobre **Web Audio API** (stdio del navegador, sin librería): `PannerNode` para **sonido espacial 3D**, música de fondo en loop, SFX one-shot, mixers por categoría. | Nunca se había contemplado; necesario en cualquier RPG. |
 | **Sistema de scripting** | ❌ NO como código | **Visual Scripting Engine + Blueprint Editor**: grafos de nodos (Eventos/Condiciones/Acciones/Variables/Flujo) unidos con cables. **Nunca C#/C++.** | Requisito del usuario: arrastrar bloques y unirlos, no escribir código. |
@@ -65,9 +65,9 @@ Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir v
         │ gallery · templates (plantillas seed)  │    │ servidor (S3/R2 fut.)│
         └────────────────────────────────────────┘    └──────────────────────┘
 
-RUNTIME (motores) — leen el mismo project.json v2 (local en el Studio o servido por /gallery)
+RUNTIME (motor único) — leen el mismo project.json v2 (local en el Studio o servido por /gallery)
 Core: ECS, game loop, eventos, input, física cinemática, audio, save/load
-Render:  Retro (raycaster Canvas)   │   3D (Three.js + sector system + terrain)
+Render: 3D (Three.js + sector system + terrain)
 Systems: player, ai, combat, magic, inventory/trade, quests, dialogue, progression,
          visualscript (blueprints)
 ```
@@ -560,7 +560,7 @@ raycastjs/
 | Fase | Estado |
 |---|---|
 | F1 Motor de raycast base en **JS vanilla** (de Lode) | ✅ Validada |
-| F2 Verticalidad / 3D (sector system) sobre el motor F1 | ⏳ Pendiente |
+| F2 Verticalidad / 3D (sector system) sobre el motor F1 | ✅ Migración completada |
 | F3 Studio TypeScript/Vite: Asset Manager + Sprite tools + Fonts + Loading | ⏳ Pendiente |
 | F4 Studio: Level Editor + viewport + playtest | ⏳ Pendiente |
 | F5 Blueprints + IA + bloques predefinidos | ⏳ Pendiente |
@@ -582,7 +582,7 @@ Ver `README.md` para el estado real del repo y la estructura de capas.
                 │  escribe / prepara DATOS (project.json + assets)
 ┌───────────────▼───────────────────────────────────────────────────────┐
 │  MOTOR DEL JUEGO (JS vanilla puro, aislado e independiente)           │
-│  procesa y renderiza: raycaster → verticalidad/3D · ECS · física ·     │
+│  procesa y renderiza: Three.js + sector system · ECS · física ·     │
 │  audio · visualscript · sistemas RPG                                   │
 │  sin TypeScript, sin build, sin framework; sin acoplarse a ninguna UI  │
 └───────────────┬───────────────────────────────────────────────────────┘
@@ -592,7 +592,7 @@ Ver `README.md` para el estado real del repo y la estructura de capas.
 
 ### Reglas de la arquitectura de capas
 
-- **El motor es una biblioteca autónoma** (`engine/`): todo lo que procesa y *cómo* lo hace vive aislado, sin dependencias ni chrome de UI. Expone una API pública mínima.
+- **El motor es 3D (Three.js)**: el render es exclusivamente Three.js/WebGL. No hay modo retro paralelo en el motor; el look and feel es de perspectiva real con verticalidad. Si en el futuro se quiere un modo retro, se implementaría como un modo de render alternativo sobre el mismo core, no como motor dual independiente.
 - **Consumidores del motor**: primero la **demo** (`demo/`), después el **Studio** (`studio/`) y el **Player/Publisher**. Todos tienen el mismo rol: alimentar datos al motor y orquestar el loop; ninguno contiene lógica de motor.
 - **La demo** solo importa el motor y llama a sus funciones/clases para construir la escena: construye un `project.json` de ejemplo, instancia la clase del motor y lanza el loop. No reimplementa nada del renderizado.
 - **El Studio (TS/Vite) es otro consumidor** que, a partir de *arrastrar y unir* (principio de UX §1), construye el `project.json` y se lo pasa al motor. El creador de juegos nunca escribe código.
