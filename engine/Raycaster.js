@@ -2,7 +2,7 @@ import { Camera } from './core/camera.js';
 import { castRay } from './core/dda.js';
 import { wallProjection } from './core/projection.js';
 import { loadTextures } from './core/textures.js';
-import { castFloorCeiling } from './core/floorcasting.js';
+import { drawFloorCeilingColumn } from './core/floorcasting.js';
 
 export class Raycaster {
   constructor(project) {
@@ -19,6 +19,7 @@ export class Raycaster {
     this.texWidth = 64;
     this.texHeight = 64;
     this.loaded = false;
+    this.zbuffer = [];
   }
 
   async load() {
@@ -28,39 +29,30 @@ export class Raycaster {
   }
 
   render(canvas) {
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = false;
     const w = canvas.width;
     const h = canvas.height;
     const img = ctx.createImageData(w, h);
     const buf = img.data;
-    const { map, floorTexNum, ceilTexNum } = this.world;
+    const { map, floorTextures, ceilTexNum } = this.world;
 
-    // 1. Dibujar suelo y techo con texturas (floorcasting)
-    const floorCeilingBuffer = castFloorCeiling(
-      map,
-      this.camera.posX,
-      this.camera.posY,
-      this.camera.dirX,
-      this.camera.dirY,
-      this.camera.planeX,
-      this.camera.planeY,
-      w,
-      h,
-      floorTexNum,
-      ceilTexNum,
-      this.textures
-    );
-    // Copiar los píxeles del floorcasting al buffer de imagen
-    for (let i = 0; i < buf.length; i++) {
-      buf[i * 4 + 0] = (floorCeilingBuffer[i] >> 16) & 255; // R
-      buf[i * 4 + 1] = (floorCeilingBuffer[i] >> 8) & 255;  // G
-      buf[i * 4 + 2] = floorCeilingBuffer[i] & 255;        // B
-      buf[i * 4 + 3] = 255;                                 // A
-    }
+    if (!this.zbuffer || this.zbuffer.length !== w) this.zbuffer = new Array(w);
 
-    // 2. Renderizado de muros (código existente, sin modificar)
     const cam = this.camera;
     const { texWidth, texHeight, textures } = this;
+
+    // Fondo por defecto (techo arriba, suelo abajo)
+    for (let y = 0; y < h; y++) {
+      const color = y < h / 2 ? 0x404040 : 0x202020;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        buf[i] = (color >> 16) & 255;
+        buf[i + 1] = (color >> 8) & 255;
+        buf[i + 2] = color & 255;
+        buf[i + 3] = 255;
+      }
+    }
 
     for (let x = 0; x < w; x++) {
       const cameraX = (2 * x) / w - 1;
@@ -68,6 +60,8 @@ export class Raycaster {
       const rayDirY = cam.dirY + cam.planeY * cameraX;
       const hit = castRay(map, cam.posX, cam.posY, rayDirX, rayDirY);
       const { drawStart, drawEnd } = wallProjection(hit.perpWallDist, h);
+
+      this.zbuffer[x] = hit.perpWallDist;
 
       const tex = textures[hit.tile];
       let wallX;
@@ -78,6 +72,7 @@ export class Raycaster {
       let texX = Math.floor(wallX * texWidth);
       if (hit.side === 0 && rayDirX > 0) texX = texWidth - texX - 1;
       if (hit.side === 1 && rayDirY < 0) texX = texWidth - texX - 1;
+      texX = Math.max(0, Math.min(texX, texWidth - 1));
 
       const step = (1.0 * texHeight) / (hit.perpWallDist > 0 ? (h / hit.perpWallDist) : 1);
       const lineHeight = Math.floor(h / hit.perpWallDist);
@@ -86,23 +81,46 @@ export class Raycaster {
       for (let y = drawStart; y <= drawEnd; y++) {
         let texY = Math.floor(texPos) & (texHeight - 1);
         texPos += step;
-        let color = tex[texY * texWidth + texX];
-        if (hit.side === 1) color = darken(color);
+        const texPosBytes = (texY * texWidth + texX) * 4;
+        let r = tex.data[texPosBytes];
+        let g = tex.data[texPosBytes + 1];
+        let b = tex.data[texPosBytes + 2];
+        if (hit.side === 1) {
+          r >>= 1;
+          g >>= 1;
+          b >>= 1;
+        }
         const i = (y * w + x) * 4;
-        buf[i] = (color >> 16) & 255;
-        buf[i + 1] = (color >> 8) & 255;
-        buf[i + 2] = color & 255;
+        buf[i] = r;
+        buf[i + 1] = g;
+        buf[i + 2] = b;
         buf[i + 3] = 255;
       }
+
+      // --- SUELO Y TECHO (versión vertical de Lode) ---
+      drawFloorCeilingColumn({
+        buf,
+        screenWidth: w,
+        screenHeight: h,
+        posX: cam.posX,
+        posY: cam.posY,
+        side: hit.side,
+        mapX: hit.mapX,
+        mapY: hit.mapY,
+        wallX,
+        rayDirX,
+        rayDirY,
+        perpWallDist: hit.perpWallDist,
+        drawEnd,
+        floorTextures,
+        ceilTexNum,
+        textures,
+        texWidth,
+        texHeight,
+        x,
+      });
     }
 
     ctx.putImageData(img, 0, 0);
   }
-}
-
-function darken(rgb) {
-  const r = ((rgb >> 16) & 255) >> 1;
-  const g = ((rgb >> 8) & 255) >> 1;
-  const b = (rgb & 255) >> 1;
-  return (r << 16) | (g << 8) | b;
 }

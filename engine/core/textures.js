@@ -1,18 +1,43 @@
+function createTexture(width, height, fillFn) {
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const c = fillFn(x, y);
+      const i = (y * width + x) * 4;
+      data[i] = (c >> 16) & 255;
+      data[i + 1] = (c >> 8) & 255;
+      data[i + 2] = c & 255;
+      data[i + 3] = 255;
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const img = new ImageData(data, width, height);
+    ctx.putImageData(img, 0, 0);
+    return { img: canvas, data, width, height };
+  }
+
+  return { data, width, height };
+}
+
 export function makeTexture(baseColor, width = 64, height = 64) {
-  const tex = new Uint32Array(width * height);
   const r = (baseColor >> 16) & 255;
   const g = (baseColor >> 8) & 255;
   const b = baseColor & 255;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const shade = 1 - (0.15 * ((x + y) % 8)) / 8;
-      tex[y * width + x] =
-        (Math.min(255, r * shade) << 16) |
-        (Math.min(255, g * shade) << 8) |
-        Math.min(255, b * shade);
-    }
-  }
-  return tex;
+
+  return createTexture(width, height, (x, y) => {
+    const shade = 1 - (0.15 * ((x + y) % 8)) / 8;
+    return (
+      (Math.min(255, r * shade) << 16) |
+      (Math.min(255, g * shade) << 8) |
+      Math.min(255, b * shade)
+    );
+  });
 }
 
 function imageToTexture(img, width = 64, height = 64) {
@@ -22,12 +47,7 @@ function imageToTexture(img, width = 64, height = 64) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, width, height);
   const { data } = ctx.getImageData(0, 0, width, height);
-  const tex = new Uint32Array(width * height);
-  for (let i = 0; i < width * height; i++) {
-    const j = i * 4;
-    tex[i] = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
-  }
-  return tex;
+  return { img: canvas, data, width, height };
 }
 
 function loadImage(src) {

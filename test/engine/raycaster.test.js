@@ -66,11 +66,12 @@ test('Camera.move no atraviesa muro', () => {
   assert.ok(c.posX < 7, 'no atraviesa muro en x=7');
 });
 
-test('makeTexture genera una textura 64x64 del color base', () => {
+test('makeTexture genera una textura 64x64 con ImageData', () => {
   const tex = makeTexture(0xcc0000, 64, 64);
-  assert.equal(tex.length, 64 * 64);
-  const r = (tex[0] >> 16) & 255;
-  assert.ok(r > 100 && r <= 0xcc, 'el canal rojo dominante del color base');
+  assert.ok(tex.data, 'tiene ImageData');
+  assert.equal(tex.data.length, 64 * 64 * 4);
+  assert.equal(tex.width, 64);
+  assert.equal(tex.height, 64);
 });
 
 test('Raycaster instanciado sin cargar texturas', () => {

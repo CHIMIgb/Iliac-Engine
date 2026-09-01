@@ -27,10 +27,11 @@ export const project = {
       1: './textures/muro.svg',
       2: 0x00cc00,
       3: 0x0000cc,
-      4: 0x8b5a2b, // textura del suelo (marrón)
-      5: 0x2b3a5c, // textura del techo (azul oscuro)
+      4: './textures/suelo1.svg',
+      5: './textures/suelo2.svg',
+      6: './textures/techo.svg',
     },
-    floorTexNum: 4,
-    ceilTexNum: 5,
+    floorTextures: [4, 5], // patrón de ajedrez: alterna textura 4 y 5
+    ceilTexNum: 6,
   },
 };
