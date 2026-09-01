@@ -23,7 +23,7 @@ export class Engine3D {
   }
 
   update(dt) {
-    updateVertical(this.player, this.world.sectorMap, this.world.sectors);
+    updateVertical(this.player, this.world.sectorMap, this.world.sectors, dt);
   }
 
   render() {
