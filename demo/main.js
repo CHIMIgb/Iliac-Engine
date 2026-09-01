@@ -20,7 +20,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('mousemove', (e) => {
   if (!pointerLocked) return;
-  engine.player.rotateYaw(-e.movementX * 0.002);
+  engine.player.rotateYaw(e.movementX * 0.002);
   engine.player.rotatePitch(-e.movementY * 0.002);
 });
 
@@ -38,8 +38,8 @@ function frame(now) {
   const rightX = Math.cos(p.yaw + Math.PI / 2);
   const rightY = Math.sin(p.yaw + Math.PI / 2);
 
-  if (keys['ArrowLeft']) p.rotateYaw(rotSpeed * dt);
-  if (keys['ArrowRight']) p.rotateYaw(-rotSpeed * dt);
+  if (keys['ArrowLeft']) p.rotateYaw(-rotSpeed * dt);
+  if (keys['ArrowRight']) p.rotateYaw(rotSpeed * dt);
   if (keys['ArrowUp'] || keys['KeyW']) p.move(engine.world.map, fwdX, fwdY, moveSpeed, dt);
   if (keys['ArrowDown'] || keys['KeyS']) p.move(engine.world.map, -fwdX, -fwdY, moveSpeed, dt);
   if (keys['KeyA']) p.move(engine.world.map, rightX, rightY, moveSpeed, dt);

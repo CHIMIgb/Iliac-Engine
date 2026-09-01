@@ -51,11 +51,18 @@ export class Player {
   }
 
   move(map, dirX, dirY, speed, dt) {
-    const moveX = dirX * speed * dt;
-    const moveY = dirY * speed * dt;
+    const radius = 0.2;
+    const step = speed * dt;
 
-    if (!checkCollision(map, this.posX + moveX, this.posY)) this.posX += moveX;
-    if (!checkCollision(map, this.posX, this.posY + moveY)) this.posY += moveY;
+    const tryX = this.posX + dirX * step;
+    const tryY = this.posY + dirY * step;
+
+    if (dirX !== 0 && !checkCollision(map, tryX + Math.sign(dirX) * radius, this.posY)) {
+      this.posX = tryX;
+    }
+    if (dirY !== 0 && !checkCollision(map, this.posX, tryY + Math.sign(dirY) * radius)) {
+      this.posY = tryY;
+    }
   }
 }
 
