@@ -99,7 +99,8 @@ export function castFloorCeiling(map, camPosX, camPosY, camDirX, camDirY, camPla
           const texIdx = texY * 64 + texX;
           color = tex[texIdx];
         } else {
-          color = map[cellY][cellX];
+          // Si no hay textura, usar color gris en lugar del valor del tile (0 = negro)
+          color = 0x202020;
         }
       }
 
