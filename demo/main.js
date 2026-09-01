@@ -25,6 +25,9 @@ function frame(now) {
   if (keys['ArrowUp'] || keys['KeyW']) engine.camera.move(engine.world.map, true, moveSpeed, dt);
   if (keys['ArrowDown'] || keys['KeyS']) engine.camera.move(engine.world.map, false, moveSpeed, dt);
 
+  // Actualiza la altura del ojo según el sector actual (step height + gravedad)
+  engine.camera.updateZ(engine.world.sectorMap, engine.world.sectors);
+
   engine.render(canvas);
   requestAnimationFrame(frame);
 }
