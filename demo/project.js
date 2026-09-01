@@ -27,8 +27,10 @@ export const project = {
       1: './textures/muro.svg',
       2: 0x00cc00,
       3: 0x0000cc,
+      4: 0x8b5a2b, // textura del suelo (marrón)
+      5: 0x2b3a5c, // textura del techo (azul oscuro)
     },
-    floorColor: 0x202020,
-    ceilColor: 0x404040,
+    floorTexNum: 4,
+    ceilTexNum: 5,
   },
 };
