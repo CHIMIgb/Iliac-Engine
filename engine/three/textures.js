@@ -27,13 +27,13 @@ export function colorTexture(hex) {
   return new THREE.CanvasTexture(canvas);
 }
 
-export function makeMaterial(textures, id, fallbackColor) {
+export function makeMaterial(textures, id, fallbackColor, side = THREE.FrontSide) {
   const tex = textures[id];
   if (tex) {
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
-    return new THREE.MeshStandardMaterial({ map: tex });
+    return new THREE.MeshStandardMaterial({ map: tex, side });
   }
-  return new THREE.MeshStandardMaterial({ color: fallbackColor });
+  return new THREE.MeshStandardMaterial({ color: fallbackColor, side });
 }

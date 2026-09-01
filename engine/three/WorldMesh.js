@@ -48,7 +48,7 @@ export class WorldMesh {
   }
 
   static buildFloor(scene, x, y, sector, textures) {
-    const mat = makeMaterial(textures, 4, 0x555555);
+    const mat = makeMaterial(textures, 4, 0x555555, THREE.DoubleSide);
     const geo = new THREE.PlaneGeometry(1, 1);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -57,7 +57,7 @@ export class WorldMesh {
   }
 
   static buildCeiling(scene, x, y, sector, textures) {
-    const mat = makeMaterial(textures, 6, 0x888888);
+    const mat = makeMaterial(textures, 6, 0x888888, THREE.DoubleSide);
     const geo = new THREE.PlaneGeometry(1, 1);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = Math.PI / 2;
