@@ -559,7 +559,7 @@ raycastjs/
 
 | Fase | Estado |
 |---|---|
-| F1 Motor de raycast base en **JS vanilla** (de Lode) | ⏳ Pendiente |
+| F1 Motor de raycast base en **JS vanilla** (de Lode) | ✅ Validada |
 | F2 Verticalidad / 3D (sector system) sobre el motor F1 | ⏳ Pendiente |
 | F3 Studio TypeScript/Vite: Asset Manager + Sprite tools + Fonts + Loading | ⏳ Pendiente |
 | F4 Studio: Level Editor + viewport + playtest | ⏳ Pendiente |
