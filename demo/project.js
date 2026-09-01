@@ -25,8 +25,8 @@ export const project = {
     },
     textures: {
       1: './textures/muro.svg',
-      2: 0x00cc00,
-      3: 0x0000cc,
+      2: './textures/verde.svg',
+      3: './textures/azul.svg',
       4: './textures/suelo1.svg',
       5: './textures/suelo2.svg',
       6: './textures/techo.svg',
