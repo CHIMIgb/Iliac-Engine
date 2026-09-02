@@ -41,7 +41,7 @@ export function updateVertical(player, sectorMap, sectors, dt) {
 
 // ---------- Física de sectores poligonales (schema v3) ----------
 
-import { getSectorAtOrNearest, getSolidWalls, closestPointOnSegment, getFloorHeightAt } from './sector.js';
+import { buildSectorIndex, getSectorAtOrNearest, closestPointOnSegment, getFloorHeightAt } from './sector.js';
 import { getStairHeightAt, getStairSegments } from './stairs.js';
 
 function resolveSegmentCollision(player, a, b, radius) {
@@ -58,32 +58,21 @@ function resolveSegmentCollision(player, a, b, radius) {
   return true;
 }
 
-function resolveStairCollisions(player, world, radius) {
-  for (const ramp of world.ramps || []) {
-    if (ramp.type !== 'stairs') continue;
-    const steps = ramp.steps ?? Math.max(1, Math.floor(ramp.run * 2));
-    const stepRise = ramp.rise / steps;
-    const segments = getStairSegments(ramp);
-    for (const { a, b, stepIndex } of segments) {
-      const stepH = stepIndex * stepRise;
-      // Solo colisionar si el jugador está por debajo de la altura superior del peldaño.
-      if (player.posZ >= stepH + player.eyeHeight) continue;
-      resolveSegmentCollision(player, a, b, radius);
-    }
-  }
-}
-
 function resolveSectorCollisions(player, world, radius) {
-  const sector = getSectorAtOrNearest(world, player.posX, player.posY);
-  if (!sector) return;
+  const { vertexMap } = buildSectorIndex(world);
 
-  const walls = getSolidWalls(world, sector.id);
-  for (let iter = 0; iter < 4; iter++) {
+  for (let iter = 0; iter < 6; iter++) {
     let resolved = true;
-    for (const { a, b } of walls) {
-      if (!resolveSegmentCollision(player, a, b, radius)) resolved = false;
+
+    // Colisión contra todas las paredes sólidas del mundo (más robusto que
+    // solo el sector actual, evita fallos al quedar ligeramente fuera tras un empujón).
+    for (const wall of world.walls || []) {
+      if (wall.sectorBack && wall.portal) continue;
+      const a = vertexMap.get(wall.a);
+      const b = vertexMap.get(wall.b);
+      if (a && b && !resolveSegmentCollision(player, a, b, radius)) resolved = false;
     }
-    if (!resolved) continue;
+
     // Escaleras: caras frontales de peldaños que están por encima del jugador.
     for (const ramp of world.ramps || []) {
       if (ramp.type !== 'stairs') continue;
@@ -96,11 +85,12 @@ function resolveSectorCollisions(player, world, radius) {
         if (!resolveSegmentCollision(player, a, b, radius)) resolved = false;
       }
     }
+
     if (resolved) break;
   }
 }
 
-export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius = 0.2) {
+export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius = 0.25) {
   const distance = speed * dt;
   const maxSubStep = radius * 0.5;
   const steps = Math.max(1, Math.ceil(distance / maxSubStep));
