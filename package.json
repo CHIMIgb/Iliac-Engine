@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "start": "node server.js",
     "test:engine": "node --test \"test/engine/*.test.js\""
   },
   "dependencies": {
