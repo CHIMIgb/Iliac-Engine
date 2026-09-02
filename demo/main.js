@@ -1,4 +1,4 @@
-import { Engine3D, moveWithSectorCollision, updateVerticalSector } from '../engine/index.js';
+import { Engine3D } from '../engine/index.js';
 import { project } from './project.js';
 
 const canvas = document.getElementById('screen');
@@ -69,11 +69,7 @@ function frame(now) {
     dirY += rightY;
   }
 
-  if (dirX !== 0 || dirY !== 0) {
-    moveWithSectorCollision(p, project.world, dirX, dirY, moveSpeed, dt);
-  }
-
-  updateVerticalSector(p, project.world, dt);
+  engine.update({ dirX, dirY, speed: moveSpeed }, dt);
 
   engine.render();
   requestAnimationFrame(frame);

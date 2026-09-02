@@ -1,5 +1,10 @@
 import { Player } from './core/player.js';
-import { moveWithCollision, updateVertical } from './core/physics.js';
+import {
+  moveWithCollision,
+  updateVertical,
+  moveWithSectorCollision,
+  updateVerticalSector,
+} from './core/physics.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
@@ -22,11 +27,17 @@ export class Engine3D {
     return this;
   }
 
-  update(dt) {
+  update(input, dt) {
     if (this.world.vertices && this.world.sectors) {
-      // Schema v3: física de sectores aún no implementada (Paso 4).
+      // Schema v3: física de sectores poligonales.
+      const { dirX = 0, dirY = 0, speed = 0 } = input || {};
+      if (dirX !== 0 || dirY !== 0) {
+        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, dt);
+      }
+      updateVerticalSector(this.player, this.world, dt);
       return;
     }
+    // Schema v2: grid de tiles (legacy).
     updateVertical(this.player, this.world.sectorMap, this.world.sectors, dt);
   }
 

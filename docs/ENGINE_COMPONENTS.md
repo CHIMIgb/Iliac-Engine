@@ -75,7 +75,7 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 |--------|-------------|
 | `constructor(project)` | Lee `project.camera` y `project.world`; crea el `Player`. |
 | `async load(canvas)` | Carga texturas, crea `Renderer3D` y construye el `WorldMesh`. |
-| `update(dt)` | En schema v3 (sectores poligonales) actualmente es no-op; la demo llama directamente a `moveWithSectorCollision` + `updateVerticalSector`. En schema v2 llama a `updateVertical`. |
+| `update(input, dt)` | Orquesta la física. En schema v3 llama a `moveWithSectorCollision(input.dirX, input.dirY, input.speed)` y `updateVerticalSector`. En schema v2 llama a `updateVertical`. |
 | `render()` | Sincroniza la cámara del renderer con el jugador y renderiza. |
 
 Exporta también `Player`, `moveWithCollision`, `updateVertical` por compatibilidad con consumidores legacy.
