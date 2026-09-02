@@ -6,6 +6,7 @@ export class Player {
     this.yaw = yaw;
     this.pitch = pitch;
     this.eyeHeight = 0.5;
+    this.height = 1.8;      // Altura total de la cápsula del jugador.
     this.stepHeight = 0.6;
     this.gravity = 9.0;
   }

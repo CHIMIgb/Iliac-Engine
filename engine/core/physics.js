@@ -41,7 +41,7 @@ export function updateVertical(player, sectorMap, sectors, dt) {
 
 // ---------- Física de sectores poligonales (schema v3) ----------
 
-import { buildSectorIndex, getSectorAtOrNearest, closestPointOnSegment, getFloorHeightAt } from './sector.js';
+import { buildSectorIndex, getSectorAtOrNearest, closestPointOnSegment, getFloorHeightAt, getCeilHeightAt } from './sector.js';
 import { getStairHeightAt } from './stairs.js';
 
 function resolveSegmentCollision(player, a, b, radius) {
@@ -115,5 +115,13 @@ export function updateVerticalSector(player, world, dt, sectorIndex) {
       const climbSpeed = 5.0;
       player.posZ = Math.min(targetZ, player.posZ + climbSpeed * dt);
     }
+  }
+
+  // Colisión con techo: la cabeza del jugador no puede atravesar el techo.
+  const ceilH = getCeilHeightAt(world, sector, player.posX, player.posY, vertexMap);
+  const headClearance = player.height - player.eyeHeight;
+  const maxZ = ceilH - headClearance;
+  if (player.posZ > maxZ) {
+    player.posZ = maxZ;
   }
 }

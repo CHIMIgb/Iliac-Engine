@@ -80,3 +80,15 @@ test('Engine3D.update no atraviesa paredes con dt enorme', () => {
   engine.update({ dirX: 1, dirY: 0, speed: 1000.0 }, 10.0);
   assert.ok(engine.player.posX <= 10, 'no atraviesa la pared derecha incluso con dt enorme');
 });
+
+test('Engine3D.update no atraviesa el techo', () => {
+  const engine = new Engine3D(projectV3);
+  // Colocar al jugador debajo del techo a 3m; altura total 1.8, ojos a 0.5 del suelo.
+  // La cabeza está en posZ + (1.8 - 0.5) = posZ + 1.3.
+  // Si posZ = 1.5, la cabeza estaría en 2.8 < 3, así que debería dejar subir.
+  // Si intentamos poner posZ = 2.0, la cabeza estaría en 3.3 > 3, debe clampar.
+  engine.player.posZ = 5.0;
+  engine.update({ dirX: 0, dirY: 0, speed: 0 }, 0.016);
+  const headClearance = engine.player.height - engine.player.eyeHeight;
+  assert.ok(engine.player.posZ <= 3 - headClearance + 1e-9, 'no atraviesa el techo');
+});

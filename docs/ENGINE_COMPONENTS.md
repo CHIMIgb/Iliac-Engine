@@ -90,7 +90,7 @@ Exporta también `Player`, `moveWithCollision`, `updateVertical` por compatibili
 Propiedades:
 - `posX`, `posY`, `posZ`: posición en el mundo.
 - `yaw`, `pitch`: orientación en radianes.
-- `eyeHeight = 0.5`, `stepHeight = 0.6`, `gravity = 9.0`.
+- `eyeHeight = 0.5`, `height = 1.8` (altura total de la cápsula), `stepHeight = 0.6`, `gravity = 9.0`.
 
 Getters:
 - `forwardX/Y`, `rightX/Y`: vectores de dirección a partir del `yaw`.
@@ -115,7 +115,7 @@ Contiene dos sistemas de física:
 
 #### Schema v3 (sectores poligonales)
 - `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10) como vector único (X e Y simultáneos), colisión círculo-segmento contra todas las paredes sólidas del mundo y vector de deslizamiento. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
-- `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`. Sube escaleras automáticamente (`climbSpeed = 5.0`) y aplica gravedad. Acepta `sectorIndex` cacheado.
+- `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`, sube escaleras automáticamente (`climbSpeed = 5.0`), aplica gravedad y **colisiona con el techo** usando `getCeilHeightAt` y `player.height`. Acepta `sectorIndex` cacheado.
 
 ### 3.6 `core/sector.js` — Geometría sectorial
 
