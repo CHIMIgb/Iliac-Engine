@@ -1,4 +1,4 @@
-import { Engine3D, getSectorAt, getFloorHeightAt } from '../engine/index.js';
+import { Engine3D, moveWithSectorCollision, updateVerticalSector } from '../engine/index.js';
 import { project } from './project.js';
 
 const canvas = document.getElementById('screen');
@@ -37,17 +37,6 @@ document.addEventListener('mousemove', (e) => {
 const moveSpeed = 3.0;
 let last = performance.now();
 
-function updatePlayerOnFloor(p, dt) {
-  const sector = getSectorAt(project.world, p.posX, p.posY);
-  if (sector) {
-    const floorH = getFloorHeightAt(project.world, sector, p.posX, p.posY);
-    const targetZ = floorH + p.eyeHeight;
-    // Seguimiento suave del suelo
-    const factor = Math.min(1, 10 * dt);
-    p.posZ += (targetZ - p.posZ) * factor;
-  }
-}
-
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
@@ -60,24 +49,30 @@ function frame(now) {
 
   // Rotación: solo con ratón (pointer lock).
   // Movimiento: flechas o WASD.
+  let dirX = 0;
+  let dirY = 0;
   if (keys['ArrowUp'] || keys['KeyW']) {
-    p.posX += fwdX * moveSpeed * dt;
-    p.posY += fwdY * moveSpeed * dt;
+    dirX += fwdX;
+    dirY += fwdY;
   }
   if (keys['ArrowDown'] || keys['KeyS']) {
-    p.posX -= fwdX * moveSpeed * dt;
-    p.posY -= fwdY * moveSpeed * dt;
+    dirX -= fwdX;
+    dirY -= fwdY;
   }
   if (keys['ArrowLeft'] || keys['KeyA']) {
-    p.posX -= rightX * moveSpeed * dt;
-    p.posY -= rightY * moveSpeed * dt;
+    dirX -= rightX;
+    dirY -= rightY;
   }
   if (keys['ArrowRight'] || keys['KeyD']) {
-    p.posX += rightX * moveSpeed * dt;
-    p.posY += rightY * moveSpeed * dt;
+    dirX += rightX;
+    dirY += rightY;
   }
 
-  updatePlayerOnFloor(p, dt);
+  if (dirX !== 0 || dirY !== 0) {
+    moveWithSectorCollision(p, project.world, dirX, dirY, moveSpeed, dt);
+  }
+
+  updateVerticalSector(p, project.world, dt);
 
   engine.render();
   requestAnimationFrame(frame);

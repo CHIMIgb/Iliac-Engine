@@ -84,17 +84,46 @@ export function getSolidWalls(world, sectorId) {
   return segments;
 }
 
-export function distancePointToSegment(px, py, a, b) {
+export function closestPointOnSegment(px, py, a, b) {
   const vx = b.x - a.x;
   const vy = b.y - a.y;
   const wx = px - a.x;
   const wy = py - a.y;
   const c1 = vx * wx + vy * wy;
-  if (c1 <= 0) return Math.hypot(px - a.x, py - a.y);
+  if (c1 <= 0) return { x: a.x, y: a.y };
   const c2 = vx * vx + vy * vy;
-  if (c2 <= c1) return Math.hypot(px - b.x, py - b.y);
+  if (c2 <= c1) return { x: b.x, y: b.y };
   const t = c1 / c2;
-  const projX = a.x + t * vx;
-  const projY = a.y + t * vy;
-  return Math.hypot(px - projX, py - projY);
+  return { x: a.x + t * vx, y: a.y + t * vy };
+}
+
+export function distancePointToSegment(px, py, a, b) {
+  const closest = closestPointOnSegment(px, py, a, b);
+  return Math.hypot(px - closest.x, py - closest.y);
+}
+
+export function getSectorAtOrNearest(world, x, y) {
+  const sector = getSectorAt(world, x, y);
+  if (sector) return sector;
+
+  let best = null;
+  let bestDist = Infinity;
+  for (const s of world.sectors) {
+    const verts = getSectorVertices(world, s);
+    if (!verts.length) continue;
+    let cx = 0;
+    let cy = 0;
+    for (const v of verts) {
+      cx += v.x;
+      cy += v.y;
+    }
+    cx /= verts.length;
+    cy /= verts.length;
+    const d = Math.hypot(cx - x, cy - y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = s;
+    }
+  }
+  return best;
 }
