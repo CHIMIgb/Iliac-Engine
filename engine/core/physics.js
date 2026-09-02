@@ -42,7 +42,7 @@ export function updateVertical(player, sectorMap, sectors, dt) {
 // ---------- Física de sectores poligonales (schema v3) ----------
 
 import { buildSectorIndex, getSectorAtOrNearest, closestPointOnSegment, getFloorHeightAt } from './sector.js';
-import { getStairHeightAt, getStairSegments } from './stairs.js';
+import { getStairHeightAt } from './stairs.js';
 
 function resolveSegmentCollision(player, a, b, radius) {
   const closest = closestPointOnSegment(player.posX, player.posY, a, b);
@@ -71,19 +71,6 @@ function resolveSectorCollisions(player, world, radius) {
       const a = vertexMap.get(wall.a);
       const b = vertexMap.get(wall.b);
       if (a && b && !resolveSegmentCollision(player, a, b, radius)) resolved = false;
-    }
-
-    // Escaleras: caras frontales de peldaños que están por encima del jugador.
-    for (const ramp of world.ramps || []) {
-      if (ramp.type !== 'stairs') continue;
-      const steps = ramp.steps ?? Math.max(1, Math.floor(ramp.run * 2));
-      const stepRise = ramp.rise / steps;
-      const segments = getStairSegments(ramp);
-      for (const { a, b, stepIndex } of segments) {
-        const stepH = stepIndex * stepRise;
-        if (player.posZ >= stepH + player.eyeHeight) continue;
-        if (!resolveSegmentCollision(player, a, b, radius)) resolved = false;
-      }
     }
 
     if (resolved) break;
@@ -118,7 +105,12 @@ export function updateVerticalSector(player, world, dt) {
 
   if (player.posZ > targetZ) {
     player.posZ = Math.max(targetZ, player.posZ - player.gravity * dt);
-  } else if (player.posZ < targetZ && targetZ - player.posZ <= player.stepHeight) {
-    player.posZ = Math.min(targetZ, player.posZ + player.gravity * dt);
+  } else if (player.posZ < targetZ) {
+    // En escaleras subimos siempre; en terreno normal solo desniveles <= stepHeight.
+    const onStairs = stairH !== null;
+    if (onStairs || targetZ - player.posZ <= player.stepHeight) {
+      const climbSpeed = 5.0;
+      player.posZ = Math.min(targetZ, player.posZ + climbSpeed * dt);
+    }
   }
 }
