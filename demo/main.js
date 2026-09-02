@@ -69,12 +69,12 @@ function frame(now) {
     p.posY -= fwdY * moveSpeed * dt;
   }
   if (keys['ArrowLeft'] || keys['KeyA']) {
-    p.posX += rightX * moveSpeed * dt;
-    p.posY += rightY * moveSpeed * dt;
-  }
-  if (keys['ArrowRight'] || keys['KeyD']) {
     p.posX -= rightX * moveSpeed * dt;
     p.posY -= rightY * moveSpeed * dt;
+  }
+  if (keys['ArrowRight'] || keys['KeyD']) {
+    p.posX += rightX * moveSpeed * dt;
+    p.posY += rightY * moveSpeed * dt;
   }
 
   updatePlayerOnFloor(p, dt);
