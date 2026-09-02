@@ -5,7 +5,18 @@ function sectorVertices(world, sector) {
   return sector.vertexIds.map((id) => map.get(id)).filter(Boolean);
 }
 
-function vertexHeight(sector, ref, vertex, baseH, slopeKey) {
+function getVertexHeightArray(sector, baseKey, index) {
+  const arr = sector[baseKey];
+  if (Array.isArray(arr) && index < arr.length) return arr[index];
+  return null;
+}
+
+function vertexHeight(sector, ref, vertex, baseH, slopeKey, index) {
+  // 1. Alturas por vértice (terreno irregular)
+  const explicit = getVertexHeightArray(sector, 'floorH', index);
+  if (explicit !== null) return explicit;
+
+  // 2. Slope uniforme
   const slope = sector[slopeKey];
   if (!slope) return baseH;
   const angleRad = (slope.angle * Math.PI) / 180;
@@ -26,8 +37,9 @@ export function createSectorFloorGeometry(world, sector) {
   const ref = vertices[0];
   const positions = [];
   const uvs = [];
-  for (const v of vertices) {
-    const h = vertexHeight(sector, ref, v, sector.floorH, 'floorSlope');
+  for (let i = 0; i < vertices.length; i++) {
+    const v = vertices[i];
+    const h = vertexHeight(sector, ref, v, sector.floorH, 'floorSlope', i);
     positions.push(v.x, h, v.y);
     uvs.push(v.x, v.y);
   }
@@ -44,8 +56,9 @@ export function createSectorCeilingGeometry(world, sector) {
   const ref = vertices[0];
   const positions = [];
   const uvs = [];
-  for (const v of vertices) {
-    const h = vertexHeight(sector, ref, v, sector.ceilH, 'ceilSlope');
+  for (let i = 0; i < vertices.length; i++) {
+    const v = vertices[i];
+    const h = vertexHeight(sector, ref, v, sector.ceilH, 'ceilSlope', i);
     positions.push(v.x, h, v.y);
     uvs.push(v.x, v.y);
   }
@@ -69,11 +82,17 @@ export function createWallGeometry(wall, world, sector) {
   const b = map.get(wall.b);
   if (!a || !b) return null;
 
-  const ref = sectorVertices(world, sector)[0];
-  const fa = vertexHeight(sector, ref, a, sector.floorH, 'floorSlope');
-  const fb = vertexHeight(sector, ref, b, sector.floorH, 'floorSlope');
-  const ca = vertexHeight(sector, ref, a, sector.ceilH, 'ceilSlope');
-  const cb = vertexHeight(sector, ref, b, sector.ceilH, 'ceilSlope');
+  const vertices = sectorVertices(world, sector);
+  const ref = vertices[0];
+
+  // Para paredes usamos el índice del vértice en el sector si existe.
+  const idxA = sector.vertexIds.indexOf(wall.a);
+  const idxB = sector.vertexIds.indexOf(wall.b);
+
+  const fa = vertexHeight(sector, ref, a, sector.floorH, 'floorSlope', idxA >= 0 ? idxA : 0);
+  const fb = vertexHeight(sector, ref, b, sector.floorH, 'floorSlope', idxB >= 0 ? idxB : 0);
+  const ca = vertexHeight(sector, ref, a, sector.ceilH, 'ceilSlope', idxA >= 0 ? idxA : 0);
+  const cb = vertexHeight(sector, ref, b, sector.ceilH, 'ceilSlope', idxB >= 0 ? idxB : 0);
 
   const positions = [
     a.x, fa, a.y,

@@ -51,10 +51,64 @@ export function getSectorAt(world, x, y) {
   return null;
 }
 
-function heightAt(sector, vertices, x, y, baseH, slopeKey) {
+function barycentric(p, a, b, c) {
+  const det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+  if (Math.abs(det) < 1e-12) return null;
+  const w1 = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / det;
+  const w2 = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / det;
+  const w3 = 1 - w1 - w2;
+  return { w1, w2, w3 };
+}
+
+function pointInTriangle(p, a, b, c) {
+  const bc = barycentric(p, a, b, c);
+  if (!bc) return false;
+  return bc.w1 >= -1e-9 && bc.w2 >= -1e-9 && bc.w3 >= -1e-9;
+}
+
+function interpolateHeight(vertices, heights, x, y) {
+  const p = { x, y };
+  for (let i = 1; i < vertices.length - 1; i++) {
+    const a = vertices[0];
+    const b = vertices[i];
+    const c = vertices[i + 1];
+    if (pointInTriangle(p, a, b, c)) {
+      const bc = barycentric(p, a, b, c);
+      return bc.w1 * heights[0] + bc.w2 * heights[i] + bc.w3 * heights[i + 1];
+    }
+  }
+  return null;
+}
+
+function vertexHeights(sector, vertices, baseH, slopeKey) {
+  if (Array.isArray(baseH)) return baseH;
+
+  const slope = sector[slopeKey];
+  const ref = vertices[0];
+  const out = [];
+  for (const v of vertices) {
+    if (!slope) {
+      out.push(baseH);
+    } else {
+      const angleRad = (slope.angle * Math.PI) / 180;
+      const delta = slope.axis === 'x' ? v.x - ref.x : v.y - ref.y;
+      out.push(baseH + delta * Math.tan(angleRad));
+    }
+  }
+  return out;
+}
+
+function heightAt(world, sector, x, y, baseH, slopeKey) {
+  const vertices = getSectorVertices(world, sector);
+  const heights = vertexHeights(sector, vertices, baseH, slopeKey);
+
+  // Si solo hay 3 vértices o alturas explícitas, interpolamos por triángulo.
+  const interpolated = interpolateHeight(vertices, heights, x, y);
+  if (interpolated !== null) return interpolated;
+
+  // Fallback: fórmula de slope uniforme (compatible con sectores rectangulares).
   const slope = sector[slopeKey];
   if (!slope) return baseH;
-
   const ref = vertices[0];
   const angleRad = (slope.angle * Math.PI) / 180;
   const delta = slope.axis === 'x' ? x - ref.x : y - ref.y;
@@ -62,13 +116,11 @@ function heightAt(sector, vertices, x, y, baseH, slopeKey) {
 }
 
 export function getFloorHeightAt(world, sector, x, y) {
-  const vertices = getSectorVertices(world, sector);
-  return heightAt(sector, vertices, x, y, sector.floorH, 'floorSlope');
+  return heightAt(world, sector, x, y, sector.floorH, 'floorSlope');
 }
 
 export function getCeilHeightAt(world, sector, x, y) {
-  const vertices = getSectorVertices(world, sector);
-  return heightAt(sector, vertices, x, y, sector.ceilH, 'ceilSlope');
+  return heightAt(world, sector, x, y, sector.ceilH, 'ceilSlope');
 }
 
 export function getSolidWalls(world, sectorId) {

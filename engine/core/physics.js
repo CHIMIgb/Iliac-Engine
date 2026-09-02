@@ -42,6 +42,36 @@ export function updateVertical(player, sectorMap, sectors, dt) {
 // ---------- Física de sectores poligonales (schema v3) ----------
 
 import { getSectorAtOrNearest, getSolidWalls, closestPointOnSegment, getFloorHeightAt } from './sector.js';
+import { getStairHeightAt, getStairSegments } from './stairs.js';
+
+function resolveSegmentCollision(player, a, b, radius) {
+  const closest = closestPointOnSegment(player.posX, player.posY, a, b);
+  const dx = player.posX - closest.x;
+  const dy = player.posY - closest.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < radius && dist > 1e-9) {
+    const push = (radius - dist) / dist;
+    player.posX += dx * push;
+    player.posY += dy * push;
+    return false;
+  }
+  return true;
+}
+
+function resolveStairCollisions(player, world, radius) {
+  for (const ramp of world.ramps || []) {
+    if (ramp.type !== 'stairs') continue;
+    const steps = ramp.steps ?? Math.max(1, Math.floor(ramp.run * 2));
+    const stepRise = ramp.rise / steps;
+    const segments = getStairSegments(ramp);
+    for (const { a, b, stepIndex } of segments) {
+      const stepH = stepIndex * stepRise;
+      // Solo colisionar si el jugador está por debajo de la altura superior del peldaño.
+      if (player.posZ >= stepH + player.eyeHeight) continue;
+      resolveSegmentCollision(player, a, b, radius);
+    }
+  }
+}
 
 function resolveSectorCollisions(player, world, radius) {
   const sector = getSectorAtOrNearest(world, player.posX, player.posY);
@@ -51,15 +81,19 @@ function resolveSectorCollisions(player, world, radius) {
   for (let iter = 0; iter < 4; iter++) {
     let resolved = true;
     for (const { a, b } of walls) {
-      const closest = closestPointOnSegment(player.posX, player.posY, a, b);
-      const dx = player.posX - closest.x;
-      const dy = player.posY - closest.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < radius && dist > 1e-9) {
-        const push = (radius - dist) / dist;
-        player.posX += dx * push;
-        player.posY += dy * push;
-        resolved = false;
+      if (!resolveSegmentCollision(player, a, b, radius)) resolved = false;
+    }
+    if (!resolved) continue;
+    // Escaleras: caras frontales de peldaños que están por encima del jugador.
+    for (const ramp of world.ramps || []) {
+      if (ramp.type !== 'stairs') continue;
+      const steps = ramp.steps ?? Math.max(1, Math.floor(ramp.run * 2));
+      const stepRise = ramp.rise / steps;
+      const segments = getStairSegments(ramp);
+      for (const { a, b, stepIndex } of segments) {
+        const stepH = stepIndex * stepRise;
+        if (player.posZ >= stepH + player.eyeHeight) continue;
+        if (!resolveSegmentCollision(player, a, b, radius)) resolved = false;
       }
     }
     if (resolved) break;
@@ -86,9 +120,11 @@ export function updateVerticalSector(player, world, dt) {
   const sector = getSectorAtOrNearest(world, player.posX, player.posY);
   if (!sector) return;
 
-  // Altura de suelo en el punto actual (soporta slopes).
+  // Altura de suelo en el punto actual (soporta slopes y alturas por vértice).
   const floorH = getFloorHeightAt(world, sector, player.posX, player.posY);
-  const targetZ = floorH + player.eyeHeight;
+  const stairH = getStairHeightAt(world, player.posX, player.posY);
+  const groundH = stairH !== null ? Math.max(floorH, stairH) : floorH;
+  const targetZ = groundH + player.eyeHeight;
 
   if (player.posZ > targetZ) {
     player.posZ = Math.max(targetZ, player.posZ - player.gravity * dt);
