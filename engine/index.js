@@ -6,6 +6,8 @@ export {
   createSectorCeilingGeometry,
   createWallGeometry,
 } from './three/SectorGeometry.js';
+export { buildStairsMeshes } from './three/StairsMesh.js';
+export { buildSprites } from './three/SpriteSystem.js';
 export { checkCollision } from './core/collision.js';
 export * from './core/math.js';
 export * from './core/sector.js';

@@ -19,10 +19,11 @@ test('createSectorFloorGeometry aplica slope al piso', () => {
   const s1 = project.world.sectors[1];
   const geo = createSectorFloorGeometry(project.world, s1);
   const pos = geo.attributes.position.array;
-  // vértice 0 en x=4, vértice 1 en x=8
-  const yAt4 = pos[0 * 3 + 1];
-  const yAt8 = pos[1 * 3 + 1];
-  assert.ok(yAt8 > yAt4, 'la altura aumenta hacia +x');
+  // vértice 0 en x=6, vértice 1 en x=10
+  const yAt6 = pos[0 * 3 + 1];
+  const yAt10 = pos[1 * 3 + 1];
+  assert.ok(yAt10 > yAt6, 'la altura aumenta hacia +x');
+  assert.ok(Math.abs(yAt10 - yAt6 - 2.31) < 0.01, 'subida ~2.31');
 });
 
 test('createSectorCeilingGeometry invierte índices para normal hacia abajo', () => {

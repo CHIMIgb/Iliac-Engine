@@ -5,6 +5,8 @@ import {
   createSectorCeilingGeometry,
   createWallGeometry,
 } from './SectorGeometry.js';
+import { buildStairsMeshes } from './StairsMesh.js';
+import { buildSprites } from './SpriteSystem.js';
 import { buildSectorIndex } from '../core/sector.js';
 
 export class WorldMesh {
@@ -64,6 +66,9 @@ export class WorldMesh {
         scene.add(new THREE.Mesh(wallGeo, mat));
       }
     }
+
+    buildStairsMeshes(scene, world, textures);
+    buildSprites(scene, world, textures);
   }
 
   // ---------- Schema v2: grid de tiles (legacy) ----------

@@ -27,22 +27,24 @@ test('pointInPolygon detecta interior de cuadrado', () => {
 test('pointInSector localiza punto dentro de sector s0', () => {
   const s0 = project.world.sectors[0];
   assert.ok(pointInSector(project.world, s0, 1, 1), 'dentro de s0');
-  assert.ok(!pointInSector(project.world, s0, 5, 1), 'fuera de s0 (en s1)');
+  assert.ok(!pointInSector(project.world, s0, 7, 1), 'fuera de s0 (en s1)');
 });
 
 test('getSectorAt encuentra el sector correcto', () => {
   assert.equal(getSectorAt(project.world, 1, 1)?.id, 's0');
-  assert.equal(getSectorAt(project.world, 5, 1)?.id, 's1');
-  assert.equal(getSectorAt(project.world, 9, 1)?.id, 's2');
+  assert.equal(getSectorAt(project.world, 7, 1)?.id, 's1');
+  assert.equal(getSectorAt(project.world, 12, 1)?.id, 's2');
+  assert.equal(getSectorAt(project.world, 18, 1)?.id, 's3');
+  assert.equal(getSectorAt(project.world, 22, 1)?.id, 's4');
   assert.equal(getSectorAt(project.world, -1, -1), null);
 });
 
 test('getFloorHeightAt respeta slope de sector s1', () => {
   const s1 = project.world.sectors[1];
-  const h0 = getFloorHeightAt(project.world, s1, 4, 2);
-  const h1 = getFloorHeightAt(project.world, s1, 8, 2);
+  const h0 = getFloorHeightAt(project.world, s1, 6, 2);
+  const h1 = getFloorHeightAt(project.world, s1, 10, 2);
   assert.ok(h1 > h0, 'la rampa sube hacia +x');
-  assert.ok(Math.abs(h1 - h0 - 1.0) < 0.01, 'subida total ~1.0');
+  assert.ok(Math.abs(h1 - h0 - 2.31) < 0.01, 'subida total ~2.31 (30° sobre 4u)');
 });
 
 test('getFloorHeightAt devuelve floorH plano sin slope', () => {
@@ -52,7 +54,7 @@ test('getFloorHeightAt devuelve floorH plano sin slope', () => {
 
 test('getCeilHeightAt devuelve altura de techo', () => {
   const s0 = project.world.sectors[0];
-  assert.equal(getCeilHeightAt(project.world, s0, 2, 2), 3.0);
+  assert.equal(getCeilHeightAt(project.world, s0, 2, 2), 4.0);
 });
 
 test('getSolidWalls omite portales', () => {
