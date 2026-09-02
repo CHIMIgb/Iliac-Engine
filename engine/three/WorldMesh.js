@@ -40,7 +40,7 @@ export class WorldMesh {
   // ---------- Schema v3: sectores poligonales ----------
 
   static buildSectorWorld(scene, world, textures) {
-    const { wallsBySector } = buildSectorIndex(world);
+    const { wallsBySector, vertexMap } = buildSectorIndex(world);
 
     // Agrupar geometrías por (textura, side) para mergear y reducir draw calls.
     const groups = new Map();
@@ -57,13 +57,19 @@ export class WorldMesh {
     }
 
     for (const sector of world.sectors) {
-      addToGroup(sector.floorTex, 0x555555, THREE.DoubleSide, createSectorFloorGeometry(world, sector));
-      addToGroup(sector.ceilTex, 0x888888, THREE.DoubleSide, createSectorCeilingGeometry(world, sector));
+      addToGroup(sector.floorTex, 0x555555, THREE.DoubleSide, createSectorFloorGeometry(world, sector, vertexMap));
+      addToGroup(sector.ceilTex, 0x888888, THREE.DoubleSide, createSectorCeilingGeometry(world, sector, vertexMap));
+
+      // Mapa vértice del sector -> índice para lookups O(1) en paredes.
+      const vertexIndexMap = new Map();
+      for (let i = 0; i < sector.vertexIds.length; i++) {
+        vertexIndexMap.set(sector.vertexIds[i], i);
+      }
 
       const walls = wallsBySector.get(sector.id) || [];
       for (const wall of walls) {
         if (wall.sectorBack && wall.portal) continue;
-        const wallGeo = createWallGeometry(wall, world, sector);
+        const wallGeo = createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap);
         addToGroup(wall.tex || sector.wallTex, 0xcc0000, THREE.FrontSide, wallGeo);
       }
     }

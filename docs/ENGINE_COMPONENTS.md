@@ -171,9 +171,9 @@ Encapsula la escena Three.js:
 
 ### 3.13 `three/SectorGeometry.js` — Geometría poligonal
 
-- `createSectorFloorGeometry(world, sector)`: `BufferGeometry` del suelo por fan triangulation, soporta alturas por vértice y slopes.
-- `createSectorCeilingGeometry(world, sector)`: igual que el suelo pero con índices invertidos para que la normal apunte hacia abajo.
-- `createWallGeometry(wall, world, sector)`: quad vertical entre los puntos `a` y `b`, desde `floorH` hasta `ceilH` (con slopes).
+- `createSectorFloorGeometry(world, sector, vertexMap)`: `BufferGeometry` del suelo por fan triangulation, soporta alturas por vértice y slopes. Acepta `vertexMap` cacheado.
+- `createSectorCeilingGeometry(world, sector, vertexMap)`: igual que el suelo pero con índices invertidos para que la normal apunte hacia abajo. Acepta `vertexMap` cacheado.
+- `createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap)`: quad vertical entre los puntos `a` y `b`, desde `floorH` hasta `ceilH` (con slopes). Acepta `vertexMap` e índices de vértice cacheados para evitar `indexOf` por pared.
 
 **Limitación actual**: solo sectores convexos; la fan triangulation falla en cóncavos.
 

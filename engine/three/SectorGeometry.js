@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-function sectorVertices(world, sector) {
-  const map = new Map(world.vertices.map((v) => [v.id, v]));
+function sectorVertices(world, sector, vertexMap) {
+  const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
   return sector.vertexIds.map((id) => map.get(id)).filter(Boolean);
 }
 
@@ -25,8 +25,8 @@ function fanIndices(vertexCount) {
   return indices;
 }
 
-export function createSectorFloorGeometry(world, sector) {
-  const vertices = sectorVertices(world, sector);
+export function createSectorFloorGeometry(world, sector, vertexMap) {
+  const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
   const positions = [];
   const uvs = [];
@@ -44,8 +44,8 @@ export function createSectorFloorGeometry(world, sector) {
   return geo;
 }
 
-export function createSectorCeilingGeometry(world, sector) {
-  const vertices = sectorVertices(world, sector);
+export function createSectorCeilingGeometry(world, sector, vertexMap) {
+  const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
   const positions = [];
   const uvs = [];
@@ -69,18 +69,18 @@ export function createSectorCeilingGeometry(world, sector) {
   return geo;
 }
 
-export function createWallGeometry(wall, world, sector) {
-  const map = new Map(world.vertices.map((v) => [v.id, v]));
+export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap) {
+  const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
   const a = map.get(wall.a);
   const b = map.get(wall.b);
   if (!a || !b) return null;
 
-  const vertices = sectorVertices(world, sector);
+  const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
 
   // Para paredes usamos el índice del vértice en el sector si existe.
-  const idxA = sector.vertexIds.indexOf(wall.a);
-  const idxB = sector.vertexIds.indexOf(wall.b);
+  const idxA = vertexIndexMap ? vertexIndexMap.get(wall.a) : sector.vertexIds.indexOf(wall.a);
+  const idxB = vertexIndexMap ? vertexIndexMap.get(wall.b) : sector.vertexIds.indexOf(wall.b);
 
   const fa = vertexHeight(sector, ref, a, sector.floorH, 'floorSlope', idxA >= 0 ? idxA : 0);
   const fb = vertexHeight(sector, ref, b, sector.floorH, 'floorSlope', idxB >= 0 ? idxB : 0);
