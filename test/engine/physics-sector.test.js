@@ -63,3 +63,35 @@ test('moveWithSectorCollision desliza a lo largo de pared diagonal', () => {
   // No debe salir del triángulo por la hipotenusa
   assert.ok(p.posX >= 0 && p.posY >= 0, 'permanece dentro del sector');
 });
+
+test('moveWithSectorCollision mueve como vector único en diagonal', () => {
+  const p = new Player(1, 1, 0.5, 0, 0);
+  // Mover en diagonal (1,1) con velocidad 2 durante 1 s → distancia 2.
+  moveWithSectorCollision(p, world, 1, 1, 2.0, 1.0, 0.2);
+  // Debe haber avanzado tanto en X como en Y aproximadamente igual.
+  assert.ok(Math.abs(p.posX - p.posY) < 0.1, 'avance diagonal simétrico');
+});
+
+test('moveWithSectorCollision desliza en esquina interior sin atascarse', () => {
+  const cornerWorld = {
+    vertices: [
+      { id: 'v0', x: 0, y: 0 },
+      { id: 'v1', x: 4, y: 0 },
+      { id: 'v2', x: 4, y: 4 },
+      { id: 'v3', x: 0, y: 4 },
+    ],
+    sectors: [
+      { id: 's0', vertexIds: ['v0', 'v1', 'v2', 'v3'], floorH: 0, ceilH: 3, floorTex: '', ceilTex: '', wallTex: '' },
+    ],
+    walls: [
+      { id: 'w0', a: 'v0', b: 'v1', sectorFront: 's0', sectorBack: null },
+      { id: 'w1', a: 'v1', b: 'v2', sectorFront: 's0', sectorBack: null },
+      { id: 'w2', a: 'v2', b: 'v3', sectorFront: 's0', sectorBack: null },
+      { id: 'w3', a: 'v3', b: 'v0', sectorFront: 's0', sectorBack: null },
+    ],
+  };
+  const p = new Player(0.5, 0.5, 0.5, 0, 0);
+  // Empujar hacia la esquina (-x,-y); debería deslizar a lo largo de las paredes sin salir.
+  moveWithSectorCollision(p, cornerWorld, -1, -1, 3.0, 1.0, 0.2);
+  assert.ok(p.posX >= 0.2 && p.posY >= 0.2, 'no atraviesa paredes de la esquina');
+});

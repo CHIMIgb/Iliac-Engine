@@ -114,7 +114,7 @@ Contiene dos sistemas de física:
 - `updateVertical(player, sectorMap, sectors, dt)`: ajusta `posZ` según `floorH` del sector actual (gravedad + subida por `stepHeight`).
 
 #### Schema v3 (sectores poligonales)
-- `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10), colisión círculo-segmento contra todas las paredes sólidas del mundo y vector de deslizamiento. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
+- `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10) como vector único (X e Y simultáneos), colisión círculo-segmento contra todas las paredes sólidas del mundo y vector de deslizamiento. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
 - `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`. Sube escaleras automáticamente (`climbSpeed = 5.0`) y aplica gravedad. Acepta `sectorIndex` cacheado.
 
 ### 3.6 `core/sector.js` — Geometría sectorial

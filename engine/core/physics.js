@@ -90,7 +90,6 @@ export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, ra
 
   for (let i = 0; i < steps; i++) {
     player.posX += subX;
-    resolveSectorCollisions(player, world, radius, sectorIndex);
     player.posY += subY;
     resolveSectorCollisions(player, world, radius, sectorIndex);
   }
