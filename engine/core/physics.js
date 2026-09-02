@@ -58,16 +58,16 @@ function resolveSegmentCollision(player, a, b, radius) {
   return true;
 }
 
-function resolveSectorCollisions(player, world, radius) {
-  const { vertexMap } = buildSectorIndex(world);
+function resolveSectorCollisions(player, world, radius, sectorIndex) {
+  const { vertexMap, solidWalls } = sectorIndex || buildSectorIndex(world);
+  const walls = solidWalls;
 
   for (let iter = 0; iter < 6; iter++) {
     let resolved = true;
 
     // Colisión contra todas las paredes sólidas del mundo (más robusto que
     // solo el sector actual, evita fallos al quedar ligeramente fuera tras un empujón).
-    for (const wall of world.walls || []) {
-      if (wall.sectorBack && wall.portal) continue;
+    for (const wall of walls) {
       const a = vertexMap.get(wall.a);
       const b = vertexMap.get(wall.b);
       if (a && b && !resolveSegmentCollision(player, a, b, radius)) resolved = false;
@@ -77,7 +77,7 @@ function resolveSectorCollisions(player, world, radius) {
   }
 }
 
-export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius = 0.25) {
+export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius = 0.25, sectorIndex) {
   const distance = speed * dt;
   const maxSubStep = radius * 0.5;
   const steps = Math.max(1, Math.ceil(distance / maxSubStep));
@@ -87,18 +87,19 @@ export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, ra
 
   for (let i = 0; i < steps; i++) {
     player.posX += subX;
-    resolveSectorCollisions(player, world, radius);
+    resolveSectorCollisions(player, world, radius, sectorIndex);
     player.posY += subY;
-    resolveSectorCollisions(player, world, radius);
+    resolveSectorCollisions(player, world, radius, sectorIndex);
   }
 }
 
-export function updateVerticalSector(player, world, dt) {
-  const sector = getSectorAtOrNearest(world, player.posX, player.posY);
+export function updateVerticalSector(player, world, dt, sectorIndex) {
+  const { vertexMap } = sectorIndex || buildSectorIndex(world);
+  const sector = getSectorAtOrNearest(world, player.posX, player.posY, vertexMap);
   if (!sector) return;
 
   // Altura de suelo en el punto actual (soporta slopes y alturas por vértice).
-  const floorH = getFloorHeightAt(world, sector, player.posX, player.posY);
+  const floorH = getFloorHeightAt(world, sector, player.posX, player.posY, vertexMap);
   const stairH = getStairHeightAt(world, player.posX, player.posY);
   const groundH = stairH !== null ? Math.max(floorH, stairH) : floorH;
   const targetZ = groundH + player.eyeHeight;

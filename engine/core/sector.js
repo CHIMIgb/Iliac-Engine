@@ -14,7 +14,9 @@ export function buildSectorIndex(world) {
     wallsBySector.set(wall.sectorFront, list);
   }
 
-  return { vertexMap, wallsBySector };
+  const solidWalls = (world.walls || []).filter((w) => !(w.sectorBack && w.portal));
+
+  return { vertexMap, wallsBySector, solidWalls };
 }
 
 export function getSectorVertices(world, sector, vertexMap) {
@@ -41,10 +43,10 @@ export function pointInSector(world, sector, x, y, vertexMap) {
   return pointInPolygon(poly, x, y);
 }
 
-export function getSectorAt(world, x, y) {
-  const { vertexMap } = buildSectorIndex(world);
+export function getSectorAt(world, x, y, vertexMap) {
+  const map = vertexMap || buildSectorIndex(world).vertexMap;
   for (const sector of world.sectors) {
-    if (pointInSector(world, sector, x, y, vertexMap)) {
+    if (pointInSector(world, sector, x, y, map)) {
       return sector;
     }
   }
@@ -98,8 +100,8 @@ function vertexHeights(sector, vertices, baseH, slopeKey) {
   return out;
 }
 
-function heightAt(world, sector, x, y, baseH, slopeKey) {
-  const vertices = getSectorVertices(world, sector);
+function heightAt(world, sector, x, y, baseH, slopeKey, vertexMap) {
+  const vertices = getSectorVertices(world, sector, vertexMap);
   const heights = vertexHeights(sector, vertices, baseH, slopeKey);
 
   // Si solo hay 3 vértices o alturas explícitas, interpolamos por triángulo.
@@ -115,12 +117,12 @@ function heightAt(world, sector, x, y, baseH, slopeKey) {
   return baseH + delta * Math.tan(angleRad);
 }
 
-export function getFloorHeightAt(world, sector, x, y) {
-  return heightAt(world, sector, x, y, sector.floorH, 'floorSlope');
+export function getFloorHeightAt(world, sector, x, y, vertexMap) {
+  return heightAt(world, sector, x, y, sector.floorH, 'floorSlope', vertexMap);
 }
 
-export function getCeilHeightAt(world, sector, x, y) {
-  return heightAt(world, sector, x, y, sector.ceilH, 'ceilSlope');
+export function getCeilHeightAt(world, sector, x, y, vertexMap) {
+  return heightAt(world, sector, x, y, sector.ceilH, 'ceilSlope', vertexMap);
 }
 
 export function getSolidWalls(world, sectorId) {
@@ -154,14 +156,14 @@ export function distancePointToSegment(px, py, a, b) {
   return Math.hypot(px - closest.x, py - closest.y);
 }
 
-export function getSectorAtOrNearest(world, x, y) {
-  const sector = getSectorAt(world, x, y);
+export function getSectorAtOrNearest(world, x, y, vertexMap) {
+  const sector = getSectorAt(world, x, y, vertexMap);
   if (sector) return sector;
 
   let best = null;
   let bestDist = Infinity;
   for (const s of world.sectors) {
-    const verts = getSectorVertices(world, s);
+    const verts = getSectorVertices(world, s, vertexMap);
     if (!verts.length) continue;
     let cx = 0;
     let cy = 0;

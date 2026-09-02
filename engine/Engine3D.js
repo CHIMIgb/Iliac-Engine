@@ -5,6 +5,7 @@ import {
   moveWithSectorCollision,
   updateVerticalSector,
 } from './core/physics.js';
+import { buildSectorIndex } from './core/sector.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
@@ -17,6 +18,10 @@ export class Engine3D {
     this.player = new Player(c.posX, c.posY, c.posZ, c.yaw ?? -Math.PI / 2, c.pitch ?? 0);
     this.renderer = null;
     this.loaded = false;
+    this.sectorIndex = null;
+    if (this.world.vertices && this.world.sectors) {
+      this.sectorIndex = buildSectorIndex(this.world);
+    }
   }
 
   async load(canvas) {
@@ -32,9 +37,9 @@ export class Engine3D {
       // Schema v3: física de sectores poligonales.
       const { dirX = 0, dirY = 0, speed = 0 } = input || {};
       if (dirX !== 0 || dirY !== 0) {
-        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, dt);
+        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, dt, undefined, this.sectorIndex);
       }
-      updateVerticalSector(this.player, this.world, dt);
+      updateVerticalSector(this.player, this.world, dt, this.sectorIndex);
       return;
     }
     // Schema v2: grid de tiles (legacy).
