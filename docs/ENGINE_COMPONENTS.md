@@ -60,7 +60,7 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 |--------|-------------|
 | `constructor(project)` | Lee `project.camera` y `project.world`; crea el `Player`. En schema v3 construye y cachea el índice sectorial (`vertexMap`, `wallsBySector`, `solidWalls`). |
 | `async load(canvas)` | Carga texturas, crea `Renderer3D` y construye el `WorldMesh`. |
-| `update(input, dt)` | Orquesta la física. Capa `dt` a 50 ms para evitar inestabilidad. En schema v3 llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice cacheado. En schema v2 llama a `updateVertical`. |
+| `update(input, dt)` | Orquesta la física de sectores poligonales. Capa `dt` a 50 ms para evitar inestabilidad. Llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice sectorial cacheado. |
 | `render()` | Sincroniza la cámara del renderer con el jugador y renderiza. |
 | `resize(width, height)` | Actualiza el tamaño del renderer y la relación de aspecto de la cámara. |
 | `dispose()` | Limpia el `WorldMesh`, libera texturas y destruye el renderer. |
@@ -83,26 +83,13 @@ Getters:
 Métodos:
 - `rotateYaw(delta)`, `rotatePitch(delta)` (con clamp del pitch).
 
-### 3.4 `core/collision.js` — Colisión legacy (schema v2)
+### 3.4 `core/physics.js` — Física
 
-- `checkCollision(map, x, y)`: consulta si una celda del grid es sólida.
-- `getSectorAt(sectorMap, x, y)`: devuelve el id de sector de una celda.
-
-Usado por la física v2 tile-based. El schema v3 usa `core/sector.js` + `core/physics.js`.
-
-### 3.5 `core/physics.js` — Física
-
-Contiene dos sistemas de física:
-
-#### Schema v2 (tile grid)
-- `moveWithCollision(player, map, dirX, dirY, speed, dt, radius=0.2)`: movimiento con sub-steps y colisión contra celdas sólidas.
-- `updateVertical(player, sectorMap, sectors, dt)`: ajusta `posZ` según `floorH` del sector actual (gravedad + subida por `stepHeight`).
-
-#### Schema v3 (sectores poligonales)
+Schema v3 (sectores poligonales):
 - `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10) como vector único (X e Y simultáneos), colisión círculo-segmento contra paredes sólidas y **caras frontales de escaleras demasiado altas**. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
 - `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`, sube escaleras automáticamente (`climbSpeed = 5.0`), aplica gravedad y **colisiona con el techo** usando `getCeilHeightAt` y `player.height`. Acepta `sectorIndex` cacheado.
 
-### 3.6 `core/sector.js` — Geometría sectorial
+### 3.5 `core/sector.js` — Geometría sectorial
 
 Funciones principales:
 - `buildSectorIndex(world)`: construye `vertexMap`, `wallsBySector` y `solidWalls`.
@@ -114,18 +101,18 @@ Funciones principales:
 - `getSolidWalls(world, sectorId)`: segmentos sólidos de un sector.
 - `closestPointOnSegment(px, py, a, b)` / `distancePointToSegment(px, py, a, b)`: utilidades de proyección sobre segmentos.
 
-### 3.7 `core/stairs.js` — Escaleras
+### 3.6 `core/stairs.js` — Escaleras
 
 - `getStairHeightAt(world, x, y)`: devuelve la altura del peldaño bajo el punto `(x,y)` o `null`.
 - `getStairSegments(ramp)`: genera los segmentos de las caras frontales de cada peldaño (usado previamente para colisión horizontal, ahora deprecado en favor de ajuste vertical).
 
-### 3.8 `core/noise.js` — Ruido procedural
+### 3.7 `core/noise.js` — Ruido procedural
 
 - `createNoise(seed=0)`: instancia de Simplex noise 2D reproducible.
   - `simplex2(x, y)`: valor en `[-1, 1]`.
 - `fbm2(noise, x, y, opts)`: Fractal Brownian Motion con `octaves`, `lacunarity`, `gain`, `frequency`, `amplitude`.
 
-### 3.9 `core/terrain.js` — Generador de terreno
+### 3.8 `core/terrain.js` — Generador de terreno
 
 - `generateTerrain(options)`: produce `vertices`, `sectors` y `walls` compatibles con schema v3.
   - Parámetros: `cols`, `rows`, `cellSize`, `seed`, `noiseScale`, `heightScale`, `octaves`, `textures`, `slopeThresholds`, `ceilH`, `ceilTex`, `wallTex`.
@@ -134,7 +121,7 @@ Funciones principales:
   - Genera paredes de borde sólidas y paredes internas como portales.
 - `sectorSlopeAngle(heights, cellSize)`: ángulo máximo de pendiente de un sector cuadrilátero.
 
-### 3.10 `three/Renderer3D.js` — Renderizador
+### 3.9 `three/Renderer3D.js` — Renderizador
 
 Encapsula la escena Three.js:
 - `PerspectiveCamera` (75° FOV, near 0.05, far 200).
@@ -143,18 +130,17 @@ Encapsula la escena Three.js:
 - `syncCamera(player)`: convierte la posición del motor (`X,Y` plano, `Z` altura) al espacio de Three.js (`X,Y,Z` con Y arriba).
 - `render()`: dibuja la escena.
 
-### 3.11 `three/WorldMesh.js` — Constructor del mundo
+### 3.10 `three/WorldMesh.js` — Constructor del mundo
 
-- `WorldMesh.build(scene, project, textures)`: decide si el mundo es schema v3 (tiene `vertices` y `sectors`) o schema v2 (`map`/`sectorMap`) y delega.
+- `WorldMesh.build(scene, project, textures)`: construye el mundo schema v3 (`vertices` + `sectors`) o no hace nada si faltan.
 - `WorldMesh.buildSectorWorld(scene, world, textures)`: para cada sector crea suelo, techo y paredes sólidas, **mergea geometrías por textura/material** para reducir draw calls, y luego añade escaleras y sprites.
-- `WorldMesh.buildGridWorld(...)`: legacy, grid de cajas y planos (schema v2).
 - `WorldMesh.clear(scene)`: limpia meshes y sprites anteriores, liberando geometrías y materiales.
 
-### 3.12 `three/GeometryMerge.js` — Merge de geometrías
+### 3.11 `three/GeometryMerge.js` — Merge de geometrías
 
 - `mergeGeometries(geometries)`: combina un array de `BufferGeometry` indexadas en una sola, asumiendo atributos `position` y `uv` compatibles. Usado por `WorldMesh` para reducir draw calls.
 
-### 3.13 `three/SectorGeometry.js` — Geometría poligonal
+### 3.12 `three/SectorGeometry.js` — Geometría poligonal
 
 - `createSectorFloorGeometry(world, sector, vertexMap)`: `BufferGeometry` del suelo por fan triangulation, soporta alturas por vértice y slopes. Acepta `vertexMap` cacheado.
 - `createSectorCeilingGeometry(world, sector, vertexMap)`: igual que el suelo pero con índices invertidos para que la normal apunte hacia abajo. Acepta `vertexMap` cacheado.
@@ -241,14 +227,14 @@ Características soportadas:
 1. **Separación de capas clara**: motor puro vs. demo vs. futuro Studio. El contrato por `project.json` es sólido.
 2. **Sector system funcional**: point-in-polygon, portales, alturas por vértice, slopes y física continua círculo-segmento están implementados y testeados.
 3. **Generación procedural**: `noise.js` + `terrain.js` permiten generar mundos exteriores automáticamente.
-4. **Tests**: 53 tests pasan cubriendo física, geometría, sectores, escaleras, ruido y terreno.
+4. **Tests**: 78 tests pasan cubriendo física, geometría, sectores, escaleras, ruido y terreno.
 5. **Render simple y funcional**: Three.js evita reinventar WebGL; el estilo pixelado se conserva con `NearestFilter`.
 
 ### Deuda técnica / limitaciones actuales
 1. **`Engine3D.update()` no integra física v3**: la demo llama manualmente a `moveWithSectorCollision` y `updateVerticalSector`. El orquestador debería hacerlo. ✅ Resuelto en C1.
 2. **Solo sectores convexos**: los sectores cóncavos requieren triangulación más robusta (ear-clipping).
 3. **Colisión vertical básica**: no hay colisión con techos; el jugador no puede chocar con un techo bajo. ✅ Resuelto en C6.
-4. **Falta migrador v2 → v3**: el schema v2 (grid) sigue vivo en `WorldMesh.buildGridWorld`; debería poder convertirse automáticamente a sectores.
+4. **Código legacy v2 eliminado**: el runtime de schema v2 (`collision.js`, física tile-based y `WorldMesh.buildGridWorld`) ya no existe. Un migrador v2 → v3 es opción futura si aparecen proyectos antiguos.
 5. **Sprites sin culling ni sorting**: se dibujan todos, sin orden por profundidad.
 6. **Audio, AI, quests, inventory, etc.**: aún no existen; son fases futuras (F3+).
 7. **`computeVertexNormals()` en superficies planas** (H4): resuelto. Suelos, techos y paredes planas usan normales analíticas; solo el terreno no plano (`floorH`/`ceilH` como array) conserva `computeVertexNormals`.
@@ -256,8 +242,7 @@ Características soportadas:
 ### Veredicto
 La base es **sólida para continuar hacia F3+** (sistemas RPG, audio, visual scripting) porque el núcleo de mundo 3D sectorial ya funciona. Lo prioritario antes de añadir grandes sistemas es:
 1. Soportar sectores cóncavos.
-2. Eliminar o migrar el código legacy v2.
-3. Añadir sorting por profundidad en sprites.
+2. Añadir sorting por profundidad en sprites.
 
 ---
 
@@ -292,16 +277,17 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **84 tests pasan, 0 fallan**.
+Resultado actual: **78 tests pasan, 0 fallan**.
 
 Cobertura:
-- Física v2 y v3 (`physics.test.js`, `physics-sector.test.js`).
+- Física v3 (`physics-sector.test.js`, `physics-vertical.test.js`).
 - Geometría sectorial (`sector-geometry.test.js`).
 - Matemáticas de sectores (`sector.test.js`).
 - Escaleras (`stairs.test.js`).
 - Sprites (`sprites.test.js`).
 - Ruido y terreno (`noise.test.js`, `terrain.test.js`).
-- Instanciación del motor (`engine.test.js`).
+- Instanciación del motor (`engine3d.test.js`).
+- Jugador (`player.test.js`).
 
 ---
 

@@ -15,11 +15,8 @@ export class WorldMesh {
     WorldMesh.clear(scene);
 
     const world = project.world;
-    if (world.vertices && world.sectors) {
-      WorldMesh.buildSectorWorld(scene, world, textures);
-    } else {
-      WorldMesh.buildGridWorld(scene, world, textures);
-    }
+    if (!world.vertices || !world.sectors) return;
+    WorldMesh.buildSectorWorld(scene, world, textures);
   }
 
   static clear(scene) {
@@ -36,8 +33,6 @@ export class WorldMesh {
       }
     }
   }
-
-  // ---------- Schema v3: sectores poligonales ----------
 
   static buildSectorWorld(scene, world, textures) {
     const { wallsBySector, vertexMap } = buildSectorIndex(world);
@@ -84,53 +79,5 @@ export class WorldMesh {
 
     buildStairsMeshes(scene, world, textures);
     buildSprites(scene, world, textures);
-  }
-
-  // ---------- Schema v2: grid de tiles (legacy) ----------
-
-  static buildGridWorld(scene, world, textures) {
-    const { map, sectorMap, sectors } = world;
-
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[y].length; x++) {
-        const tile = map[y][x];
-        const sectorId = sectorMap[y][x];
-        const sector = sectors[sectorId] || { floorH: 0, ceilH: 1 };
-
-        if (tile > 0) {
-          WorldMesh.buildWall(scene, x, y, tile, sector, textures);
-        } else {
-          WorldMesh.buildFloor(scene, x, y, sector, textures);
-          WorldMesh.buildCeiling(scene, x, y, sector, textures);
-        }
-      }
-    }
-  }
-
-  static buildWall(scene, x, y, tile, sector, textures) {
-    const h = sector.ceilH - sector.floorH;
-    const geo = new THREE.BoxGeometry(1, h, 1);
-    const mat = makeMaterial(textures, tile, 0xffffff);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x + 0.5, sector.floorH + h / 2, y + 0.5);
-    scene.add(mesh);
-  }
-
-  static buildFloor(scene, x, y, sector, textures) {
-    const mat = makeMaterial(textures, 4, 0x555555, THREE.DoubleSide);
-    const geo = new THREE.PlaneGeometry(1, 1);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(x + 0.5, sector.floorH, y + 0.5);
-    scene.add(mesh);
-  }
-
-  static buildCeiling(scene, x, y, sector, textures) {
-    const mat = makeMaterial(textures, 6, 0x888888, THREE.DoubleSide);
-    const geo = new THREE.PlaneGeometry(1, 1);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.rotation.x = Math.PI / 2;
-    mesh.position.set(x + 0.5, sector.ceilH, y + 0.5);
-    scene.add(mesh);
   }
 }

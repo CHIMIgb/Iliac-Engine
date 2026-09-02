@@ -1,9 +1,5 @@
 import { Player } from './core/player.js';
-import {
-  updateVertical,
-  moveWithSectorCollision,
-  updateVerticalSector,
-} from './core/physics.js';
+import { moveWithSectorCollision, updateVerticalSector } from './core/physics.js';
 import { buildSectorIndex } from './core/sector.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
@@ -53,17 +49,12 @@ export class Engine3D {
 
   update(input, dt) {
     const safeDt = Math.min(dt, MAX_DT);
-    if (this.world.vertices && this.world.sectors) {
-      // Schema v3: física de sectores poligonales.
-      const { dirX = 0, dirY = 0, speed = 0 } = input || {};
-      if (dirX !== 0 || dirY !== 0) {
-        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
-      }
-      updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
-      return;
+    if (!this.world.vertices || !this.world.sectors) return;
+    const { dirX = 0, dirY = 0, speed = 0 } = input || {};
+    if (dirX !== 0 || dirY !== 0) {
+      moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
     }
-    // Schema v2: grid de tiles (legacy).
-    updateVertical(this.player, this.world.sectorMap, this.world.sectors, safeDt);
+    updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
   }
 
   render() {
@@ -72,5 +63,3 @@ export class Engine3D {
     this.renderer.render();
   }
 }
-
-
