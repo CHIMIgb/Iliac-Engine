@@ -42,7 +42,7 @@ export function updateVertical(player, sectorMap, sectors, dt) {
 // ---------- Física de sectores poligonales (schema v3) ----------
 
 import { buildSectorIndex, getSectorAtOrNearest, closestPointOnSegment, getFloorHeightAt, getCeilHeightAt } from './sector.js';
-import { getStairHeightAt } from './stairs.js';
+import { getStairHeightAt, getStairSegments } from './stairs.js';
 
 function resolveSegmentCollision(player, a, b, radius) {
   const closest = closestPointOnSegment(player.posX, player.posY, a, b);
@@ -56,6 +56,26 @@ function resolveSegmentCollision(player, a, b, radius) {
     return false;
   }
   return true;
+}
+
+function resolveStairCollisions(player, world, radius) {
+  for (const ramp of world.ramps || []) {
+    if (ramp.type !== 'stairs') continue;
+    const rise = ramp.rise ?? 1;
+    const run = ramp.run ?? 2;
+    const steps = ramp.steps ?? Math.max(1, Math.floor(run * 2));
+    const stepRise = rise / steps;
+    const feetZ = player.posZ - player.eyeHeight;
+
+    // Solo bloqueamos peldaños que queden por encima de lo que el jugador
+    // puede subir de un paso (stepHeight). Los demás se dejan para el ajuste
+    // vertical, que eleva al jugador peldaño a peldaño.
+    for (const { a, b, stepIndex } of getStairSegments(ramp)) {
+      const stepH = stepIndex * stepRise;
+      if (stepH <= feetZ + player.stepHeight) continue;
+      resolveSegmentCollision(player, a, b, radius);
+    }
+  }
 }
 
 function resolveSectorCollisions(player, world, radius, sectorIndex) {
@@ -72,6 +92,9 @@ function resolveSectorCollisions(player, world, radius, sectorIndex) {
       const b = vertexMap.get(wall.b);
       if (a && b && !resolveSegmentCollision(player, a, b, radius)) resolved = false;
     }
+
+    // Colisión contra caras frontales de escaleras demasiado altas.
+    resolveStairCollisions(player, world, radius);
 
     if (resolved) break;
   }
