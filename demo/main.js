@@ -11,10 +11,20 @@ await engine.load(canvas);
 const keys = {};
 let pointerLocked = false;
 
-addEventListener('keydown', (e) => (keys[e.key] = true));
-addEventListener('keyup', (e) => (keys[e.key] = false));
+const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
-canvas.addEventListener('click', () => canvas.requestPointerLock());
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  // Pointer lock se activa automáticamente al pulsar una tecla de movimiento,
+  // sin necesidad de hacer clic en el canvas.
+  if (!pointerLocked && MOVE_KEYS.includes(e.code)) {
+    canvas.requestPointerLock();
+  }
+});
+addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
+
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = document.pointerLockElement === canvas;
 });
