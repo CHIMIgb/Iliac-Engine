@@ -869,3 +869,107 @@ La demo `demo/index.html` debe permitir que el jugador:
 *(La antigua numeración F0–F12 queda sustituida por esta. La tabla y el catálogo de herramientas de §6 mantienen vigencia como visión, con las herramientas construidas sobre el motor JS vanilla.)*
 
 Ver también: desglose conceptual original en las secciones → §1 Visión, §2 Decisiones, §5 Modelo de datos, §6 Catálogo de herramientas, §8 (histórico), §11 Principios de calidad.
+
+---
+
+## 16. Deuda técnica prioritaria del motor (bloqueante para avanzar)
+
+> **🚫 Bloqueo de avance:** no se inicia ninguna fase posterior a **F2.5** (Studio TS/Vite, Level Editor, Blueprints, sistemas RPG, Publisher) hasta que los items críticos y altos de esta sección estén resueltos, testeados y validados. El motor actual funciona, pero su deuda técnica operativa (integración, eficiencia, API pública, tests y limpieza de legacy) haría progresivamente más caro y frágil construir el Studio encima.
+>
+> La arquitectura de capas y el sector system son sólidos; la deuda es de **ejecución y acabado**, no de diseño. Saldarla convierte al motor en una base estable para F3+.
+
+### 16.1 Items críticos (deben resolverse antes de cualquier avance)
+
+| # | Problema | Archivo(s) principal(es) | Solución esperada |
+|---|----------|--------------------------|-------------------|
+| C1 | `Engine3D.update()` no ejecuta la física de sectores; la demo la llama a mano. | `engine/Engine3D.js`, `demo/main.js` | `Engine3D.update(input, dt)` debe orquestar `moveWithSectorCollision` + `updateVerticalSector`. |
+| C2 | El índice sectorial se reconstruye en cada substep/frame. | `engine/core/physics.js` | Cachear `{ vertexMap, walls }` en `Engine3D.load()` y pasarlo a la física. |
+| C3 | Un draw call por superficie (suelo/techo/pared). | `engine/three/WorldMesh.js` | Mergear geometrías por textura/material. |
+| C4 | Sin tope de `dt` en el motor. | `engine/Engine3D.js`, `engine/core/physics.js` | Cap `dt` y clamp de substeps para evitar congelamiento. |
+| C5 | Movimiento separado por ejes (X, luego Y). | `engine/core/physics.js` | Mover como vector único por substep. |
+| C6 | Sin colisión con techos. | `engine/core/physics.js`, `engine/core/player.js` | Añadir altura de jugador y clamp contra `getCeilHeightAt`. |
+
+### 16.2 Items de alta prioridad (resolver junto con los críticos)
+
+| # | Problema | Archivo(s) principal(es) | Solución esperada |
+|---|----------|--------------------------|-------------------|
+| H1 | `WorldMesh.clear()` no elimina sprites. | `engine/three/WorldMesh.js` | Incluir `isSprite` o agrupar mundo en un `Group` dedicado. |
+| H2 | Escaleras sin colisión horizontal. | `engine/core/physics.js`, `engine/core/stairs.js` | Reutilizar `resolveSegmentCollision` con `getStairSegments`. |
+| H3 | Geometría de paredes reconstruye mapa de vértices y hace `indexOf`. | `engine/three/SectorGeometry.js` | Pasar vertex map e índices pre-computados. |
+| H4 | `computeVertexNormals()` innecesario en superficies planas. | `engine/three/SectorGeometry.js` | Normales analíticas; eliminar cálculo del path caliente. |
+| H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. |
+| H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. |
+| H7 | Faltan tests de física vertical v3. | `test/engine/` | Tests de `updateVerticalSector`, techo, `Engine3D.update`. |
+| H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. |
+| H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. |
+
+### 16.3 Items de prioridad media (pueden entrar tras los críticos/altos)
+
+- UVs configurables (`textureRepeat`/`uvScale`) en schema v3.
+- Índice espacial para `getSectorAt` (grid o BVH de bounding boxes).
+- `getSectorAtOrNearest` más robusto (no devolver sector no adyacente).
+- Gravedad basada en velocidad (`velocityZ`) en lugar de velocidad de caída constante.
+- Validador ligero de `project.json` al cargar.
+- Renombrar `raycaster.test.js` (no testea raycasting).
+- Manejo de `webglcontextlost`.
+
+### 16.4 Plan de ejecución propuesto
+
+Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo jugable y commit.
+
+#### Fase A — Física integrada y robusta
+1. Integrar `moveWithSectorCollision` + `updateVerticalSector` en `Engine3D.update(input, dt)`.
+2. Cap `dt` y clamp de substeps.
+3. Movimiento como vector único por substep.
+4. Colisión con techos.
+5. Cachear índice sectorial.
+
+**Tests nuevos:** `test/engine/physics-vertical.test.js`, `test/engine/engine3d.test.js`.
+
+#### Fase B — Render eficiente y lifecycle
+1. Mergear geometrías por textura/material.
+2. Normales analíticas.
+3. Cachear vertex map en builders.
+4. Limpiar sprites y luces en `WorldMesh.clear()`.
+5. `Renderer3D.resize()` y `Engine3D.dispose()`.
+
+**Tests nuevos:** limpieza de escena, conteo de meshes/draw calls.
+
+#### Fase C — API pública limpia y schema v3 primero
+1. Reducir exports de `engine/index.js`.
+2. Validador de `project.json`.
+3. Marcar/mover código v2 a `engine/legacy/`.
+4. Renombrar `raycaster.test.js`.
+
+#### Fase D — Física y geometría avanzada
+1. Triangulación robusta para sectores cóncavos (ear-clipping).
+2. Colisión horizontal contra escaleras.
+3. Índice espacial de sectores.
+4. UVs configurables.
+5. Gravedad por velocidad.
+
+#### Fase E — Polish y producción
+1. Leer settings de `project.json` en `Renderer3D`.
+2. Carga de texturas con `Promise.all`.
+3. Cache de texturas de color.
+4. Manejo de `webglcontextlost`.
+5. Actualizar `docs/ENGINE_COMPONENTS.md`.
+
+### 16.5 Decisiones pendientes que desbloquean el plan
+
+1. **¿Deprecar schema v2 (grid) ahora?** Recomendación: **sí**. Reduce la superficie a mantener y enfoca el motor en sectores poligonales. Si se necesita compatibilidad, se implementa un migrador v2→v3, no se mantienen dos físicas.
+2. **¿Mergear geometrías manualmente o con `BufferGeometryUtils`?** Si se quiere evitar dependencia de `three/addons/`, se implementa merge manual. De lo contrario, `BufferGeometryUtils.mergeGeometries` es la opción más corta.
+3. **¿Input por parámetro o estado interno en `Engine3D`?** Recomendación: **por parámetro** (`Engine3D.update({ dirX, dirY, speed }, dt)`), manteniendo el motor desacoplado del DOM.
+
+### 16.6 Criterio de salida (para desbloquear F3)
+
+Se considera saldada la deuda cuando:
+
+- [ ] `Engine3D.update()` orquesta física de sectores sin que la demo toque funciones internas.
+- [ ] Todos los tests actuales siguen pasando y se añaden tests de física vertical y `Engine3D.update`.
+- [ ] El número de draw calls se reduce drásticamente (merge por material).
+- [ ] No hay fugas de memoria GPU al recargar mundos (`dispose` + `clear` robusto).
+- [ ] Schema v2 está marcado como legacy o eliminado; la API pública es mínima.
+- [ ] La demo sigue jugable: portales, rampas, escaleras, sprites y paredes sólidas.
+
+**Hasta que estos checks no estén todos marcados, NO se avanza a F3 (Studio TS/Vite).**
