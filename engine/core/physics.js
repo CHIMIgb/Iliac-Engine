@@ -77,9 +77,12 @@ function resolveSectorCollisions(player, world, radius, sectorIndex) {
   }
 }
 
+const MAX_SUBSTEPS = 10; // Límite de seguridad para evitar congelamiento en frames largos.
+
 export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius = 0.25, sectorIndex) {
-  const distance = speed * dt;
   const maxSubStep = radius * 0.5;
+  const maxDistance = maxSubStep * MAX_SUBSTEPS;
+  const distance = Math.min(speed * dt, maxDistance);
   const steps = Math.max(1, Math.ceil(distance / maxSubStep));
   const len = Math.hypot(dirX, dirY) || 1;
   const subX = (dirX / len) * (distance / steps);

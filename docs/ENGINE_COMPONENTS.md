@@ -75,7 +75,7 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 |--------|-------------|
 | `constructor(project)` | Lee `project.camera` y `project.world`; crea el `Player`. En schema v3 construye y cachea el índice sectorial (`vertexMap`, `wallsBySector`, `solidWalls`). |
 | `async load(canvas)` | Carga texturas, crea `Renderer3D` y construye el `WorldMesh`. |
-| `update(input, dt)` | Orquesta la física. En schema v3 llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice cacheado. En schema v2 llama a `updateVertical`. |
+| `update(input, dt)` | Orquesta la física. Capa `dt` a 50 ms para evitar inestabilidad. En schema v3 llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice cacheado. En schema v2 llama a `updateVertical`. |
 | `render()` | Sincroniza la cámara del renderer con el jugador y renderiza. |
 
 Exporta también `Player`, `moveWithCollision`, `updateVertical` por compatibilidad con consumidores legacy.
@@ -114,7 +114,7 @@ Contiene dos sistemas de física:
 - `updateVertical(player, sectorMap, sectors, dt)`: ajusta `posZ` según `floorH` del sector actual (gravedad + subida por `stepHeight`).
 
 #### Schema v3 (sectores poligonales)
-- `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps, colisión círculo-segmento contra todas las paredes sólidas del mundo y vector de deslizamiento. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
+- `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10), colisión círculo-segmento contra todas las paredes sólidas del mundo y vector de deslizamiento. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
 - `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`. Sube escaleras automáticamente (`climbSpeed = 5.0`) y aplica gravedad. Acepta `sectorIndex` cacheado.
 
 ### 3.6 `core/sector.js` — Geometría sectorial

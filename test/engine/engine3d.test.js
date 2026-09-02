@@ -63,3 +63,20 @@ test('Engine3D.update no falla sin input en schema v3', () => {
     engine.update(undefined, 0.016);
   });
 });
+
+test('Engine3D.update capa dt grande para evitar congelamiento', () => {
+  const engine = new Engine3D(projectV3);
+  const startX = engine.player.posX;
+  // dt enorme (1 s) con velocidad alta; debería caparse internamente.
+  engine.update({ dirX: 1, dirY: 0, speed: 100.0 }, 1.0);
+  // Con cap de dt y max substeps, no debería moverse más de unos metros.
+  assert.ok(engine.player.posX - startX < 5, 'el movimiento se capa ante dt enorme');
+});
+
+test('Engine3D.update no atraviesa paredes con dt enorme', () => {
+  const engine = new Engine3D(projectV3);
+  engine.player.posX = 9.8;
+  engine.player.posY = 2;
+  engine.update({ dirX: 1, dirY: 0, speed: 1000.0 }, 10.0);
+  assert.ok(engine.player.posX <= 10, 'no atraviesa la pared derecha incluso con dt enorme');
+});

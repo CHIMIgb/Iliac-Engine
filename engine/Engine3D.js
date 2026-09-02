@@ -10,6 +10,8 @@ import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
 
+const MAX_DT = 0.05; // 50 ms; evita que un frame largo desestabilice la física.
+
 export class Engine3D {
   constructor(project) {
     this.project = project;
@@ -33,17 +35,18 @@ export class Engine3D {
   }
 
   update(input, dt) {
+    const safeDt = Math.min(dt, MAX_DT);
     if (this.world.vertices && this.world.sectors) {
       // Schema v3: física de sectores poligonales.
       const { dirX = 0, dirY = 0, speed = 0 } = input || {};
       if (dirX !== 0 || dirY !== 0) {
-        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, dt, undefined, this.sectorIndex);
+        moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
       }
-      updateVerticalSector(this.player, this.world, dt, this.sectorIndex);
+      updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
       return;
     }
     // Schema v2: grid de tiles (legacy).
-    updateVertical(this.player, this.world.sectorMap, this.world.sectors, dt);
+    updateVertical(this.player, this.world.sectorMap, this.world.sectors, safeDt);
   }
 
   render() {
