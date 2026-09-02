@@ -24,7 +24,6 @@ document.addEventListener('mousemove', (e) => {
   engine.player.rotatePitch(-e.movementY * 0.002);
 });
 
-const rotSpeed = 2.5;
 const moveSpeed = 3.0;
 let last = performance.now();
 
@@ -49,8 +48,8 @@ function frame(now) {
   const rightX = Math.cos(p.yaw + Math.PI / 2);
   const rightY = Math.sin(p.yaw + Math.PI / 2);
 
-  if (keys['ArrowLeft']) p.rotateYaw(-rotSpeed * dt);
-  if (keys['ArrowRight']) p.rotateYaw(rotSpeed * dt);
+  // Rotación: solo con ratón (pointer lock).
+  // Movimiento: flechas o WASD.
   if (keys['ArrowUp'] || keys['KeyW']) {
     p.posX += fwdX * moveSpeed * dt;
     p.posY += fwdY * moveSpeed * dt;
@@ -59,11 +58,11 @@ function frame(now) {
     p.posX -= fwdX * moveSpeed * dt;
     p.posY -= fwdY * moveSpeed * dt;
   }
-  if (keys['KeyA']) {
+  if (keys['ArrowLeft'] || keys['KeyA']) {
     p.posX += rightX * moveSpeed * dt;
     p.posY += rightY * moveSpeed * dt;
   }
-  if (keys['KeyD']) {
+  if (keys['ArrowRight'] || keys['KeyD']) {
     p.posX -= rightX * moveSpeed * dt;
     p.posY -= rightY * moveSpeed * dt;
   }
