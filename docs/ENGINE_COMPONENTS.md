@@ -292,7 +292,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **76 tests pasan, 0 fallan**.
+Resultado actual: **84 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v2 y v3 (`physics.test.js`, `physics-sector.test.js`).
