@@ -32,20 +32,22 @@ test('pointInSector localiza punto dentro de sector s0', () => {
 
 test('getSectorAt encuentra el sector correcto', () => {
   assert.equal(getSectorAt(project.world, 1, 1)?.id, 's0');
-  assert.equal(getSectorAt(project.world, 6.5, 1)?.id, 's1');
-  assert.equal(getSectorAt(project.world, 12, 1)?.id, 's5');
-  assert.equal(getSectorAt(project.world, 17.5, 1)?.id, 's7');
-  assert.equal(getSectorAt(project.world, 22, 1)?.id, 's10');
+  assert.equal(getSectorAt(project.world, 7, 1)?.id, 's1');
+  assert.equal(getSectorAt(project.world, 12, 1)?.id, 's2');
+  assert.equal(getSectorAt(project.world, 18, 1)?.id, 's3');
+  assert.equal(getSectorAt(project.world, 22, 1)?.id, 's4');
   assert.equal(getSectorAt(project.world, -1, -1), null);
 });
 
-test('getFloorHeightAt interpola alturas por vértice en sector s1', () => {
+test('getFloorHeightAt respeta slope de sector s1', () => {
   const s1 = project.world.sectors[1];
-  const h = getFloorHeightAt(project.world, s1, 6.5, 3);
-  assert.ok(h > 0.1 && h < 0.5, 'altura intermedia dentro del rango de vértices');
+  const h0 = getFloorHeightAt(project.world, s1, 6, 2);
+  const h1 = getFloorHeightAt(project.world, s1, 10, 2);
+  assert.ok(h1 > h0, 'la rampa sube hacia +x');
+  assert.ok(Math.abs(h1 - h0 - 2.31) < 0.01, 'subida total ~2.31 (30° sobre 4u)');
 });
 
-test('getFloorHeightAt devuelve floorH plano sin slope ni alturas por vértice', () => {
+test('getFloorHeightAt devuelve floorH plano sin slope', () => {
   const s0 = project.world.sectors[0];
   assert.equal(getFloorHeightAt(project.world, s0, 2, 2), 0.0);
 });
