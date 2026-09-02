@@ -561,6 +561,7 @@ raycastjs/
 |---|---|
 | F1 Motor de raycast base en **JS vanilla** (de Lode) | ✅ Validada |
 | F2 Verticalidad / 3D (sector system) sobre el motor F1 | ✅ Migración completada |
+| **F2.5 Motor de sectores poligonales: rampas/escaleras reales + sprites billboard + física de rampa** | **⏳ Pendiente** |
 | F3 Studio TypeScript/Vite: Asset Manager + Sprite tools + Fonts + Loading | ⏳ Pendiente |
 | F4 Studio: Level Editor + viewport + playtest | ⏳ Pendiente |
 | F5 Blueprints + IA + bloques predefinidos | ⏳ Pendiente |
@@ -676,6 +677,180 @@ engine/
 
 ---
 
+### F2.5 — Motor de sectores poligonales (estilo Build/XnGine)
+
+> **Objetivo:** evolucionar el motor 3D actual (grid de tiles con alturas) hacia un sistema de **sectores poligonales 2D extruidos en 3D**, con paredes como segmentos de línea, pisos/techos inclinados, rampas/escaleras poligonales reales, sprites billboard y física continua contra la geometría. Estos cambios mejorarán la base del motor y sentarán las bases reales para el estilo Daggerfall/XnGine.
+>
+> **Alcance explícito:** generación procedural y streaming quedan fuera de esta fase (se abordarán más adelante).
+
+#### 1. Nuevo modelo de datos: `project.json` schema v3
+
+Reemplazar el grid `map`/`sectorMap` por un modelo de sectores y paredes:
+
+```jsonc
+{
+  "meta": { "name", "schemaVersion": 3, "renderMode": "3d" },
+  "camera": { "posX", "posY", "posZ", "yaw", "pitch" },
+  "world": {
+    "vertices": [ { "id", "x", "y" } ],
+    "sectors": [
+      {
+        "id",
+        "vertexIds": [ ... ],
+        "floorH": 0.0,
+        "ceilH": 3.0,
+        "floorSlope": { "axis": "x"|"y", "angle": 0 }, // opcional
+        "ceilSlope": { "axis", "angle" },
+        "floorTex": "id",
+        "ceilTex": "id",
+        "wallTex": "id"
+      }
+    ],
+    "walls": [
+      {
+        "id",
+        "a": "vertexId",
+        "b": "vertexId",
+        "sectorFront": "sectorId",
+        "sectorBack": "sectorId"|null,  // null = sólido
+        "tex": "id",
+        "portal": false
+      }
+    ],
+    "ramps": [
+      {
+        "id",
+        "sectorId": "...",
+        "type": "slope"|"stairs",
+        "direction": { "x", "y" },
+        "rise": 1.0,
+        "run": 2.0,
+        "tex": "id"
+      }
+    ],
+    "sprites": [
+      {
+        "id",
+        "tex": "id",
+        "pos": { "x", "y", "z" },
+        "scale": 1.0,
+        "billboard": true
+      }
+    ],
+    "textures": { ... }
+  }
+}
+```
+
+Tareas concretas:
+- Definir schema v3 en la documentación del motor.
+- Crear migrador automático v2 → v3 que convierta el grid actual en sectores cuadrados con paredes.
+- Validar que cada pared referencie vértices y sectores existentes.
+
+#### 2. Geometría poligonal (`engine/three/WorldMesh.js`)
+
+Rehacer `WorldMesh` para construir mallas a partir de sectores y paredes:
+
+- Triangulación de sectores mediante **fan triangulation** (solo sectores convexos).
+- Generación de quads verticales para cada pared, desde `sector.floorH` hasta `sector.ceilH`.
+- Si una pared tiene `sectorBack`, actúa como portal: no se genera quad sólido.
+- Soportar pisos y techos inclinados aplicando `floorSlope`/`ceilSlope` a los vértices del polígono.
+- Un `BufferGeometry` por sector (suelo/techo) y uno por pared.
+- Materiales por superficie según `project.json`.
+
+Tareas concretas:
+- Crear `engine/three/SectorGeometry.js`.
+- Implementar triangulación fan para sectores convexos.
+- Implementar extrusión de paredes con portales.
+- Tests unitarios de triangulación y extrusión.
+
+#### 3. Rampas y escaleras poligonales reales
+
+Dos estrategias, igual que Daggerfall:
+
+- **Rampas como sector con slope:** superficie inclinada lisa generada por `floorSlope`. Opcionalmente se le aplica una textura que dibuje peldaños 2D ("textura engañosa") para ahorrar polígonos.
+- **Escaleras como entidad poligonal:** campo `ramps[]` con `type: "stairs"`. `WorldMesh` genera una trama de peldaños, cada uno con cara vertical y horizontal, combinados en una sola malla.
+
+Tareas concretas:
+- Añadir soporte de `floorSlope`/`ceilSlope` en sectores.
+- Crear `engine/three/StairsMesh.js`.
+- Añadir campo `ramps[]` al schema v3.
+- Demo con una rampa lisa y una escalera de peldaños reales.
+
+#### 4. Física continua contra sectores (`engine/core/physics.js` + `collision.js`)
+
+Reemplazar la física tile-based por física de sectores:
+
+- **Bounding box/cápsula vertical del jugador:** `height`, `radius`, `eyeOffset`. La posición representa la base de la cápsula.
+- **Colisión horizontal:** círculo del jugador contra segmentos de pared sólida del sector actual, con vector de deslizamiento.
+- **Raycast al suelo:** desde la base de la cápsula hacia abajo, calcular altura del suelo en `(posX, posY)`:
+  - Sector plano: `sector.floorH`.
+  - Sector inclinado: interpolar altura sobre el triángulo bajo el jugador.
+  - Escalera: altura del peldaño bajo el jugador.
+- **Subida/bajada:** `stepHeight` para pequeños desniveles; gravedad cuando no hay suelo; al subir una rampa se proyecta el movimiento sobre el plano inclinado; al bajar se sigue la superficie.
+- **Colisión con techo:** bloquear movimiento vertical si la cápsula intersecta el techo.
+- **Cambio de sector:** point-in-polygon para determinar sector actual; cruzar portales cambia al sector trasero.
+
+Tareas concretas:
+- Crear `engine/core/sector.js` (point-in-polygon, altura en punto, etc.).
+- Reescribir `collision.js` para colisión círculo-segmento.
+- Reescribir `physics.js` con deslizamiento, raycast al suelo y gravedad.
+- Tests unitarios por cada mecánica.
+
+#### 5. Sprites billboard (`engine/three/SpriteSystem.js`)
+
+- Cargar texturas de sprites desde `project.json`.
+- Crear `THREE.Sprite` o planos billboard que siempre miren a la cámara.
+- Posicionar en coordenadas 3D reales (`x`, `y`, `z`).
+- Oclusión por z-buffer de WebGL.
+- Escalado y transparencia.
+
+Tareas concretas:
+- Crear `engine/three/SpriteSystem.js`.
+- Cargar sprites en `Engine3D.load()`.
+- Actualizar orientación de billboards en cada frame.
+- Demo con al menos un sprite.
+
+#### 6. Integración con `Engine3D.js` y demo
+
+- `Engine3D` consume el nuevo `project.json` v3.
+- `WorldMesh.build` recibe sectores/paredes en lugar de grid.
+- El loop de juego usa la nueva física.
+- La demo debe incluir: 2–3 sectores poligonales conectados por portales, una rampa lisa, una escalera de peldaños y un sprite billboard.
+
+Tareas concretas:
+- Actualizar `Engine3D.js`.
+- Actualizar `demo/project.js` a schema v3.
+- Asegurar que la demo se abre directo sin build.
+
+#### 7. Tests (`test/engine/`)
+
+Mínimos obligatorios:
+
+- Triangulación fan de sector convexo.
+- Extrusión de paredes desde vértices.
+- Point-in-polygon para determinar sector.
+- Altura en punto de suelo inclinado.
+- Colisión círculo-segmento.
+- Deslizamiento al chocar con pared.
+- Raycast al suelo sobre escalera.
+- Sprite billboard mira a cámara.
+
+#### 8. Criterio de aceptación de F2.5
+
+La demo `demo/index.html` debe permitir que el jugador:
+
+- Camine entre sectores poligonales conectados por portales.
+- Suba una rampa lisa sin atascarse ni atravesar geometría.
+- Suba una escalera de peldaños reales.
+- Vea un sprite billboard siempre de frente.
+- No caiga fuera del mundo ni atraviese paredes.
+- Todos los tests de `test/engine/` pasen.
+
+> **Nota:** generación procedural, streaming y culling por portales/PVS quedan fuera de esta fase. Three.js ya realiza frustum culling por GPU, lo cual es suficiente para el alcance actual.
+
+---
+
 ## 15. Fases del proyecto (reformuladas desde cero)
 
 > El stack grande documentado antes (TypeScript+Vite+Vitest, backend Hono+Prisma+Postgres, Game Library, Design System, Publisher) se **reformula como visión a largo plazo** que nace *después* del motor JS vanilla. El orden real de trabajo ahora es:
@@ -684,7 +859,8 @@ engine/
 |------|-----------|-----------|------------------------|
 | **F1** | **Motor de raycast base JS vanilla** (engine/ + demo/, según §14) | — | La demo `demo/index.html` muestra y recorre un mundo raycast con texturas y sprites, abriéndola directo, sin build; toda la lógica vive en `engine/` aislada |
 | **F2** | **Verticalidad/3D** sobre el motor F1 (incremental: suelos/techos por sector → colisión por altura/pasos → escaleras → aberturas/portales → rampas → iluminación) | F1 | Se sube a una plataforma elevada, se sube/baja una escalera, hay objetos anclados a distinta altura y se ve otro sector por una abertura; el motor sigue aislado, sin dependencias |
-| **F3** | **Studio TS/Vite arranca**: toolchain (Vite+TS+Vitest), Asset Manager, Sprite tools, Font manager, Loading editor | F2 | El Studio (TS) consume el motor JS vanilla; un asset se importa y aparece en la demo/playtest |
+| **F2.5** | **Motor de sectores poligonales** (estilo Build/XnGine): rampas/escaleras reales, sprites billboard, física de rampa | F2 | Se recorren sectores poligonales conectados por portales, se sube una rampa lisa, una escalera de peldaños, se ven sprites billboard; todos los tests del engine pasan |
+| **F3** | **Studio TS/Vite arranca**: toolchain (Vite+TS+Vitest), Asset Manager, Sprite tools, Font manager, Loading editor | F2.5 | El Studio (TS) consume el motor JS vanilla; un asset se importa y aparece en la demo/playtest |
 | **F4** | Studio: **Level Editor** (mapa + sectores + verticalidad) + viewport + playtest en vivo | F3 | Pinto un mapa con rampas/pisos en TS, lo camino en el motor JS vanilla y guardo/cargo `project.json` |
 | **F5** | **Blueprint Editor + runtime** (visual scripting, sin código) + IA + catálogo de bloques | F4 | Un enemigo con blueprints persigue/ataca; bloque predefinido arrastrado a una entidad |
 | **F6–F13** | **Sistemas RPG** (combate, magia, inventario, diálogos, misiones, comercio, progresión) y **Publisher** | F5+ | Véase §8 original reformulado |
