@@ -23,6 +23,10 @@ export class Engine3D {
   }
 
   update(dt) {
+    if (this.world.vertices && this.world.sectors) {
+      // Schema v3: física de sectores aún no implementada (Paso 4).
+      return;
+    }
     updateVertical(this.player, this.world.sectorMap, this.world.sectors, dt);
   }
 
