@@ -5,7 +5,7 @@ import {
   createSectorCeilingGeometry,
   createWallGeometry,
 } from '../../engine/three/SectorGeometry.js';
-import { project } from '../../demo/project-sector.js';
+import { project } from '../../demo/project.js';
 
 test('createSectorFloorGeometry genera geometría con vértices correctos', () => {
   const s0 = project.world.sectors[0];

@@ -4,11 +4,71 @@ import { Player } from '../../engine/core/player.js';
 import { checkCollision } from '../../engine/core/collision.js';
 import { moveWithCollision, updateVertical } from '../../engine/core/physics.js';
 import { Engine3D } from '../../engine/Engine3D.js';
-import { project } from '../../demo/project.js';
+
+// Proyecto de prueba schema v2 (grid de tiles) para validar física legacy.
+const project = {
+  meta: { name: 'Test Grid', schemaVersion: 2, renderMode: '3d' },
+  camera: { posX: 1.5, posY: 1.5, posZ: 0.5, yaw: 0, pitch: 0 },
+  world: {
+    map: [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 6, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 4, 4, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ],
+    sectorMap: [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 6, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 4, 4, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+    sectors: [
+      { floorH: 0.0, ceilH: 1.0 },
+      { floorH: 0.2, ceilH: 1.2 },
+      { floorH: 0.5, ceilH: 1.5 },
+      { floorH: -0.8, ceilH: 0.2 },
+      { floorH: -0.6, ceilH: 0.4 },
+      { floorH: -0.4, ceilH: 0.6 },
+      { floorH: -0.2, ceilH: 0.8 },
+    ],
+    textures: {
+      1: './textures/muro.svg',
+      2: './textures/verde.svg',
+      3: './textures/azul.svg',
+      4: './textures/suelo1.svg',
+      5: './textures/suelo2.svg',
+      6: './textures/techo.svg',
+    },
+  },
+};
 
 const map = project.world.map;
 
-test('Engine3D se instancia con el proyecto', () => {
+test('Engine3D se instancia con el proyecto v2', () => {
   const engine = new Engine3D(project);
   assert.ok(engine instanceof Engine3D);
   assert.equal(engine.player.posX, project.camera.posX);

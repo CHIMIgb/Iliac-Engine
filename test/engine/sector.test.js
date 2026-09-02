@@ -10,7 +10,7 @@ import {
   distancePointToSegment,
   buildSectorIndex,
 } from '../../engine/core/sector.js';
-import { project } from '../../demo/project-sector.js';
+import { project } from '../../demo/project.js';
 
 test('pointInPolygon detecta interior de cuadrado', () => {
   const poly = [
