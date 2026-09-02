@@ -73,3 +73,20 @@ test('WorldMesh.clear elimina meshes del mundo sectorial', () => {
   WorldMesh.clear(scene);
   assert.equal(scene.children.filter((c) => c.isMesh).length, 0, 'no quedan meshes');
 });
+
+test('WorldMesh.clear elimina sprites del mundo sectorial', () => {
+  const scene = new THREE.Scene();
+  const worldWithSprite = {
+    ...world,
+    sprites: [
+      { id: 'sp0', tex: 'sprite', pos: { x: 1, y: 1, z: 0.5 }, scale: 1 },
+    ],
+  };
+  const textures = { stone: makeTexture(), wall: makeTexture(), sprite: makeTexture() };
+
+  WorldMesh.buildSectorWorld(scene, worldWithSprite, textures);
+  assert.ok(scene.children.filter((c) => c.isSprite).length > 0, 'hay sprites antes de limpiar');
+
+  WorldMesh.clear(scene);
+  assert.equal(scene.children.filter((c) => c.isSprite).length, 0, 'no quedan sprites');
+});

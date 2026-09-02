@@ -163,7 +163,7 @@ Encapsula la escena Three.js:
 - `WorldMesh.build(scene, project, textures)`: decide si el mundo es schema v3 (tiene `vertices` y `sectors`) o schema v2 (`map`/`sectorMap`) y delega.
 - `WorldMesh.buildSectorWorld(scene, world, textures)`: para cada sector crea suelo, techo y paredes sólidas, **mergea geometrías por textura/material** para reducir draw calls, y luego añade escaleras y sprites.
 - `WorldMesh.buildGridWorld(...)`: legacy, grid de cajas y planos (schema v2).
-- `WorldMesh.clear(scene)`: limpia mallas anteriores y libera geometrías/materiales.
+- `WorldMesh.clear(scene)`: limpia meshes y sprites anteriores, liberando geometrías y materiales.
 
 ### 3.12 `three/GeometryMerge.js` — Merge de geometrías
 

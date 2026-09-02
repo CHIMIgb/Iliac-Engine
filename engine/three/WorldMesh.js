@@ -25,11 +25,11 @@ export class WorldMesh {
   static clear(scene) {
     for (let i = scene.children.length - 1; i >= 0; i--) {
       const child = scene.children[i];
-      if (child.isMesh) {
-        child.geometry.dispose();
+      if (child.isMesh || child.isSprite) {
+        if (child.geometry) child.geometry.dispose();
         if (Array.isArray(child.material)) {
           child.material.forEach((m) => m.dispose());
-        } else {
+        } else if (child.material) {
           child.material.dispose();
         }
         scene.remove(child);
