@@ -161,11 +161,15 @@ Encapsula la escena Three.js:
 ### 3.11 `three/WorldMesh.js` — Constructor del mundo
 
 - `WorldMesh.build(scene, project, textures)`: decide si el mundo es schema v3 (tiene `vertices` y `sectors`) o schema v2 (`map`/`sectorMap`) y delega.
-- `WorldMesh.buildSectorWorld(scene, world, textures)`: para cada sector crea suelo, techo y paredes sólidas; luego añade escaleras y sprites.
+- `WorldMesh.buildSectorWorld(scene, world, textures)`: para cada sector crea suelo, techo y paredes sólidas, **mergea geometrías por textura/material** para reducir draw calls, y luego añade escaleras y sprites.
 - `WorldMesh.buildGridWorld(...)`: legacy, grid de cajas y planos (schema v2).
 - `WorldMesh.clear(scene)`: limpia mallas anteriores y libera geometrías/materiales.
 
-### 3.12 `three/SectorGeometry.js` — Geometría poligonal
+### 3.12 `three/GeometryMerge.js` — Merge de geometrías
+
+- `mergeGeometries(geometries)`: combina un array de `BufferGeometry` indexadas en una sola, asumiendo atributos `position` y `uv` compatibles. Usado por `WorldMesh` para reducir draw calls.
+
+### 3.13 `three/SectorGeometry.js` — Geometría poligonal
 
 - `createSectorFloorGeometry(world, sector)`: `BufferGeometry` del suelo por fan triangulation, soporta alturas por vértice y slopes.
 - `createSectorCeilingGeometry(world, sector)`: igual que el suelo pero con índices invertidos para que la normal apunte hacia abajo.
@@ -173,15 +177,15 @@ Encapsula la escena Three.js:
 
 **Limitación actual**: solo sectores convexos; la fan triangulation falla en cóncavos.
 
-### 3.13 `three/StairsMesh.js` — Escaleras visuales
+### 3.14 `three/StairsMesh.js` — Escaleras visuales
 
 - `buildStairsMeshes(scene, world, textures)`: para cada rampa de tipo `stairs` genera una caja por peldaño (`BoxGeometry`) con la textura indicada.
 
-### 3.14 `three/SpriteSystem.js` — Sprites billboard
+### 3.15 `three/SpriteSystem.js` — Sprites billboard
 
 - `buildSprites(scene, world, textures)`: para cada sprite crea un `THREE.Sprite` siempre orientado a la cámara, con escala configurable.
 
-### 3.15 `three/textures.js` — Texturas y materiales
+### 3.16 `three/textures.js` — Texturas y materiales
 
 - `loadTextures(textureDefs)`: carga texturas desde URL o genera texturas de color a partir de un hex.
 - `colorTexture(hex)`: textura plana de 64×64 generada en canvas.
