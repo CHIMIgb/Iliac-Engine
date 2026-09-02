@@ -1,6 +1,5 @@
 import { Player } from './core/player.js';
 import {
-  moveWithCollision,
   updateVertical,
   moveWithSectorCollision,
   updateVerticalSector,
@@ -20,6 +19,7 @@ export class Engine3D {
     this.player = new Player(c.posX, c.posY, c.posZ, c.yaw ?? -Math.PI / 2, c.pitch ?? 0);
     this.renderer = null;
     this.loaded = false;
+    this.textures = null;
     this.sectorIndex = null;
     if (this.world.vertices && this.world.sectors) {
       this.sectorIndex = buildSectorIndex(this.world);
@@ -27,11 +27,28 @@ export class Engine3D {
   }
 
   async load(canvas) {
-    const textures = await loadTextures(this.project.world.textures);
+    this.textures = await loadTextures(this.project.world.textures);
     this.renderer = new Renderer3D(canvas);
-    WorldMesh.build(this.renderer.scene, this.project, textures);
+    WorldMesh.build(this.renderer.scene, this.project, this.textures);
     this.loaded = true;
     return this;
+  }
+
+  resize(width, height) {
+    if (!this.renderer) return;
+    this.renderer.resize(width, height);
+  }
+
+  dispose() {
+    if (!this.renderer) return;
+    WorldMesh.clear(this.renderer.scene);
+    for (const key in this.textures || {}) {
+      this.textures[key].dispose();
+    }
+    this.renderer.dispose();
+    this.textures = null;
+    this.renderer = null;
+    this.loaded = false;
   }
 
   update(input, dt) {
@@ -56,4 +73,4 @@ export class Engine3D {
   }
 }
 
-export { Player, moveWithCollision, updateVertical };
+

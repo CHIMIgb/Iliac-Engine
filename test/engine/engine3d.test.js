@@ -92,3 +92,34 @@ test('Engine3D.update no atraviesa el techo', () => {
   const headClearance = engine.player.height - engine.player.eyeHeight;
   assert.ok(engine.player.posZ <= 3 - headClearance + 1e-9, 'no atraviesa el techo');
 });
+
+test('Engine3D.resize delega al renderer', () => {
+  const engine = new Engine3D(projectV3);
+  let resized = null;
+  engine.renderer = { resize: (w, h) => { resized = { w, h }; } };
+  engine.resize(800, 600);
+  assert.deepStrictEqual(resized, { w: 800, h: 600 });
+});
+
+test('Engine3D.resize no falla sin renderer', () => {
+  const engine = new Engine3D(projectV3);
+  assert.doesNotThrow(() => engine.resize(800, 600));
+});
+
+test('Engine3D.dispose libera texturas y renderer', () => {
+  const engine = new Engine3D(projectV3);
+  let textureDisposed = false;
+  let rendererDisposed = false;
+  engine.textures = { t1: { dispose: () => { textureDisposed = true; } } };
+  engine.renderer = {
+    scene: { children: [] },
+    dispose: () => { rendererDisposed = true; },
+  };
+  engine.loaded = true;
+  engine.dispose();
+  assert.ok(textureDisposed, 'libera texturas');
+  assert.ok(rendererDisposed, 'libera renderer');
+  assert.equal(engine.loaded, false);
+  assert.equal(engine.renderer, null);
+  assert.equal(engine.textures, null);
+});

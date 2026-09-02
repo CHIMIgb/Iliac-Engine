@@ -43,4 +43,14 @@ export class Renderer3D {
   render() {
     this.renderer.render(this.scene, this.camera);
   }
+
+  resize(width, height) {
+    this.renderer.setSize(width, height);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+  }
+
+  dispose() {
+    this.renderer.dispose();
+  }
 }

@@ -43,25 +43,10 @@ Regla: **nunca importar Three.js dentro de `core/`, ni poner lógica de juego de
 ## 2. API pública (`engine/index.js`)
 
 ```js
-export { Engine3D, Player, moveWithCollision, updateVertical } from './Engine3D.js';
-export { moveWithSectorCollision, updateVerticalSector } from './core/physics.js';
-export { Renderer3D } from './three/Renderer3D.js';
-export { WorldMesh } from './three/WorldMesh.js';
-export {
-  createSectorFloorGeometry,
-  createSectorCeilingGeometry,
-  createWallGeometry,
-} from './three/SectorGeometry.js';
-export { buildStairsMeshes } from './three/StairsMesh.js';
-export { buildSprites } from './three/SpriteSystem.js';
-export { checkCollision } from './core/collision.js';
-export * from './core/math.js';
-export * from './core/sector.js';
-export * from './core/noise.js';
-export { generateTerrain, sectorSlopeAngle } from './core/terrain.js';
+export { Engine3D } from './Engine3D.js';
 ```
 
-La API expone lo suficiente para que `demo/main.js` monte un juego sin tocar archivos internos del motor.
+El punto de entrada público expone **solo la clase `Engine3D`**. Todos los demás módulos (`core/*`, `three/*`) son internos del motor; los tests los importan directamente, pero los consumidores (demo/Studio) no deben depender de ellos.
 
 ---
 
@@ -77,8 +62,8 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 | `async load(canvas)` | Carga texturas, crea `Renderer3D` y construye el `WorldMesh`. |
 | `update(input, dt)` | Orquesta la física. Capa `dt` a 50 ms para evitar inestabilidad. En schema v3 llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice cacheado. En schema v2 llama a `updateVertical`. |
 | `render()` | Sincroniza la cámara del renderer con el jugador y renderiza. |
-
-Exporta también `Player`, `moveWithCollision`, `updateVertical` por compatibilidad con consumidores legacy.
+| `resize(width, height)` | Actualiza el tamaño del renderer y la relación de aspecto de la cámara. |
+| `dispose()` | Limpia el `WorldMesh`, libera texturas y destruye el renderer. |
 
 ### 3.2 `core/math.js` — Utilidades matemáticas
 
@@ -260,19 +245,19 @@ Características soportadas:
 5. **Render simple y funcional**: Three.js evita reinventar WebGL; el estilo pixelado se conserva con `NearestFilter`.
 
 ### Deuda técnica / limitaciones actuales
-1. **`Engine3D.update()` no integra física v3**: la demo llama manualmente a `moveWithSectorCollision` y `updateVerticalSector`. El orquestador debería hacerlo.
+1. **`Engine3D.update()` no integra física v3**: la demo llama manualmente a `moveWithSectorCollision` y `updateVerticalSector`. El orquestador debería hacerlo. ✅ Resuelto en C1.
 2. **Solo sectores convexos**: los sectores cóncavos requieren triangulación más robusta (ear-clipping).
-3. **Colisión vertical básica**: no hay colisión con techos; el jugador no puede chocar con un techo bajo.
+3. **Colisión vertical básica**: no hay colisión con techos; el jugador no puede chocar con un techo bajo. ✅ Resuelto en C6.
 4. **Falta migrador v2 → v3**: el schema v2 (grid) sigue vivo en `WorldMesh.buildGridWorld`; debería poder convertirse automáticamente a sectores.
 5. **Sprites sin culling ni sorting**: se dibujan todos, sin orden por profundidad.
 6. **Audio, AI, quests, inventory, etc.**: aún no existen; son fases futuras (F3+).
+7. **`computeVertexNormals()` en superficies planas** (H4): pospuesto a petición del usuario; las normales analíticas se harán cuando se retome.
 
 ### Veredicto
 La base es **sólida para continuar hacia F3+** (sistemas RPG, audio, visual scripting) porque el núcleo de mundo 3D sectorial ya funciona. Lo prioritario antes de añadir grandes sistemas es:
-1. Integrar la física v3 en `Engine3D.update()`.
-2. Soportar sectores cóncavos.
-3. Añadir colisión con techos.
-4. Eliminar o migrar el código legacy v2.
+1. Soportar sectores cóncavos.
+2. Eliminar o migrar el código legacy v2.
+3. Añadir sorting por profundidad en sprites.
 
 ---
 
@@ -307,7 +292,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **53 tests pasan, 0 fallan**.
+Resultado actual: **70 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v2 y v3 (`physics.test.js`, `physics-sector.test.js`).

@@ -880,28 +880,28 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 
 ### 16.1 Items críticos (deben resolverse antes de cualquier avance)
 
-| # | Problema | Archivo(s) principal(es) | Solución esperada |
-|---|----------|--------------------------|-------------------|
-| C1 | `Engine3D.update()` no ejecuta la física de sectores; la demo la llama a mano. | `engine/Engine3D.js`, `demo/main.js` | `Engine3D.update(input, dt)` debe orquestar `moveWithSectorCollision` + `updateVerticalSector`. |
-| C2 | El índice sectorial se reconstruye en cada substep/frame. | `engine/core/physics.js` | Cachear `{ vertexMap, walls }` en `Engine3D.load()` y pasarlo a la física. |
-| C3 | Un draw call por superficie (suelo/techo/pared). | `engine/three/WorldMesh.js` | Mergear geometrías por textura/material. |
-| C4 | Sin tope de `dt` en el motor. | `engine/Engine3D.js`, `engine/core/physics.js` | Cap `dt` y clamp de substeps para evitar congelamiento. |
-| C5 | Movimiento separado por ejes (X, luego Y). | `engine/core/physics.js` | Mover como vector único por substep. |
-| C6 | Sin colisión con techos. | `engine/core/physics.js`, `engine/core/player.js` | Añadir altura de jugador y clamp contra `getCeilHeightAt`. |
+| # | Problema | Archivo(s) principal(es) | Solución esperada | Estado |
+|---|---|---|---|---|
+| C1 | `Engine3D.update()` no ejecuta la física de sectores; la demo la llama a mano. | `engine/Engine3D.js`, `demo/main.js` | `Engine3D.update(input, dt)` debe orquestar `moveWithSectorCollision` + `updateVerticalSector`. | validada |
+| C2 | El índice sectorial se reconstruye en cada substep/frame. | `engine/core/physics.js` | Cachear `{ vertexMap, walls }` en `Engine3D.load()` y pasarlo a la física. | validada |
+| C3 | Un draw call por superficie (suelo/techo/pared). | `engine/three/WorldMesh.js` | Mergear geometrías por textura/material. | validada |
+| C4 | Sin tope de `dt` en el motor. | `engine/Engine3D.js`, `engine/core/physics.js` | Cap `dt` y clamp de substeps para evitar congelamiento. | validada |
+| C5 | Movimiento separado por ejes (X, luego Y). | `engine/core/physics.js` | Mover como vector único por substep. | validada |
+| C6 | Sin colisión con techos. | `engine/core/physics.js`, `engine/core/player.js` | Añadir altura de jugador y clamp contra `getCeilHeightAt`. | validada |
 
 ### 16.2 Items de alta prioridad (resolver junto con los críticos)
 
-| # | Problema | Archivo(s) principal(es) | Solución esperada |
-|---|----------|--------------------------|-------------------|
-| H1 | `WorldMesh.clear()` no elimina sprites. | `engine/three/WorldMesh.js` | Incluir `isSprite` o agrupar mundo en un `Group` dedicado. |
-| H2 | Escaleras sin colisión horizontal. | `engine/core/physics.js`, `engine/core/stairs.js` | Reutilizar `resolveSegmentCollision` con `getStairSegments`. |
-| H3 | Geometría de paredes reconstruye mapa de vértices y hace `indexOf`. | `engine/three/SectorGeometry.js` | Pasar vertex map e índices pre-computados. |
-| H4 | `computeVertexNormals()` innecesario en superficies planas. | `engine/three/SectorGeometry.js` | Normales analíticas; eliminar cálculo del path caliente. |
-| H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. |
-| H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. |
-| H7 | Faltan tests de física vertical v3. | `test/engine/` | Tests de `updateVerticalSector`, techo, `Engine3D.update`. |
-| H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. |
-| H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. |
+| # | Problema | Archivo(s) principal(es) | Solución esperada | Estado |
+|---|---|---|---|---|
+| H1 | `WorldMesh.clear()` no elimina sprites. | `engine/three/WorldMesh.js` | Incluir `isSprite` o agrupar mundo en un `Group` dedicado. | validada |
+| H2 | Escaleras sin colisión horizontal. | `engine/core/physics.js`, `engine/core/stairs.js` | Reutilizar `resolveSegmentCollision` con `getStairSegments`. | validada |
+| H3 | Geometría de paredes reconstruye mapa de vértices y hace `indexOf`. | `engine/three/SectorGeometry.js` | Pasar vertex map e índices pre-computados. | validada |
+| H4 | `computeVertexNormals()` innecesario en superficies planas. | `engine/three/SectorGeometry.js` | Normales analíticas; eliminar cálculo del path caliente. | pospuesta |
+| H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. | realizada |
+| H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. | realizada |
+| H7 | Faltan tests de física vertical v3. | `test/engine/` | Tests de `updateVerticalSector`, techo, `Engine3D.update`. | pendiente |
+| H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. | pendiente |
+| H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. | pendiente |
 
 ### 16.3 Items de prioridad media (pueden entrar tras los críticos/altos)
 

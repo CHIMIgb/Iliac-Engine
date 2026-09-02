@@ -8,6 +8,10 @@ canvas.height = 480;
 const engine = new Engine3D(project);
 await engine.load(canvas);
 
+addEventListener('resize', () => {
+  engine.resize(canvas.clientWidth, canvas.clientHeight);
+});
+
 const keys = {};
 let pointerLocked = false;
 
