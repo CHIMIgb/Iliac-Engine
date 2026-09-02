@@ -1,132 +1,63 @@
+/**
+ * project.js — Datos del mundo demo con terreno procedural de montaña.
+ *
+ * Usa el generador de terreno del motor para crear una grilla de sectores
+ * con alturas irregulares estilo Daggerfall.
+ */
+
+import { generateTerrain } from '../engine/core/terrain.js';
+
+// Generar terreno de 16×16 celdas, 2 unidades por celda = 32×32 área total
+const terrain = generateTerrain({
+  cols: 16,
+  rows: 16,
+  cellSize: 2,
+  seed: 7,
+  noiseScale: 0.07,
+  heightScale: 8,
+  octaves: 5,
+  textures: {
+    flat: 'grass',
+    slope: 'dirt',
+    steep: 'rock',
+  },
+  slopeThresholds: [0.3, 0.7],
+  ceilH: 50,
+  ceilTex: 'ceil',
+  wallTex: 'rock',
+});
+
+// Posición inicial: centro del terreno, sobre la superficie
+const centerCol = 8;
+const centerRow = 8;
+// Buscar la altura del centro para posicionar la cámara
+const centerSector = terrain.sectors[centerRow * 16 + centerCol];
+const avgHeight = centerSector.floorH.reduce((a, b) => a + b, 0) / 4;
+
 export const project = {
   meta: {
-    name: 'Sector Demo',
+    name: 'Terrain Demo',
     schemaVersion: 3,
     renderMode: '3d',
   },
   camera: {
-    posX: 2.0,
-    posY: 3.0,
-    posZ: 0.6,
+    posX: centerCol * 2 + 1,
+    posY: centerRow * 2 + 1,
+    posZ: avgHeight + 0.6,
     yaw: 0,
     pitch: 0,
   },
   world: {
-    vertices: [
-      { id: 'v0', x: 0, y: 0 },
-      { id: 'v1', x: 6, y: 0 },
-      { id: 'v2', x: 10, y: 0 },
-      { id: 'v3', x: 16, y: 0 },
-      { id: 'v4', x: 20, y: 0 },
-      { id: 'v5', x: 26, y: 0 },
-      { id: 'v6', x: 0, y: 6 },
-      { id: 'v7', x: 6, y: 6 },
-      { id: 'v8', x: 10, y: 6 },
-      { id: 'v9', x: 16, y: 6 },
-      { id: 'v10', x: 20, y: 6 },
-      { id: 'v11', x: 26, y: 6 },
-    ],
-    sectors: [
-      {
-        id: 's0',
-        vertexIds: ['v0', 'v1', 'v7', 'v6'],
-        floorH: 0.0,
-        ceilH: 4.0,
-        floorTex: 'floor',
-        ceilTex: 'ceil',
-        wallTex: 'wall',
-      },
-      {
-        id: 's1',
-        vertexIds: ['v1', 'v2', 'v8', 'v7'],
-        floorH: 0.0,
-        ceilH: 4.0,
-        floorSlope: { axis: 'x', angle: 30 },
-        floorTex: 'floor',
-        ceilTex: 'ceil',
-        wallTex: 'wall',
-      },
-      {
-        id: 's2',
-        vertexIds: ['v2', 'v3', 'v9', 'v8'],
-        floorH: 2.31,
-        ceilH: 6.0,
-        floorTex: 'floor',
-        ceilTex: 'ceil',
-        wallTex: 'wall',
-      },
-      {
-        id: 's3',
-        vertexIds: ['v3', 'v4', 'v10', 'v9'],
-        floorH: 2.31,
-        ceilH: 6.0,
-        floorSlope: { axis: 'x', angle: -30 },
-        floorTex: 'floor',
-        ceilTex: 'ceil',
-        wallTex: 'wall',
-      },
-      {
-        id: 's4',
-        vertexIds: ['v4', 'v5', 'v11', 'v10'],
-        floorH: 0.0,
-        ceilH: 4.0,
-        floorTex: 'floor',
-        ceilTex: 'ceil',
-        wallTex: 'wall',
-      },
-    ],
-    walls: [
-      // s0
-      { id: 'w0', a: 'v0', b: 'v1', sectorFront: 's0', sectorBack: null, tex: 'wall' },
-      { id: 'w1', a: 'v1', b: 'v7', sectorFront: 's0', sectorBack: 's1', tex: 'wall', portal: true },
-      { id: 'w2', a: 'v7', b: 'v6', sectorFront: 's0', sectorBack: null, tex: 'wall' },
-      { id: 'w3', a: 'v6', b: 'v0', sectorFront: 's0', sectorBack: null, tex: 'wall' },
-      // s1
-      { id: 'w4', a: 'v1', b: 'v2', sectorFront: 's1', sectorBack: null, tex: 'wall' },
-      { id: 'w5', a: 'v2', b: 'v8', sectorFront: 's1', sectorBack: 's2', tex: 'wall', portal: true },
-      { id: 'w6', a: 'v8', b: 'v7', sectorFront: 's1', sectorBack: null, tex: 'wall' },
-      // s2
-      { id: 'w7', a: 'v2', b: 'v3', sectorFront: 's2', sectorBack: null, tex: 'wall' },
-      { id: 'w8', a: 'v3', b: 'v9', sectorFront: 's2', sectorBack: 's3', tex: 'wall', portal: true },
-      { id: 'w9', a: 'v9', b: 'v8', sectorFront: 's2', sectorBack: null, tex: 'wall' },
-      // s3
-      { id: 'w10', a: 'v3', b: 'v4', sectorFront: 's3', sectorBack: null, tex: 'wall' },
-      { id: 'w11', a: 'v4', b: 'v10', sectorFront: 's3', sectorBack: 's4', tex: 'wall', portal: true },
-      { id: 'w12', a: 'v10', b: 'v9', sectorFront: 's3', sectorBack: null, tex: 'wall' },
-      // s4
-      { id: 'w13', a: 'v4', b: 'v5', sectorFront: 's4', sectorBack: null, tex: 'wall' },
-      { id: 'w14', a: 'v5', b: 'v11', sectorFront: 's4', sectorBack: null, tex: 'wall' },
-      { id: 'w15', a: 'v11', b: 'v10', sectorFront: 's4', sectorBack: null, tex: 'wall' },
-    ],
-    ramps: [
-      {
-        id: 'r0',
-        sectorId: 's0',
-        type: 'stairs',
-        pos: { x: 1, y: 1 },
-        direction: { x: 1, y: 0 },
-        width: 1,
-        rise: 1.0,
-        run: 2.0,
-        steps: 4,
-        tex: 'stair',
-      },
-    ],
-    sprites: [
-      {
-        id: 'sp0',
-        tex: 'sprite',
-        pos: { x: 3, y: 3, z: 0.6 },
-        scale: 1.0,
-        billboard: true,
-      },
-    ],
+    vertices: terrain.vertices,
+    sectors: terrain.sectors,
+    walls: terrain.walls,
+    ramps: [],
+    sprites: [],
     textures: {
-      wall: './textures/muro.svg',
-      floor: './textures/suelo1.svg',
+      grass: './textures/suelo1.svg',
+      dirt: './textures/suelo2.svg',
+      rock: './textures/muro.svg',
       ceil: './textures/techo.svg',
-      stair: './textures/suelo2.svg',
-      sprite: './textures/azul.svg',
     },
   },
 };

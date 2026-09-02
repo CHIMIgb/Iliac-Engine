@@ -5,16 +5,9 @@ function sectorVertices(world, sector) {
   return sector.vertexIds.map((id) => map.get(id)).filter(Boolean);
 }
 
-function getVertexHeightArray(sector, baseKey, index) {
-  const arr = sector[baseKey];
-  if (Array.isArray(arr) && index < arr.length) return arr[index];
-  return null;
-}
-
 function vertexHeight(sector, ref, vertex, baseH, slopeKey, index) {
   // 1. Alturas por vértice (terreno irregular)
-  const explicit = getVertexHeightArray(sector, 'floorH', index);
-  if (explicit !== null) return explicit;
+  if (Array.isArray(baseH) && index < baseH.length) return baseH[index];
 
   // 2. Slope uniforme
   const slope = sector[slopeKey];

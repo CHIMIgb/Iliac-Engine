@@ -12,3 +12,5 @@ export { buildSprites } from './three/SpriteSystem.js';
 export { checkCollision } from './core/collision.js';
 export * from './core/math.js';
 export * from './core/sector.js';
+export * from './core/noise.js';
+export { generateTerrain, sectorSlopeAngle } from './core/terrain.js';
