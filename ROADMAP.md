@@ -896,9 +896,9 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 | H1 | `WorldMesh.clear()` no elimina sprites. | `engine/three/WorldMesh.js` | Incluir `isSprite` o agrupar mundo en un `Group` dedicado. | validada |
 | H2 | Escaleras sin colisión horizontal. | `engine/core/physics.js`, `engine/core/stairs.js` | Reutilizar `resolveSegmentCollision` con `getStairSegments`. | validada |
 | H3 | Geometría de paredes reconstruye mapa de vértices y hace `indexOf`. | `engine/three/SectorGeometry.js` | Pasar vertex map e índices pre-computados. | validada |
-| H4 | `computeVertexNormals()` innecesario en superficies planas. | `engine/three/SectorGeometry.js` | Normales analíticas; eliminar cálculo del path caliente. | pospuesta |
-| H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. | realizada |
-| H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. | realizada |
+| H4 | `computeVertexNormals()` innecesario en superficies planas. | `engine/three/SectorGeometry.js` | Normales analíticas; eliminar cálculo del path caliente. | realizada |
+| H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. | validada |
+| H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. | validada |
 | H7 | Faltan tests de física vertical v3. | `test/engine/` | Tests de `updateVerticalSector`, techo, `Engine3D.update`. | pendiente |
 | H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. | pendiente |
 | H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. | pendiente |

@@ -25,6 +25,31 @@ function fanIndices(vertexCount) {
   return indices;
 }
 
+function setFlatNormals(geo, nx, ny, nz) {
+  const count = geo.attributes.position.count;
+  const normals = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    normals[i * 3] = nx;
+    normals[i * 3 + 1] = ny;
+    normals[i * 3 + 2] = nz;
+  }
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+}
+
+function triangleNormal(positions, i0, i1, i2) {
+  const ax = positions[i1 * 3] - positions[i0 * 3];
+  const ay = positions[i1 * 3 + 1] - positions[i0 * 3 + 1];
+  const az = positions[i1 * 3 + 2] - positions[i0 * 3 + 2];
+  const bx = positions[i2 * 3] - positions[i0 * 3];
+  const by = positions[i2 * 3 + 1] - positions[i0 * 3 + 1];
+  const bz = positions[i2 * 3 + 2] - positions[i0 * 3 + 2];
+  const nx = ay * bz - az * by;
+  const ny = az * bx - ax * bz;
+  const nz = ax * by - ay * bx;
+  const len = Math.hypot(nx, ny, nz);
+  return len > 0 ? [nx / len, ny / len, nz / len] : null;
+}
+
 export function createSectorFloorGeometry(world, sector, vertexMap) {
   const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
@@ -40,7 +65,17 @@ export function createSectorFloorGeometry(world, sector, vertexMap) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(fanIndices(vertices.length));
-  geo.computeVertexNormals();
+  if (Array.isArray(sector.floorH)) {
+    // Terreno con alturas por vértice: superficie no plana, conservar suavizado.
+    geo.computeVertexNormals();
+  } else {
+    // Los sectores se definen en sentido horario en el plano XZ, por lo que la
+    // normal del triángulo apunta hacia abajo; la negamos para que el piso
+    // mire hacia arriba y reciba luz desde encima.
+    const normal = triangleNormal(positions, 0, 1, 2);
+    if (normal) setFlatNormals(geo, -normal[0], -normal[1], -normal[2]);
+    else geo.computeVertexNormals();
+  }
   return geo;
 }
 
@@ -65,7 +100,15 @@ export function createSectorCeilingGeometry(world, sector, vertexMap) {
     reversed.push(indices[i], indices[i + 2], indices[i + 1]);
   }
   geo.setIndex(reversed);
-  geo.computeVertexNormals();
+  if (Array.isArray(sector.ceilH)) {
+    geo.computeVertexNormals();
+  } else {
+    // La normal del triángulo ya apunta hacia abajo en el plano XZ; la usamos
+    // directamente para que el techo mire hacia abajo.
+    const normal = triangleNormal(positions, 0, 1, 2);
+    if (normal) setFlatNormals(geo, normal[0], normal[1], normal[2]);
+    else geo.computeVertexNormals();
+  }
   return geo;
 }
 
@@ -104,6 +147,13 @@ export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMa
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex([0, 1, 2, 0, 2, 3]);
-  geo.computeVertexNormals();
+  const dx = b.x - a.x;
+  const dz = b.y - a.y;
+  const len = Math.hypot(dx, dz);
+  if (len > 0) {
+    setFlatNormals(geo, -dz / len, 0, dx / len);
+  } else {
+    setFlatNormals(geo, 0, 0, 1);
+  }
   return geo;
 }

@@ -6,6 +6,11 @@ import {
   createWallGeometry,
 } from '../../engine/three/SectorGeometry.js';
 
+function getNormal(geo, i) {
+  const n = geo.attributes.normal.array;
+  return [n[i * 3], n[i * 3 + 1], n[i * 3 + 2]];
+}
+
 // Fixture inline — mundo de prueba con sectores de geometría conocida
 const world = {
   vertices: [
@@ -85,4 +90,61 @@ test('createWallGeometry devuelve null si falta un vértice', () => {
   const badWall = { a: 'no-existe', b: 'v1', sectorFront: 's0' };
   const s0 = world.sectors[0];
   assert.equal(createWallGeometry(badWall, world, s0), null);
+});
+
+test('createSectorFloorGeometry usa normal analítica (0,1,0) para piso plano', () => {
+  const geo = createSectorFloorGeometry(world, world.sectors[0]);
+  for (let i = 0; i < geo.attributes.position.count; i++) {
+    const n = getNormal(geo, i);
+    assert.ok(
+      Math.abs(n[0]) < 1e-6 && Math.abs(n[1] - 1) < 1e-6 && Math.abs(n[2]) < 1e-6,
+      `vértice ${i} tiene normal (0,1,0)`
+    );
+  }
+});
+
+test('createSectorCeilingGeometry usa normal analítica (0,-1,0) para techo plano', () => {
+  const geo = createSectorCeilingGeometry(world, world.sectors[0]);
+  for (let i = 0; i < geo.attributes.position.count; i++) {
+    const n = getNormal(geo, i);
+    assert.ok(
+      Math.abs(n[0]) < 1e-6 && Math.abs(n[1] + 1) < 1e-6 && Math.abs(n[2]) < 1e-6,
+      `vértice ${i} tiene normal (0,-1,0)`
+    );
+  }
+});
+
+test('createSectorFloorGeometry usa normal analítica en piso inclinado', () => {
+  const geo = createSectorFloorGeometry(world, world.sectors[1]);
+  const n = getNormal(geo, 0);
+  const len = Math.hypot(...n);
+  assert.ok(Math.abs(len - 1) < 1e-6, 'normal es unitaria');
+  assert.ok(n[1] > 0, 'componente Y positivo (hacia arriba)');
+  assert.ok(n[0] < 0, 'componente X negativo por la pendiente hacia +x');
+});
+
+test('createWallGeometry usa normal analítica horizontal perpendicular al muro', () => {
+  const wall = world.walls[0]; // v0(0,0) -> v1(6,0), dirección +x
+  const geo = createWallGeometry(wall, world, world.sectors[0]);
+  assert.equal(geo.attributes.position.count, 4);
+  for (let i = 0; i < 4; i++) {
+    const n = getNormal(geo, i);
+    assert.ok(Math.abs(n[1]) < 1e-6, `vértice ${i} sin componente Y`);
+    assert.ok(Math.abs(n[0]) < 1e-6, `vértice ${i} sin componente X`);
+    assert.ok(Math.abs(n[2] - 1) < 1e-6, `vértice ${i} apunta en +z`);
+  }
+});
+
+test('createSectorFloorGeometry conserva computeVertexNormals para terreno no plano', () => {
+  const terrainSector = {
+    id: 'st',
+    vertexIds: ['v0', 'v1', 'v7', 'v6'],
+    floorH: [0, 1, 2, 0.5],
+    ceilH: 4.0,
+  };
+  const geo = createSectorFloorGeometry(world, terrainSector);
+  assert.ok(geo.attributes.normal, 'tiene atributo normal');
+  const n = getNormal(geo, 0);
+  const len = Math.hypot(...n);
+  assert.ok(Math.abs(len - 1) < 1e-6, 'normal normalizada');
 });

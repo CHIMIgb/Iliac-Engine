@@ -251,7 +251,7 @@ Características soportadas:
 4. **Falta migrador v2 → v3**: el schema v2 (grid) sigue vivo en `WorldMesh.buildGridWorld`; debería poder convertirse automáticamente a sectores.
 5. **Sprites sin culling ni sorting**: se dibujan todos, sin orden por profundidad.
 6. **Audio, AI, quests, inventory, etc.**: aún no existen; son fases futuras (F3+).
-7. **`computeVertexNormals()` en superficies planas** (H4): pospuesto a petición del usuario; las normales analíticas se harán cuando se retome.
+7. **`computeVertexNormals()` en superficies planas** (H4): resuelto. Suelos, techos y paredes planas usan normales analíticas; solo el terreno no plano (`floorH`/`ceilH` como array) conserva `computeVertexNormals`.
 
 ### Veredicto
 La base es **sólida para continuar hacia F3+** (sistemas RPG, audio, visual scripting) porque el núcleo de mundo 3D sectorial ya funciona. Lo prioritario antes de añadir grandes sistemas es:
@@ -292,7 +292,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **70 tests pasan, 0 fallan**.
+Resultado actual: **76 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v2 y v3 (`physics.test.js`, `physics-sector.test.js`).
