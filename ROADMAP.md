@@ -909,9 +909,9 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 - ✅ Índice espacial para `getSectorAt` (BVH de bounding boxes de sectores). — **validada**
 - ✅ `getSectorAtOrNearest` más robusto (solo devuelve sector adyacente al último conocido). — **validada**
 - ✅ Gravedad basada en velocidad (`velocityZ`) en lugar de velocidad de caída constante. — **validada**
-- ✅ Validador ligero de `project.json` al cargar. — **realizada**
+- ✅ Validador ligero de `project.json` al cargar. — **validada**
 - ✅ Renombrar `raycaster.test.js` → `player.test.js`.
-- Manejo de `webglcontextlost`.
+- ✅ Manejo de `webglcontextlost`. — **realizada**
 
 ### 16.4 Plan de ejecución propuesto
 

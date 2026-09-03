@@ -128,7 +128,8 @@ Encapsula la escena Three.js:
 - `WebGLRenderer`.
 - `AmbientLight` + `DirectionalLight`.
 - `syncCamera(player)`: convierte la posición del motor (`X,Y` plano, `Z` altura) al espacio de Three.js (`X,Y,Z` con Y arriba).
-- `render()`: dibuja la escena.
+- `render()`: dibuja la escena. **No renderiza si el contexto WebGL está perdido**.
+- Manejo de `webglcontextlost` / `webglcontextrestored`: hace `preventDefault` (permite restauración), marca `contextLost`, y al restaurarse recrea el `WebGLRenderer` y re-renderiza. El constructor acepta `options.createRenderer` (inyectable para tests).
 
 ### 3.10 `three/WorldMesh.js` — Constructor del mundo
 

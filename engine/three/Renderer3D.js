@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 export class Renderer3D {
-  constructor(canvas) {
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.createRenderer = opts.createRenderer || this._defaultCreateRenderer;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x202020);
 
@@ -13,18 +14,43 @@ export class Renderer3D {
       200,
     );
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: false,
-    });
-    this.renderer.setSize(canvas.width, canvas.height);
+    this._createRenderer();
+    this._addLights();
+    this._bindContextLost();
+  }
 
+  _defaultCreateRenderer(canvas) {
+    return new THREE.WebGLRenderer({ canvas, antialias: false });
+  }
+
+  _createRenderer() {
+    this.renderer = this.createRenderer(this.canvas);
+    this.renderer.setSize(this.canvas.width, this.canvas.height);
+  }
+
+  _addLights() {
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambient);
 
     const dir = new THREE.DirectionalLight(0xffffff, 0.7);
     dir.position.set(5, 10, 5);
     this.scene.add(dir);
+  }
+
+  // Manejo de webglcontextlost: Three.js necesita poder restaurar el contexto
+  // (preventDefault) y recrear el renderer al restaurarse.
+  _bindContextLost() {
+    this.canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.contextLost = true;
+    });
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      // Los bufos de geometría se re-suben en el próximo render; solo hace
+      // falta recrear el renderer sobre el contexto restaurado.
+      this._createRenderer();
+      this.resize(this.canvas.width, this.canvas.height);
+    });
   }
 
   syncCamera(player) {
@@ -41,16 +67,20 @@ export class Renderer3D {
   }
 
   render() {
+    if (this.contextLost) return;
     this.renderer.render(this.scene, this.camera);
   }
 
   resize(width, height) {
+    if (this.contextLost) return;
     this.renderer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
 
   dispose() {
+    if (this.contextLost) return;
     this.renderer.dispose();
+    this.contextLost = true;
   }
 }
