@@ -920,43 +920,43 @@ El orden de trabajo está diseñado para alcanzar un **Vertical Slice (Demo Func
 
 Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo jugable y commit.
 
-#### Fase A — Física integrada y robusta
-1. Integrar `moveWithSectorCollision` + `updateVerticalSector` en `Engine3D.update(input, dt)`.
-2. Cap `dt` y clamp de substeps.
-3. Movimiento como vector único por substep.
-4. Colisión con techos.
-5. Cachear índice sectorial.
+#### Fase A — Física integrada y robusta ✅ Realizada (vía C1–C6, validada)
+1. ✔ Integrar `moveWithSectorCollision` + `updateVerticalSector` en `Engine3D.update(input, dt)`.
+2. ✔ Cap `dt` y clamp de substeps.
+3. ✔ Movimiento como vector único por substep.
+4. ✔ Colisión con techos.
+5. ✔ Cachear índice sectorial.
 
-**Tests nuevos:** `test/engine/physics-vertical.test.js`, `test/engine/engine3d.test.js`.
+**Tests:** `test/engine/physics-vertical.test.js`, `test/engine/engine3d.test.js` (existen y pasan).
 
-#### Fase B — Render eficiente y lifecycle
-1. Mergear geometrías por textura/material.
-2. Normales analíticas.
-3. Cachear vertex map en builders.
-4. Limpiar sprites y luces en `WorldMesh.clear()`.
-5. `Renderer3D.resize()` y `Engine3D.dispose()`.
+#### Fase B — Render eficiente y lifecycle ✅ Realizada (vía H1, H3, H4, H5, validada)
+1. ✔ Mergear geometrías por textura/material.
+2. ✔ Normales analíticas.
+3. ✔ Cachear vertex map en builders.
+4. ✔ Limpiar sprites y luces en `WorldMesh.clear()`.
+5. ✔ `Renderer3D.resize()` y `Engine3D.dispose()`.
 
-**Tests nuevos:** limpieza de escena, conteo de meshes/draw calls.
+**Tests:** limpieza de escena, conteo de meshes/draw calls.
 
-#### Fase C — API pública limpia y schema v3 primero
-1. Reducir exports de `engine/index.js`.
-2. Validador de `project.json`.
-3. Marcar/mover código v2 a `engine/legacy/`.
-4. Renombrar `raycaster.test.js`.
+#### Fase C — API pública limpia y schema v3 primero ✅ Realizada (vía H6, H8, y prioridad media)
+1. ✔ Reducir exports de `engine/index.js`.
+2. ✔ Validador de `project.json`.
+3. ✔ Marcar/mover código v2 a `engine/legacy/` (schema v2 eliminado).
+4. ✔ Renombrar `raycaster.test.js`.
 
-#### Fase D — Física y geometría avanzada
-1. Triangulación robusta para sectores cóncavos (ear-clipping).
-2. Colisión horizontal contra escaleras.
-3. Índice espacial de sectores.
-4. UVs configurables.
-5. Gravedad por velocidad.
+#### Fase D — Física y geometría avanzada (parcial)
+1. ⏳ Triangulación robusta para sectores cóncavos (ear-clipping). — **pendiente**
+2. ✔ Colisión horizontal contra escaleras (H2).
+3. ✔ Índice espacial de sectores (BVH).
+4. ✔ UVs configurables.
+5. ✔ Gravedad por velocidad.
 
-#### Fase E — Polish y producción
-1. Leer settings de `project.json` en `Renderer3D`.
-2. Carga de texturas con `Promise.all`.
-3. Cache de texturas de color.
-4. Manejo de `webglcontextlost`.
-5. Actualizar `docs/ENGINE_COMPONENTS.md`.
+#### Fase E — Polish y producción (parcial)
+1. ⏳ Leer settings de `project.json` en `Renderer3D`. — **pendiente**
+2. ✔ Carga de texturas con `Promise.all` (H9 — pendiente de validar).
+3. ⏳ Cache de texturas de color. — **pendiente**
+4. ✔ Manejo de `webglcontextlost`.
+5. ✔ Actualizar `docs/ENGINE_COMPONENTS.md` (parcial).
 
 ### 16.5 Decisiones pendientes que desbloquean el plan
 
@@ -968,11 +968,14 @@ Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo 
 
 Se considera saldada la deuda cuando:
 
-- [ ] `Engine3D.update()` orquesta física de sectores sin que la demo toque funciones internas.
-- [ ] Todos los tests actuales siguen pasando y se añaden tests de física vertical y `Engine3D.update`.
-- [ ] El número de draw calls se reduce drásticamente (merge por material).
-- [ ] No hay fugas de memoria GPU al recargar mundos (`dispose` + `clear` robusto).
-- [ ] Schema v2 está marcado como legacy o eliminado; la API pública es mínima.
+- [x] `Engine3D.update()` orquesta física de sectores sin que la demo toque funciones internas.
+- [x] Todos los tests actuales siguen pasando y se añaden tests de física vertical y `Engine3D.update`.
+- [x] El número de draw calls se reduce drásticamente (merge por material).
+- [x] No hay fugas de memoria GPU al recargar mundos (`dispose` + `clear` robusto).
+- [x] Schema v2 está marcado como legacy o eliminado; la API pública es mínima.
 - [ ] La demo sigue jugable: portales, rampas, escaleras, sprites y paredes sólidas.
+- [ ] (Fase D) Triangulación robusta para sectores cóncavos (ear-clipping).
+- [ ] (Fase E) Leer settings de `project.json` en `Renderer3D`.
+- [ ] (Fase E) Cache de texturas de color.
 
 **Hasta que estos checks no estén todos marcados, NO se avanza a F3 (Studio TS/Vite).**
