@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+  <rect width="64" height="64" fill="transparent"/>
+  <!-- Tronco -->
+  <rect width="8" height="32" x="28" y="32" fill="#5c4033"/>
+  <!-- Copas del arbol -->
+  <polygon points="32,0 12,32 52,32" fill="#228b22"/>
+  <polygon points="32,16 16,40 48,40" fill="#006400"/>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+  <rect width="64" height="64" fill="#a09a8e"/>
+  <!-- Hiladas horizontales -->
+  <rect width="64" height="4" y="0" fill="#757065"/>
+  <rect width="64" height="4" y="16" fill="#757065"/>
+  <rect width="64" height="4" y="32" fill="#757065"/>
+  <rect width="64" height="4" y="48" fill="#757065"/>
+  <!-- Juntas verticales -->
+  <rect width="4" height="16" x="12" y="0" fill="#757065"/>
+  <rect width="4" height="16" x="44" y="0" fill="#757065"/>
+  <rect width="4" height="16" x="28" y="16" fill="#757065"/>
+  <rect width="4" height="16" x="60" y="16" fill="#757065"/>
+  <rect width="4" height="16" x="12" y="32" fill="#757065"/>
+  <rect width="4" height="16" x="44" y="32" fill="#757065"/>
+  <rect width="4" height="16" x="28" y="48" fill="#757065"/>
+  <rect width="4" height="16" x="60" y="48" fill="#757065"/>
+</svg>

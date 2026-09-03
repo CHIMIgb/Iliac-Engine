@@ -1,0 +1,63 @@
+import { Engine3D } from '../../engine/index.js';
+import { project } from './project.js';
+
+const canvas = document.getElementById('screen');
+canvas.width = 640;
+canvas.height = 480;
+
+const engine = new Engine3D(project);
+await engine.load(canvas);
+
+addEventListener('resize', () => {
+  engine.resize(canvas.clientWidth, canvas.clientHeight);
+});
+
+const keys = {};
+let pointerLocked = false;
+
+const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (!pointerLocked && MOVE_KEYS.includes(e.code)) {
+    canvas.requestPointerLock();
+  }
+});
+addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
+
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === canvas;
+});
+document.addEventListener('mousemove', (e) => {
+  if (!pointerLocked) return;
+  engine.player.rotateYaw(e.movementX * 0.002);
+  engine.player.rotatePitch(-e.movementY * 0.002);
+});
+
+const moveSpeed = 3.0;
+let last = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+
+  const p = engine.player;
+  const fwdX = Math.cos(p.yaw);
+  const fwdY = Math.sin(p.yaw);
+  const rightX = Math.cos(p.yaw + Math.PI / 2);
+  const rightY = Math.sin(p.yaw + Math.PI / 2);
+
+  let dirX = 0;
+  let dirY = 0;
+  if (keys['ArrowUp'] || keys['KeyW']) { dirX += fwdX; dirY += fwdY; }
+  if (keys['ArrowDown'] || keys['KeyS']) { dirX -= fwdX; dirY -= fwdY; }
+  if (keys['ArrowLeft'] || keys['KeyA']) { dirX -= rightX; dirY -= rightY; }
+  if (keys['ArrowRight'] || keys['KeyD']) { dirX += rightX; dirY += rightY; }
+
+  engine.update({ dirX, dirY, speed: moveSpeed }, dt);
+  engine.render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);

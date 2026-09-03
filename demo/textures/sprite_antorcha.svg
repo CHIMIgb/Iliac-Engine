@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+  <rect width="64" height="64" fill="transparent"/>
+  <!-- Palo -->
+  <rect width="4" height="32" x="30" y="32" fill="#8b4513"/>
+  <!-- Soporte -->
+  <rect width="12" height="4" x="26" y="32" fill="#404040"/>
+  <!-- Fuego -->
+  <polygon points="32,8 24,32 40,32" fill="#ff4500"/>
+  <polygon points="32,16 28,32 36,32" fill="#ffd700"/>
+</svg>
