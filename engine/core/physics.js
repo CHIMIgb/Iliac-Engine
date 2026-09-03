@@ -88,14 +88,20 @@ export function updateVerticalSector(player, world, dt, sectorIndex) {
   const targetZ = groundH + player.eyeHeight;
 
   if (player.posZ > targetZ) {
-    player.posZ = Math.max(targetZ, player.posZ - player.gravity * dt);
-  } else if (player.posZ < targetZ) {
-    // En escaleras subimos siempre; en terreno normal solo desniveles <= stepHeight.
-    const onStairs = stairH !== null;
-    if (onStairs || targetZ - player.posZ <= player.stepHeight) {
-      const climbSpeed = 5.0;
-      player.posZ = Math.min(targetZ, player.posZ + climbSpeed * dt);
+    // Caída con gravedad acelerada por velocidad (velocityZ), no a velocidad constante.
+    player.velocityZ += player.gravity * dt;
+    player.posZ = Math.max(targetZ, player.posZ - player.velocityZ * dt);
+    if (player.posZ <= targetZ) player.velocityZ = 0; // aterrizó
+  } else {
+    if (player.posZ < targetZ) {
+      // En escaleras subimos siempre; en terreno normal solo desniveles <= stepHeight.
+      const onStairs = stairH !== null;
+      if (onStairs || targetZ - player.posZ <= player.stepHeight) {
+        const climbSpeed = 5.0;
+        player.posZ = Math.min(targetZ, player.posZ + climbSpeed * dt);
+      }
     }
+    player.velocityZ = 0;
   }
 
   // Colisión con techo: la cabeza del jugador no puede atravesar el techo.
@@ -104,5 +110,6 @@ export function updateVerticalSector(player, world, dt, sectorIndex) {
   const maxZ = ceilH - headClearance;
   if (player.posZ > maxZ) {
     player.posZ = maxZ;
+    player.velocityZ = 0;
   }
 }

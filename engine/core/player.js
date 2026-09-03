@@ -9,6 +9,8 @@ export class Player {
     this.height = 1.8;      // Altura total de la cápsula del jugador.
     this.stepHeight = 0.6;
     this.gravity = 9.0;
+    this.velocityZ = 0;
+    this.currentSector = null;
   }
 
   get forwardX() {

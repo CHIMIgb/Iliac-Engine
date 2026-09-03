@@ -126,3 +126,27 @@ test('updateVerticalSector no falla fuera de los sectores', () => {
   assert.doesNotThrow(() => updateVerticalSector(p, world, 1.0, index));
   assert.ok(Number.isFinite(p.posZ), 'posZ sigue siendo finita');
 });
+
+test('updateVerticalSector gravedad acelerada: velocityZ crece entre frames', () => {
+  // Techo alto para caída libre sin clavarse en el clamp de techo.
+  const world = flatWorld();
+  world.sectors[0].ceilH = 50;
+  const index = buildSectorIndex(world);
+  const p = new Player(5, 5, 40.0, 0, 0);
+  updateVerticalSector(p, world, 0.1, index);
+  const v1 = p.velocityZ;
+  updateVerticalSector(p, world, 0.1, index);
+  const v2 = p.velocityZ;
+  assert.ok(v1 > 0, 'empieza a caer con velocidad positiva');
+  assert.ok(v2 > v1, 'la velocidad aumenta con la gravedad');
+  assert.ok(Math.abs((v2 - v1) - 0.9) < 1e-9, 'incremento = gravity * dt');
+});
+
+test('updateVerticalSector resetea velocityZ al apoyarse', () => {
+  const world = flatWorld();
+  const index = buildSectorIndex(world);
+  const p = new Player(5, 5, 3.0, 0, 0);
+  // Cae y se apoya en el suelo del todo (aterriza a altura de ojos).
+  updateVerticalSector(p, world, 2.0, index);
+  assert.equal(p.velocityZ, 0, 'al aterrizar la velocidad vertical se anula');
+});

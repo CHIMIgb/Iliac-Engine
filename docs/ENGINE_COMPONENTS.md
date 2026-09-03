@@ -75,7 +75,7 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 Propiedades:
 - `posX`, `posY`, `posZ`: posición en el mundo.
 - `yaw`, `pitch`: orientación en radianes.
-- `eyeHeight = 0.5`, `height = 1.8` (altura total de la cápsula), `stepHeight = 0.6`, `gravity = 9.0`.
+- `eyeHeight = 0.5`, `height = 1.8` (altura total de la cápsula), `stepHeight = 0.6`, `gravity = 9.0` (aceleración en u/s²), `velocityZ = 0` (velocidad vertical acumulada por la gravedad), `currentSector = null` (sector habitado, para `getSectorAtOrNearest`).
 
 Getters:
 - `forwardX/Y`, `rightX/Y`: vectores de dirección a partir del `yaw`.
@@ -87,7 +87,7 @@ Métodos:
 
 Schema v3 (sectores poligonales):
 - `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius=0.25, sectorIndex)`: movimiento con sub-steps (máx. 10) como vector único (X e Y simultáneos), colisión círculo-segmento contra paredes sólidas y **caras frontales de escaleras demasiado altas**. Si se le pasa `sectorIndex` (cacheado en `Engine3D`), evita reconstruirlo en cada frame.
-- `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`, sube escaleras automáticamente (`climbSpeed = 5.0`), aplica gravedad y **colisiona con el techo** usando `getCeilHeightAt` y `player.height`. Acepta `sectorIndex` cacheado.
+- `updateVerticalSector(player, world, dt, sectorIndex)`: ajusta `posZ` según `getFloorHeightAt` + `getStairHeightAt`, sube escaleras automáticamente (`climbSpeed = 5.0`), aplica **gravedad acelerada** (`velocityZ += gravity * dt`) y **colisiona con el techo** usando `getCeilHeightAt` y `player.height`. Acepta `sectorIndex` cacheado. Trackea `player.currentSector`.
 
 ### 3.5 `core/sector.js` — Geometría sectorial
 
