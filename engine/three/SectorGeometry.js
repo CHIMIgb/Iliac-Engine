@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { triangulate } from '../core/triangulate.js';
 
 function sectorVertices(world, sector, vertexMap) {
   const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
@@ -13,14 +14,6 @@ function vertexHeight(sector, ref, vertex, baseH, slopeKey, index) {
   const angleRad = (slope.angle * Math.PI) / 180;
   const delta = slope.axis === 'x' ? vertex.x - ref.x : vertex.y - ref.y;
   return baseH + delta * Math.tan(angleRad);
-}
-
-function fanIndices(vertexCount) {
-  const indices = [];
-  for (let i = 1; i < vertexCount - 1; i++) {
-    indices.push(0, i, i + 1);
-  }
-  return indices;
 }
 
 function setFlatNormals(geo, nx, ny, nz) {
@@ -71,7 +64,7 @@ export function createSectorFloorGeometry(world, sector, vertexMap, repeatDef) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(fanIndices(vertices.length));
+  geo.setIndex(triangulate(vertices).flat());
   if (Array.isArray(sector.floorH)) {
     geo.computeVertexNormals();
   } else {
@@ -97,12 +90,11 @@ export function createSectorCeilingGeometry(world, sector, vertexMap, repeatDef)
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  const indices = fanIndices(vertices.length);
-  const reversed = [];
-  for (let i = 0; i < indices.length; i += 3) {
-    reversed.push(indices[i], indices[i + 2], indices[i + 1]);
+  const indices = [];
+  for (const [a, b, c] of triangulate(vertices)) {
+    indices.push(a, c, b);
   }
-  geo.setIndex(reversed);
+  geo.setIndex(indices);
   if (Array.isArray(sector.ceilH)) {
     geo.computeVertexNormals();
   } else {

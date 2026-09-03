@@ -945,7 +945,7 @@ Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo 
 4. ✔ Renombrar `raycaster.test.js`.
 
 #### Fase D — Física y geometría avanzada (parcial)
-1. ⏳ Triangulación robusta para sectores cóncavos (ear-clipping). — **pendiente**
+1. ✔ Triangulación robusta para sectores cóncavos (ear-clipping).
 2. ✔ Colisión horizontal contra escaleras (H2).
 3. ✔ Índice espacial de sectores (BVH).
 4. ✔ UVs configurables.
@@ -974,7 +974,7 @@ Se considera saldada la deuda cuando:
 - [x] No hay fugas de memoria GPU al recargar mundos (`dispose` + `clear` robusto).
 - [x] Schema v2 está marcado como legacy o eliminado; la API pública es mínima.
 - [ ] La demo sigue jugable: portales, rampas, escaleras, sprites y paredes sólidas.
-- [ ] (Fase D) Triangulación robusta para sectores cóncavos (ear-clipping).
+- [x] (Fase D) Triangulación robusta para sectores cóncavos (ear-clipping).
 - [ ] (Fase E) Leer settings de `project.json` en `Renderer3D`.
 - [ ] (Fase E) Cache de texturas de color.
 
