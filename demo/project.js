@@ -217,6 +217,14 @@ export const project = {
     schemaVersion: 3,
     renderMode: '3d',
   },
+  render: {
+    fov: 80,
+    near: 0.1,
+    far: 300,
+    backgroundColor: 0x1a1a2e,
+    ambientLight: { color: 0xffffff, intensity: 0.5 },
+    directionalLight: { color: 0xffffee, intensity: 0.8, position: [10, 20, 10] },
+  },
   camera: {
     posX: 3,    // Centro de Room1
     posY: 3,

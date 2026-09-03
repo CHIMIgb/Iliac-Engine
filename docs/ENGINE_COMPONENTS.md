@@ -124,12 +124,14 @@ Funciones principales:
 ### 3.9 `three/Renderer3D.js` — Renderizador
 
 Encapsula la escena Three.js:
-- `PerspectiveCamera` (75° FOV, near 0.05, far 200).
+- `PerspectiveCamera` (FOV/near/far configurables vía `project.render`, por defecto 75°/0.05/200).
 - `WebGLRenderer`.
-- `AmbientLight` + `DirectionalLight`.
+- `AmbientLight` + `DirectionalLight` (configurables vía `project.render`).
+- Color de fondo configurable (`backgroundColor` en `project.render`).
 - `syncCamera(player)`: convierte la posición del motor (`X,Y` plano, `Z` altura) al espacio de Three.js (`X,Y,Z` con Y arriba).
 - `render()`: dibuja la escena. **No renderiza si el contexto WebGL está perdido**.
-- Manejo de `webglcontextlost` / `webglcontextrestored`: hace `preventDefault` (permite restauración), marca `contextLost`, y al restaurarse recrea el `WebGLRenderer` y re-renderiza. El constructor acepta `options.createRenderer` (inyectable para tests).
+- Manejo de `webglcontextlost` / `webglcontextrestored`: hace `preventDefault` (permite restauración), marca `contextLost`, y al restaurarse recrea el `WebGPURenderer` y re-renderiza. El constructor acepta `options.createRenderer` (inyectable para tests).
+- `project.render` acepta: `fov`, `near`, `far`, `backgroundColor`, `ambientLight` (color, intensity), `directionalLight` (color, intensity, position).
 
 ### 3.10 `three/WorldMesh.js` — Constructor del mundo
 

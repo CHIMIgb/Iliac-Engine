@@ -952,7 +952,7 @@ Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo 
 5. ✔ Gravedad por velocidad.
 
 #### Fase E — Polish y producción (parcial)
-1. ⏳ Leer settings de `project.json` en `Renderer3D`. — **pendiente**
+1. ✔ Leer settings de `project.json` en `Renderer3D`.
 2. ✔ Carga de texturas con `Promise.all` (H9 — pendiente de validar).
 3. ⏳ Cache de texturas de color. — **pendiente**
 4. ✔ Manejo de `webglcontextlost`.
@@ -975,7 +975,7 @@ Se considera saldada la deuda cuando:
 - [x] Schema v2 está marcado como legacy o eliminado; la API pública es mínima.
 - [ ] La demo sigue jugable: portales, rampas, escaleras, sprites y paredes sólidas.
 - [x] (Fase D) Triangulación robusta para sectores cóncavos (ear-clipping).
-- [ ] (Fase E) Leer settings de `project.json` en `Renderer3D`.
+- [x] (Fase E) Leer settings de `project.json` en `Renderer3D`.
 - [ ] (Fase E) Cache de texturas de color.
 
 **Hasta que estos checks no estén todos marcados, NO se avanza a F3 (Studio TS/Vite).**

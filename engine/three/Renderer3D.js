@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 
 export class Renderer3D {
-  constructor(canvas, opts = {}) {
+  constructor(canvas, renderSettings = {}) {
     this.canvas = canvas;
-    this.createRenderer = opts.createRenderer || this._defaultCreateRenderer;
+    this.renderSettings = renderSettings;
+    this.createRenderer = renderSettings.createRenderer || this._defaultCreateRenderer;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x202020);
+    this.scene.background = new THREE.Color(renderSettings.backgroundColor ?? 0x202020);
 
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      renderSettings.fov ?? 75,
       canvas.width / canvas.height,
-      0.05,
-      200,
+      renderSettings.near ?? 0.05,
+      renderSettings.far ?? 200,
     );
 
     this._createRenderer();
-    this._addLights();
+    this._addLights(renderSettings);
     this._bindContextLost();
   }
 
@@ -28,12 +29,14 @@ export class Renderer3D {
     this.renderer.setSize(this.canvas.width, this.canvas.height);
   }
 
-  _addLights() {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  _addLights(settings = {}) {
+    const ambientCfg = settings.ambientLight ?? { color: 0xffffff, intensity: 0.6 };
+    const ambient = new THREE.AmbientLight(ambientCfg.color, ambientCfg.intensity);
     this.scene.add(ambient);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 0.7);
-    dir.position.set(5, 10, 5);
+    const dirCfg = settings.directionalLight ?? { color: 0xffffff, intensity: 0.7, position: [5, 10, 5] };
+    const dir = new THREE.DirectionalLight(dirCfg.color, dirCfg.intensity);
+    dir.position.set(...dirCfg.position);
     this.scene.add(dir);
   }
 

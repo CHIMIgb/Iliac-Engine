@@ -29,7 +29,8 @@ export class Engine3D {
 
   async load(canvas) {
     this.textures = await loadTextures(this.project.world.textures);
-    this.renderer = new Renderer3D(canvas);
+    const renderSettings = this.project.render ?? this.project.meta?.render ?? {};
+    this.renderer = new Renderer3D(canvas, renderSettings);
     WorldMesh.build(this.renderer.scene, this.project, this.textures);
     this.loaded = true;
     return this;
