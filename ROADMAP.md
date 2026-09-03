@@ -29,7 +29,7 @@ Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir v
 | **Three.js para 3D (no WebGL a mano)** | Reutilizar una librería madura en lugar de escribir un renderer propio: escena, cámara, mallas, texturas, raycasting del editor. El trabajo propio es el *sector system* (verticalidad) encima, no el pipeline gráfico. |
 | **Formato de datos propio, único** | Desacopla herramientas ↔ motores. Un editor escribe JSON; otro motor puede leer el mismo JSON sin tocar las herramientas. Schema versionado. |
 | **Física cinemática ligera de género (no Rigidbody completo)** | Mover-y-colisionar contra sectores + gravedad (saltos, caídas), escaleras, elevadores y triggers. Un Rigidbody físico-realista (masa, fricción, joints) es sobredimensionado para un FPS 2.5D retro: complica y no aporta nada visible. `cannon-es` queda como opción futura solo para props dinámicos/proyectiles. |
-| **Visual Scripting (blueprints), nunca C#/C++** | La lógica del juego se diseña con grafos de nodos conectados por cables (estilo Unreal Blueprints). Un mismo runtime ejecuta IA, misiones, diálogos, eventos de mapa y cutscenes. |
+| **Visual Scripting (blueprints), nunca C#/C++** | La lógica del juego se diseña con grafos de nodos conectados por cables. Para evitar reinventar la rueda de la UI de nodos, se integrará **LiteGraph.js** (o Rete.js), una librería probada en canvas/vanilla TS para la creación y evaluación de grafos. Un mismo runtime ejecutará IA, misiones, eventos y cutscenes basándose en los JSON generados por esta librería. |
 | **Sistemas RPG inspirados en Daggerfall Unity** | Proyecto open-source MIT con 10 años resolviendo exactamente estos sistemas (quests `QRC/QBN`, diálogos, facciones, clases). Es el blueprint de arquitectura, no código copiable. |
 | **Fidelidad de época** | Tipografías MS-DOS/rpg 90s y pantallas de carga son parte del producto, no decoración: definen la identidad visual retro. |
 | **Backend desde el inicio (API REST + Postgres)** | La biblioteca de juegos del creador y sus preferencias viven en servidor: multidispositivo, backup centralizado y galería pública. No contradice al Publisher: el HTML autónomo sigue siendo la exportación sin cuenta; la galería es una vía adicional de publicar/jugar. |
@@ -352,18 +352,13 @@ Para cada una: **objetivo · justificación · flujo de uso · entradas/salidas 
 - **Flujo:** clase → atributos base → skills entrenables → curva XP → beneficios por nivel → XP que otorgan los enemigos.
 - **I/O:** `progression[]`.
 
-### 6.14 Visual Scripting / Blueprint Editor — 🆕 CENTRAL
+### 6.14 Visual Scripting / Blueprint Editor — 🆕 CENTRAL (Vía LiteGraph.js)
 - **Objetivo:** programar la lógica del juego **sin escribir una línea**: grafo de nodos conectados por cables (estilo **Unreal Blueprints**).
-- **Justificación:** requisito central del usuario; **unifica** IA, misiones, diálogos, eventos de mapa y cutscenes en un solo runtime.
+- **Justificación:** requisito central del usuario; **unifica** IA, misiones, diálogos, eventos de mapa y cutscenes en un solo runtime. Usar `LiteGraph.js` ahorra meses de desarrollo en la UI del editor de nodos.
 - **Flujo:**
-  1. Panel de nodos: *Eventos* (onEnterZona, onInteract, onKill, onTimer), *Condiciones* (distancia, hp, switch/var, questStage), *Acciones* (mover, atacar, dar item, sonido, diálogo, flag), *Variables/Flujo* (branch, wait, for, math).
+  1. Panel de nodos instanciados desde la API de LiteGraph: *Eventos*, *Condiciones*, *Acciones*, *Variables/Flujo*.
   2. Crear nodos con clic/drag → arrastrar pin → soltar en pin para conectar.
-  3. Guardar como **bloque reutilizable** → aparece en la librería predefinida (6.17).
-- **Dos niveles de dificultad:**
-  - **Modo fácil:** formulario tipo RPG Maker ("en esta zona → al entrar → mostrar diálogo") que **genera el grafo** por detrás.
-  - **Modo avanzado:** editor de grafos completo.
-- **I/O:** `blueprints[]`; referenciado desde quests, diálogos, AI, zones y cutscenes.
-- **Runtime compartido:** `src/game/visualscript/` ejecutado por ambos motores.
+  3. Exportar el grafo a JSON (`blueprints[]`) para ser evaluado por el runtime del motor.
 
 ### 6.15 Tipografías DOS / Font Manager — 🆕
 - **Objetivo:** caja de fuentes pixeladas y gestor de tipografía para HUD, diálogos, banners y menús.
@@ -563,12 +558,16 @@ raycastjs/
 | F2 Verticalidad / 3D (sector system) sobre el motor F1 | ✅ Migración completada |
 | **F2.5 Motor de sectores poligonales: rampas/escaleras reales + sprites billboard + física de rampa** | **✅ Validada** |
 | **F2.6 Terreno procedural: Simplex noise + generador de grilla + texturas por pendiente** | **✅ Realizada** |
-| F3 Studio TypeScript/Vite: Asset Manager + Sprite tools + Fonts + Loading | ⏳ Pendiente |
-| F4 Studio: Level Editor + viewport + playtest | ⏳ Pendiente |
-| F5 Blueprints + IA + bloques predefinidos | ⏳ Pendiente |
-| F6–F13 Sistemas RPG y Publisher | ⏳ Pendiente |
+| F3 Studio MVP: Base + **Level Editor Mínimo** (Vite+TS) | ⏳ Pendiente |
+| F4 Studio MVP: **Blueprints Mínimos (LiteGraph.js)** | ⏳ Pendiente |
+| 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
+| F5 Asset Pipeline Completo (Asset Manager, Sprite tools, Splicer, Animator) | ⏳ Pendiente |
+| F6 Blueprints Avanzados + IA + Catálogo de bloques | ⏳ Pendiente |
+| F7–F8 Polish Visual (Font Manager DOS, Loading Editor) | ⏳ Pendiente |
+| F9–F12 Sistemas RPG (Combate, Magia, Diálogos, Misiones, Economía) | ⏳ Pendiente |
+| F13 Publisher y Cloud Gallery | ⏳ Pendiente |
 
-Ver `README.md` para el estado real del repo y la estructura de capas.
+> La ruta crítica y la redefinición de fases (F3 en adelante + HITO) se describen en **§15**.
 
 ---
 
@@ -852,23 +851,27 @@ La demo `demo/index.html` debe permitir que el jugador:
 
 ---
 
-## 15. Fases del proyecto (reformuladas desde cero)
+## 15. Fases del proyecto (Ruta Crítica hacia la Demo Funcional)
 
-> El stack grande documentado antes (TypeScript+Vite+Vitest, backend Hono+Prisma+Postgres, Game Library, Design System, Publisher) se **reformula como visión a largo plazo** que nace *después* del motor JS vanilla. El orden real de trabajo ahora es:
+El orden de trabajo está diseñado para alcanzar un **Vertical Slice (Demo Funcional)** lo antes posible, conectando el motor con las herramientas mínimas viables del Studio, sin distracciones. Una vez alcanzado el hito, se construirá el resto de las herramientas accesorias.
 
 | Fase | Entregable | Depende de | Criterio de aceptación |
 |------|-----------|-----------|------------------------|
-| **F1** | **Motor de raycast base JS vanilla** (engine/ + demo/, según §14) | — | La demo `demo/index.html` muestra y recorre un mundo raycast con texturas y sprites, abriéndola directo, sin build; toda la lógica vive en `engine/` aislada |
-| **F2** | **Verticalidad/3D** sobre el motor F1 (incremental: suelos/techos por sector → colisión por altura/pasos → escaleras → aberturas/portales → rampas → iluminación) | F1 | Se sube a una plataforma elevada, se sube/baja una escalera, hay objetos anclados a distinta altura y se ve otro sector por una abertura; el motor sigue aislado, sin dependencias |
-| **F2.5** | **Motor de sectores poligonales** (estilo Build/XnGine): rampas/escaleras reales, sprites billboard, física de rampa | F2 | Se recorren sectores poligonales conectados por portales, se sube una rampa lisa, una escalera de peldaños, se ven sprites billboard; todos los tests del engine pasan |
-| **F3** | **Studio TS/Vite arranca**: toolchain (Vite+TS+Vitest), Asset Manager, Sprite tools, Font manager, Loading editor | F2.5 | El Studio (TS) consume el motor JS vanilla; un asset se importa y aparece en la demo/playtest |
-| **F4** | Studio: **Level Editor** (mapa + sectores + verticalidad) + viewport + playtest en vivo | F3 | Pinto un mapa con rampas/pisos en TS, lo camino en el motor JS vanilla y guardo/cargo `project.json` |
-| **F5** | **Blueprint Editor + runtime** (visual scripting, sin código) + IA + catálogo de bloques | F4 | Un enemigo con blueprints persigue/ataca; bloque predefinido arrastrado a una entidad |
-| **F6–F13** | **Sistemas RPG** (combate, magia, inventario, diálogos, misiones, comercio, progresión) y **Publisher** | F5+ | Véase §8 original reformulado |
+| **F1** | **Motor de raycast base JS vanilla** (engine/ + demo/) | — | La demo `demo/index.html` muestra y recorre un mundo raycast con texturas y sprites |
+| **F2** | **Verticalidad/3D** sobre el motor F1 | F1 | Se sube a una plataforma elevada, se sube/baja una escalera, objetos a distinta altura |
+| **F2.5** | **Motor de sectores poligonales** (estilo Build/XnGine) | F2 | Se recorren sectores poligonales con rampas y portales; tests pasando |
+| **F3** | **Studio MVP: Base + Level Editor Mínimo** (Vite+TS) | F2.5 | Un entorno UI (design system básico) capaz de pintar un mapa con sectores y guardarlo en `project.json`. (Se postergan herramientas de sprites/fonts; se usan assets crudos de prueba) |
+| **F4** | **Studio MVP: Blueprints Mínimos (LiteGraph.js)** | F3 | Integración de LiteGraph.js. Creación de nodos básicos: `OnInteract`, `OpenDoor`, `PlaySound`. El motor lee el JSON del grafo y ejecuta la acción al jugar. |
+| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | **F4** | **Se puede abrir el Studio, pintar un nivel con 1 puerta, conectar un blueprint para abrirla, colocar 1 enemigo de prueba, y darle a "Playtest" (F5) para jugarlo. El core está completo.** |
+| **F5** | **Asset Pipeline Completo** (Asset Manager, Sprite tools, Splicer, Animator) | HITO | Un sprite animado importado y recortado en el Studio aparece en la demo |
+| **F6** | **Blueprints Avanzados + IA + Catálogo de bloques** | F4, F5 | Enemigo con IA completa hecha en nodos persigue y ataca |
+| **F7-F8** | **Polish Visual** (Font Manager DOS, Loading Editor, UI del runtime) | F5 | HUD con tipografía retro; pantalla de carga operativa |
+| **F9-F12**| **Sistemas RPG Restantes** (Combate, Magia, Diálogos, Misiones, Economía) | F6 | Quests operativas, inventario funcionando y diálogos en árbol |
+| **F13** | **Publisher y Cloud Gallery** | F12 | Exportación a HTML autónomo y publicación online |
 
-*(La antigua numeración F0–F12 queda sustituida por esta. La tabla y el catálogo de herramientas de §6 mantienen vigencia como visión, con las herramientas construidas sobre el motor JS vanilla.)*
+¿Por qué este acomodo? Al mover el Asset Pipeline complejo (Sprite tools, Slicer, Animator) y el Polish Visual (Fonts, Loading Screens) después del Hito Funcional, garantizas que no te quedarás atascado programando un editor de sprites de recortes de píxeles durante un mes sin haber validado primero que tu motor 3D y tu editor de niveles se comunican bien con la lógica de los blueprints. Para la Demo Funcional, puedes usar un par de sprites y texturas precargadas de prueba ("placeholder assets").
 
-Ver también: desglose conceptual original en las secciones → §1 Visión, §2 Decisiones, §5 Modelo de datos, §6 Catálogo de herramientas, §8 (histórico), §11 Principios de calidad.
+*(La antigua numeración y el acomodo previo de §15 quedan sustituidos por esta ruta crítica. El catálogo de herramientas de §6 y la arquitectura de capas de §13 mantienen vigencia como visión, con las herramientas construidas sobre el motor JS vanilla.)*
 
 ---
 
