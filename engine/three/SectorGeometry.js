@@ -6,10 +6,8 @@ function sectorVertices(world, sector, vertexMap) {
 }
 
 function vertexHeight(sector, ref, vertex, baseH, slopeKey, index) {
-  // 1. Alturas por vértice (terreno irregular)
   if (Array.isArray(baseH) && index < baseH.length) return baseH[index];
 
-  // 2. Slope uniforme
   const slope = sector[slopeKey];
   if (!slope) return baseH;
   const angleRad = (slope.angle * Math.PI) / 180;
@@ -50,7 +48,16 @@ function triangleNormal(positions, i0, i1, i2) {
   return len > 0 ? [nx / len, ny / len, nz / len] : null;
 }
 
-export function createSectorFloorGeometry(world, sector, vertexMap) {
+function getRepeat(repeatDef) {
+  if (repeatDef === undefined || repeatDef === null) return { x: 1, y: 1 };
+  if (typeof repeatDef === 'number') return { x: repeatDef, y: repeatDef };
+  if (Array.isArray(repeatDef)) return { x: repeatDef[0] ?? 1, y: repeatDef[1] ?? 1 };
+  if (typeof repeatDef === 'object') return { x: repeatDef.x ?? repeatDef.u ?? 1, y: repeatDef.y ?? repeatDef.v ?? 1 };
+  return { x: 1, y: 1 };
+}
+
+export function createSectorFloorGeometry(world, sector, vertexMap, repeatDef) {
+  const { x: rx, y: ry } = getRepeat(repeatDef);
   const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
   const positions = [];
@@ -59,19 +66,15 @@ export function createSectorFloorGeometry(world, sector, vertexMap) {
     const v = vertices[i];
     const h = vertexHeight(sector, ref, v, sector.floorH, 'floorSlope', i);
     positions.push(v.x, h, v.y);
-    uvs.push(v.x, v.y);
+    uvs.push(v.x * rx, v.y * ry);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(fanIndices(vertices.length));
   if (Array.isArray(sector.floorH)) {
-    // Terreno con alturas por vértice: superficie no plana, conservar suavizado.
     geo.computeVertexNormals();
   } else {
-    // Los sectores se definen en sentido horario en el plano XZ, por lo que la
-    // normal del triángulo apunta hacia abajo; la negamos para que el piso
-    // mire hacia arriba y reciba luz desde encima.
     const normal = triangleNormal(positions, 0, 1, 2);
     if (normal) setFlatNormals(geo, -normal[0], -normal[1], -normal[2]);
     else geo.computeVertexNormals();
@@ -79,7 +82,8 @@ export function createSectorFloorGeometry(world, sector, vertexMap) {
   return geo;
 }
 
-export function createSectorCeilingGeometry(world, sector, vertexMap) {
+export function createSectorCeilingGeometry(world, sector, vertexMap, repeatDef) {
+  const { x: rx, y: ry } = getRepeat(repeatDef);
   const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
   const positions = [];
@@ -88,12 +92,11 @@ export function createSectorCeilingGeometry(world, sector, vertexMap) {
     const v = vertices[i];
     const h = vertexHeight(sector, ref, v, sector.ceilH, 'ceilSlope', i);
     positions.push(v.x, h, v.y);
-    uvs.push(v.x, v.y);
+    uvs.push(v.x * rx, v.y * ry);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  // Invertir orden para que la normal apunte hacia abajo
   const indices = fanIndices(vertices.length);
   const reversed = [];
   for (let i = 0; i < indices.length; i += 3) {
@@ -103,8 +106,6 @@ export function createSectorCeilingGeometry(world, sector, vertexMap) {
   if (Array.isArray(sector.ceilH)) {
     geo.computeVertexNormals();
   } else {
-    // La normal del triángulo ya apunta hacia abajo en el plano XZ; la usamos
-    // directamente para que el techo mire hacia abajo.
     const normal = triangleNormal(positions, 0, 1, 2);
     if (normal) setFlatNormals(geo, normal[0], normal[1], normal[2]);
     else geo.computeVertexNormals();
@@ -112,7 +113,8 @@ export function createSectorCeilingGeometry(world, sector, vertexMap) {
   return geo;
 }
 
-export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap) {
+export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap, repeatDef) {
+  const { x: rx, y: ry } = getRepeat(repeatDef);
   const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
   const a = map.get(wall.a);
   const b = map.get(wall.b);
@@ -121,7 +123,6 @@ export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMa
   const vertices = sectorVertices(world, sector, vertexMap);
   const ref = vertices[0];
 
-  // Para paredes usamos el índice del vértice en el sector si existe.
   const idxA = vertexIndexMap ? vertexIndexMap.get(wall.a) : sector.vertexIds.indexOf(wall.a);
   const idxB = vertexIndexMap ? vertexIndexMap.get(wall.b) : sector.vertexIds.indexOf(wall.b);
 
@@ -136,6 +137,7 @@ export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMa
     b.x, cb, b.y,
     a.x, ca, a.y,
   ];
+  // UV: u along wall length (0..1), v along height (0..1)
   const uvs = [
     0, 0,
     1, 0,
@@ -147,6 +149,15 @@ export function createWallGeometry(wall, world, sector, vertexMap, vertexIndexMa
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex([0, 1, 2, 0, 2, 3]);
+
+  // Apply repeat to UVs
+  const uvAttr = geo.attributes.uv;
+  for (let i = 0; i < uvAttr.count; i++) {
+    uvAttr.setX(i, uvAttr.getX(i) * rx);
+    uvAttr.setY(i, uvAttr.getY(i) * ry);
+  }
+  uvAttr.needsUpdate = true;
+
   const dx = b.x - a.x;
   const dz = b.y - a.y;
   const len = Math.hypot(dx, dz);

@@ -148,3 +148,39 @@ test('createSectorFloorGeometry conserva computeVertexNormals para terreno no pl
   const len = Math.hypot(...n);
   assert.ok(Math.abs(len - 1) < 1e-6, 'normal normalizada');
 });
+
+function getUV(geo, i) {
+  const uv = geo.attributes.uv.array;
+  return [uv[i * 2], uv[i * 2 + 1]];
+}
+
+test('createSectorFloorGeometry aplica repeat en UVs', () => {
+  const geo = createSectorFloorGeometry(world, world.sectors[0], undefined, { x: 2, y: 3 });
+  const uvs = geo.attributes.uv.array;
+  assert.deepStrictEqual(getUV(geo, 0), [0, 0]);
+  assert.deepStrictEqual(getUV(geo, 1), [12, 0]);
+  assert.deepStrictEqual(getUV(geo, 2), [12, 18]);
+  assert.deepStrictEqual(getUV(geo, 3), [0, 18]);
+});
+
+test('createSectorCeilingGeometry aplica repeat en UVs', () => {
+  const geo = createSectorCeilingGeometry(world, world.sectors[0], undefined, { x: 0.5, y: 2 });
+  assert.deepStrictEqual(getUV(geo, 0), [0, 0]);
+  assert.deepStrictEqual(getUV(geo, 1), [3, 0]);
+});
+
+test('createWallGeometry aplica repeat en UVs', () => {
+  const wall = world.walls[0];
+  const geo = createWallGeometry(wall, world, world.sectors[0], undefined, undefined, { x: 3, y: 2 });
+  assert.deepStrictEqual(getUV(geo, 0), [0, 0]);
+  assert.deepStrictEqual(getUV(geo, 1), [3, 0]);
+  assert.deepStrictEqual(getUV(geo, 2), [3, 2]);
+  assert.deepStrictEqual(getUV(geo, 3), [0, 2]);
+});
+
+test('createWallGeometry usa repeat uniforme (número)', () => {
+  const wall = world.walls[0];
+  const geo = createWallGeometry(wall, world, world.sectors[0], undefined, undefined, 2);
+  assert.deepStrictEqual(getUV(geo, 1), [2, 0]);
+  assert.deepStrictEqual(getUV(geo, 2), [2, 2]);
+});

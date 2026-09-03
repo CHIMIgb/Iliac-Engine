@@ -10,6 +10,19 @@ import { buildStairsMeshes } from './StairsMesh.js';
 import { buildSprites } from './SpriteSystem.js';
 import { buildSectorIndex } from '../core/sector.js';
 
+function getTextureRepeat(world, texId) {
+  if (!texId || !world.textures) return { x: 1, y: 1 };
+  const def = world.textures[texId];
+  if (!def) return { x: 1, y: 1 };
+  if (typeof def === 'object' && def !== null && def.repeat !== undefined) {
+    const r = def.repeat;
+    if (typeof r === 'number') return { x: r, y: r };
+    if (Array.isArray(r)) return { x: r[0] ?? 1, y: r[1] ?? 1 };
+    if (typeof r === 'object') return { x: r.x ?? r.u ?? 1, y: r.y ?? r.v ?? 1 };
+  }
+  return { x: 1, y: 1 };
+}
+
 export class WorldMesh {
   static build(scene, project, textures) {
     WorldMesh.clear(scene);
@@ -52,8 +65,23 @@ export class WorldMesh {
     }
 
     for (const sector of world.sectors) {
-      addToGroup(sector.floorTex, 0x555555, THREE.DoubleSide, createSectorFloorGeometry(world, sector, vertexMap));
-      addToGroup(sector.ceilTex, 0x888888, THREE.DoubleSide, createSectorCeilingGeometry(world, sector, vertexMap));
+      // Repetición de texturas para este sector
+      const floorRepeat = getTextureRepeat(world, sector.floorTex);
+      const ceilRepeat = getTextureRepeat(world, sector.ceilTex);
+      const wallRepeat = getTextureRepeat(world, sector.wallTex);
+
+      addToGroup(
+        sector.floorTex,
+        0x555555,
+        THREE.DoubleSide,
+        createSectorFloorGeometry(world, sector, vertexMap, floorRepeat)
+      );
+      addToGroup(
+        sector.ceilTex,
+        0x888888,
+        THREE.DoubleSide,
+        createSectorCeilingGeometry(world, sector, vertexMap, ceilRepeat)
+      );
 
       // Mapa vértice del sector -> índice para lookups O(1) en paredes.
       const vertexIndexMap = new Map();
@@ -64,8 +92,11 @@ export class WorldMesh {
       const walls = wallsBySector.get(sector.id) || [];
       for (const wall of walls) {
         if (wall.sectorBack && wall.portal) continue;
-        const wallGeo = createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap);
-        addToGroup(wall.tex || sector.wallTex, 0xcc0000, THREE.FrontSide, wallGeo);
+        // Textura de la pared: prioridad wall.tex > sector.wallTex
+        const wallTex = wall.tex || sector.wallTex;
+        const wallRepeat = getTextureRepeat(world, wallTex);
+        const wallGeo = createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap, wallRepeat);
+        addToGroup(wallTex || sector.wallTex, 0xcc0000, THREE.FrontSide, wallGeo);
       }
     }
 

@@ -227,7 +227,7 @@ Características soportadas:
 1. **Separación de capas clara**: motor puro vs. demo vs. futuro Studio. El contrato por `project.json` es sólido.
 2. **Sector system funcional**: point-in-polygon, portales, alturas por vértice, slopes y física continua círculo-segmento están implementados y testeados.
 3. **Generación procedural**: `noise.js` + `terrain.js` permiten generar mundos exteriores automáticamente.
-4. **Tests**: 78 tests pasan cubriendo física, geometría, sectores, escaleras, ruido y terreno.
+4. **Tests**: 86 tests pasan cubriendo física, geometría, sectores, escaleras, ruido, terreno y UV repeat.
 5. **Render simple y funcional**: Three.js evita reinventar WebGL; el estilo pixelado se conserva con `NearestFilter`.
 
 ### Deuda técnica / limitaciones actuales
@@ -277,7 +277,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **82 tests pasan, 0 fallan**.
+Resultado actual: **86 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v3 (`physics-sector.test.js`, `physics-vertical.test.js`).
@@ -289,6 +289,7 @@ Cobertura:
 - Instanciación del motor (`engine3d.test.js`).
 - Jugador (`player.test.js`).
 - Texturas (`textures.test.js`).
+- Geometría sectorial y UV repeat (`sector-geometry.test.js`).
 
 ---
 
