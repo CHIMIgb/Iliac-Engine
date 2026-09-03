@@ -58,7 +58,7 @@ Responsabilidad: ciclo de vida del motor. No implementa física ni render; deleg
 
 | Método | Descripción |
 |--------|-------------|
-| `constructor(project)` | Lee `project.camera` y `project.world`; crea el `Player`. En schema v3 construye y cachea el índice sectorial (`vertexMap`, `wallsBySector`, `solidWalls`). |
+| `constructor(project)` | Valida `project.json` (lanza error claro si es inválido), lee `project.camera` y `project.world`; crea el `Player`. En schema v3 construye y cachea el índice sectorial (`vertexMap`, `wallsBySector`, `solidWalls`). |
 | `async load(canvas)` | Carga texturas, crea `Renderer3D` y construye el `WorldMesh`. |
 | `update(input, dt)` | Orquesta la física de sectores poligonales. Capa `dt` a 50 ms para evitar inestabilidad. Llama a `moveWithSectorCollision` y `updateVerticalSector` pasándoles el índice sectorial cacheado. |
 | `render()` | Sincroniza la cámara del renderer con el jugador y renderiza. |
@@ -161,6 +161,10 @@ Encapsula la escena Three.js:
 - `loadTextures(textureDefs)`: carga texturas desde URL o genera texturas de color a partir de un hex.
 - `colorTexture(hex)`: textura plana de 64×64 generada en canvas.
 - `makeMaterial(textures, id, fallbackColor, side)`: material `MeshStandardMaterial` con la textura o color de fallback; fuerza filtro `NearestFilter` para estilo pixelado.
+
+### 3.17 `core/validate.js` — Validador de `project.json`
+
+- `validateProject(project)`: devuelve `{ valid, errors, warnings }`. Comprueba estructura esencial: `world.vertices`/`world.sectors` presentes y con elementos mínimos, vértices con `id`/`x`/`y`, sectores con `vertexIds` referenciando vértices existentes, y paredes con `a`/`b`/`sectorFront` válidos. `Engine3D` lo llama en el constructor y lanza un error claro si `valid` es `false`.
 
 ---
 

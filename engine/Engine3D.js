@@ -1,6 +1,7 @@
 import { Player } from './core/player.js';
 import { moveWithSectorCollision, updateVerticalSector } from './core/physics.js';
 import { buildSectorIndex } from './core/sector.js';
+import { validateProject } from './core/validate.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
@@ -9,6 +10,10 @@ const MAX_DT = 0.05; // 50 ms; evita que un frame largo desestabilice la física
 
 export class Engine3D {
   constructor(project) {
+    const { errors } = validateProject(project);
+    if (errors.length) {
+      throw new Error(`project.json inválido:\n- ${errors.join('\n- ')}`);
+    }
     this.project = project;
     this.world = project.world;
     const c = project.camera;
