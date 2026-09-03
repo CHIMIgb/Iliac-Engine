@@ -905,8 +905,8 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 
 ### 16.3 Items de prioridad media (pueden entrar tras los críticos/altos)
 
-- UVs configurables (`textureRepeat`/`uvScale`) en schema v3.
-- Índice espacial para `getSectorAt` (grid o BVH de bounding boxes).
+- ✅ UVs configurables (`textureRepeat`/`uvScale`) en schema v3. — **validada**
+- ✅ Índice espacial para `getSectorAt` (BVH de bounding boxes de sectores). — **realizada**
 - `getSectorAtOrNearest` más robusto (no devolver sector no adyacente).
 - Gravedad basada en velocidad (`velocityZ`) en lugar de velocidad de caída constante.
 - Validador ligero de `project.json` al cargar.

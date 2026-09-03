@@ -15,13 +15,14 @@ export function buildSectorIndex(world) {
   }
 
   const solidWalls = (world.walls || []).filter((w) => !(w.sectorBack && w.portal));
+  const bvh = buildBVH(world);
 
-  return { vertexMap, wallsBySector, solidWalls };
+  return { vertexMap, wallsBySector, solidWalls, bvh };
 }
 
 export function getSectorVertices(world, sector, vertexMap) {
   const map = vertexMap || buildSectorIndex(world).vertexMap;
-  return sector.vertexIds.map((id) => map.get(id));
+  return sector.vertexIds.map((id) => map.get(id)).filter(Boolean);
 }
 
 export function pointInPolygon(polygon, x, y) {
@@ -44,13 +45,93 @@ export function pointInSector(world, sector, x, y, vertexMap) {
 }
 
 export function getSectorAt(world, x, y, vertexMap) {
-  const map = vertexMap || buildSectorIndex(world).vertexMap;
-  for (const sector of world.sectors) {
-    if (pointInSector(world, sector, x, y, map)) {
-      return sector;
-    }
+  const index = buildSectorIndex(world);
+  return queryBVH(world, index.bvh, x, y, index.vertexMap);
+}
+
+function aabbIntersects(aabb, x, y) {
+  return x >= aabb.minX && x <= aabb.maxX && y >= aabb.minY && y <= aabb.maxY;
+}
+
+function sectorAABB(world, sector) {
+  const map = new Map(world.vertices.map((v) => [v.id, v]));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const id of sector.vertexIds) {
+    const v = map.get(id);
+    if (!v) continue;
+    minX = Math.min(minX, v.x);
+    minY = Math.min(minY, v.y);
+    maxX = Math.max(maxX, v.x);
+    maxY = Math.max(maxY, v.y);
   }
-  return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function buildBVH(world) {
+  const leaves = world.sectors.map((sector) => {
+    return { sector, aabb: sectorAABB(world, sector), isLeaf: true };
+  });
+  return buildBVHRecursive(leaves);
+}
+
+function buildBVHRecursive(nodes) {
+  if (nodes.length === 1) {
+    return { ...nodes[0], left: null, right: null };
+  }
+  if (nodes.length === 2) {
+    return {
+      aabb: mergeAABBs(nodes[0].aabb, nodes[1].aabb),
+      left: { ...nodes[0], isLeaf: true },
+      right: { ...nodes[1], isLeaf: true },
+      isLeaf: false,
+    };
+  }
+  const bbox = mergeAABBsArray(nodes);
+  const axis = bbox.maxX - bbox.minX > bbox.maxY - bbox.minY ? 'x' : 'y';
+  nodes.sort((a, b) => {
+    if (axis === 'x') {
+      return (a.aabb.minX + a.aabb.maxX) - (b.aabb.minX + b.aabb.maxX);
+    }
+    return (a.aabb.minY + a.aabb.maxY) - (b.aabb.minY + b.aabb.maxY);
+  });
+  const mid = Math.floor(nodes.length / 2);
+  const left = buildBVHRecursive(nodes.slice(0, mid));
+  const right = buildBVHRecursive(nodes.slice(mid));
+  return { aabb: mergeAABBs(left.aabb, right.aabb), left, right, isLeaf: false };
+}
+
+function mergeAABBs(a, b) {
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
+}
+
+function mergeAABBsArray(nodes) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.aabb.minX);
+    minY = Math.min(minY, n.aabb.minY);
+    maxX = Math.max(maxX, n.aabb.maxX);
+    maxY = Math.max(maxY, n.aabb.maxY);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function queryBVH(world, node, x, y, vertexMap) {
+  if (!node || !aabbIntersects(node.aabb, x, y)) return null;
+  if (node.isLeaf) {
+    return pointInSector(world, node.sector, x, y, vertexMap) ? node.sector : null;
+  }
+  return queryBVH(world, node.left, x, y, vertexMap) || queryBVH(world, node.right, x, y, vertexMap);
 }
 
 function barycentric(p, a, b, c) {
@@ -104,11 +185,9 @@ function heightAt(world, sector, x, y, baseH, slopeKey, vertexMap) {
   const vertices = getSectorVertices(world, sector, vertexMap);
   const heights = vertexHeights(sector, vertices, baseH, slopeKey);
 
-  // Si solo hay 3 vértices o alturas explícitas, interpolamos por triángulo.
   const interpolated = interpolateHeight(vertices, heights, x, y);
   if (interpolated !== null) return interpolated;
 
-  // Fallback: fórmula de slope uniforme (compatible con sectores rectangulares).
   const slope = sector[slopeKey];
   if (!slope) return baseH;
   const ref = vertices[0];
