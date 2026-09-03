@@ -21,19 +21,21 @@ engine/
 ├── core/                # Lógica de juego pura, SIN Three.js
 │   ├── math.js          # Utilidades matemáticas
 │   ├── player.js        # Entidad jugador (posición, orientación, getters)
-│   ├── collision.js     # Colisión tile-based legacy (schema v2)
-│   ├── physics.js       # Física: movimiento + gravedad (v2 y v3)
-│   ├── sector.js        # Geometría sectorial: point-in-polygon, alturas, índices
+│   ├── physics.js       # Física: movimiento + gravedad (v3)
+│   ├── sector.js        # Geometría sectorial: point-in-polygon, alturas, índices, BVH
 │   ├── stairs.js        # Altura y geometría de escaleras de peldaños
 │   ├── noise.js         # Ruido Simplex 2D + FBM reproducible
-│   └── terrain.js       # Generador procedural de terreno por sectores
+│   ├── terrain.js       # Generador procedural de terreno por sectores
+│   ├── validate.js      # Validador ligero de project.json (schema v3)
+│   └── triangulate.js   # Ear-clipping para triangulación de polígonos cóncavos
 └── three/               # Todo lo que toca Three.js/WebGL
-    ├── Renderer3D.js    # Escena, cámara, luces, render loop
-    ├── WorldMesh.js     # Construye la escena 3D desde project.json
-    ├── SectorGeometry.js# Geometría de suelos, techos y paredes poligonales
+    ├── Renderer3D.js    # Escena, cámara, luces, render loop (configurable vía project.render)
+    ├── WorldMesh.js     # Construye la escena 3D desde project.json (merge por material)
+    ├── SectorGeometry.js# Geometría de suelos, techos y paredes poligonales (usa triangulate.js)
+    ├── GeometryMerge.js # Merge de BufferGeometries para reducir draw calls
     ├── StairsMesh.js    # Geometría de escaleras de peldaños
     ├── SpriteSystem.js  # Sprites billboard
-    └── textures.js      # Carga de texturas y creación de materiales
+    └── textures.js      # Carga de texturas (Promise.all, NearestFilter), cache de color, materiales
 ```
 
 Regla: **nunca importar Three.js dentro de `core/`, ni poner lógica de juego dentro de `three/`**.
@@ -130,7 +132,7 @@ Encapsula la escena Three.js:
 - Color de fondo configurable (`backgroundColor` en `project.render`).
 - `syncCamera(player)`: convierte la posición del motor (`X,Y` plano, `Z` altura) al espacio de Three.js (`X,Y,Z` con Y arriba).
 - `render()`: dibuja la escena. **No renderiza si el contexto WebGL está perdido**.
-- Manejo de `webglcontextlost` / `webglcontextrestored`: hace `preventDefault` (permite restauración), marca `contextLost`, y al restaurarse recrea el `WebGPURenderer` y re-renderiza. El constructor acepta `options.createRenderer` (inyectable para tests).
+- Manejo de `webglcontextlost` / `webglcontextrestored`: hace `preventDefault` (permite restauración), marca `contextLost`, y al restaurarse recrea el `WebGLRenderer` y re-renderiza. El constructor acepta `options.createRenderer` (inyectable para tests).
 - `project.render` acepta: `fov`, `near`, `far`, `backgroundColor`, `ambientLight` (color, intensity), `directionalLight` (color, intensity, position).
 
 ### 3.10 `three/WorldMesh.js` — Constructor del mundo
@@ -145,11 +147,14 @@ Encapsula la escena Three.js:
 
 ### 3.12 `three/SectorGeometry.js` — Geometría poligonal
 
-- `createSectorFloorGeometry(world, sector, vertexMap)`: `BufferGeometry` del suelo por fan triangulation, soporta alturas por vértice y slopes. Acepta `vertexMap` cacheado.
+- `createSectorFloorGeometry(world, sector, vertexMap)`: `BufferGeometry` del suelo usando **ear-clipping** (`triangulate.js`), soporta alturas por vértice y slopes. Acepta `vertexMap` cacheado.
 - `createSectorCeilingGeometry(world, sector, vertexMap)`: igual que el suelo pero con índices invertidos para que la normal apunte hacia abajo. Acepta `vertexMap` cacheado.
 - `createWallGeometry(wall, world, sector, vertexMap, vertexIndexMap)`: quad vertical entre los puntos `a` y `b`, desde `floorH` hasta `ceilH` (con slopes). Acepta `vertexMap` e índices de vértice cacheados para evitar `indexOf` por pared.
+- **Soporta sectores cóncavos** gracias a la triangulación ear-clipping en `core/triangulate.js`.
 
-**Limitación actual**: solo sectores convexos; la fan triangulation falla en cóncavos.
+### 3.13 `core/triangulate.js` — Triangulación ear-clipping
+
+- `triangulate(points)`: algoritmo ear-clipping O(n²) para triangulación robusta de polígonos simples (convexos y cóncavos). Detecta winding (CW/CCW) y evita crear triángulos degenerados. Usado por `SectorGeometry.js` para suelos y techos.
 
 ### 3.14 `three/StairsMesh.js` — Escaleras visuales
 
@@ -161,8 +166,8 @@ Encapsula la escena Three.js:
 
 ### 3.16 `three/textures.js` — Texturas y materiales
 
-- `loadTextures(textureDefs)`: carga texturas desde URL o genera texturas de color a partir de un hex.
-- `colorTexture(hex)`: textura plana de 64×64 generada en canvas.
+- `loadTextures(textureDefs)`: carga texturas desde URL o genera texturas de color a partir de un hex. Usa `Promise.all` para carga paralela. Aplica `NearestFilter` + `SRGBColorSpace` una sola vez por textura tras la carga completa.
+- `colorTexture(hex)`: textura plana de 64×64 generada en canvas. **Cache por hex** (Map module-level): el mismo hex reutiliza la misma instancia de `CanvasTexture`.
 - `makeMaterial(textures, id, fallbackColor, side)`: material `MeshStandardMaterial` con la textura o color de fallback; fuerza filtro `NearestFilter` para estilo pixelado.
 
 ### 3.17 `core/validate.js` — Validador de `project.json`
@@ -238,18 +243,28 @@ Características soportadas:
 5. **Render simple y funcional**: Three.js evita reinventar WebGL; el estilo pixelado se conserva con `NearestFilter`.
 
 ### Deuda técnica / limitaciones actuales
-1. **`Engine3D.update()` no integra física v3**: la demo llama manualmente a `moveWithSectorCollision` y `updateVerticalSector`. El orquestador debería hacerlo. ✅ Resuelto en C1.
-2. **Solo sectores convexos**: los sectores cóncavos requieren triangulación más robusta (ear-clipping).
-3. **Colisión vertical básica**: no hay colisión con techos; el jugador no puede chocar con un techo bajo. ✅ Resuelto en C6.
-4. **Código legacy v2 eliminado**: el runtime de schema v2 (`collision.js`, física tile-based y `WorldMesh.buildGridWorld`) ya no existe. Un migrador v2 → v3 es opción futura si aparecen proyectos antiguos.
-5. **Sprites sin culling ni sorting**: se dibujan todos, sin orden por profundidad.
-6. **Audio, AI, quests, inventory, etc.**: aún no existen; son fases futuras (F3+).
-7. **`computeVertexNormals()` en superficies planas** (H4): resuelto. Suelos, techos y paredes planas usan normales analíticas; solo el terreno no plano (`floorH`/`ceilH` como array) conserva `computeVertexNormals`.
+1. **Sprites sin culling ni sorting**: se dibujan todos, sin orden por profundidad.
+2. **Código legacy v2 eliminado**: el runtime de schema v2 (`collision.js`, física tile-based y `WorldMesh.buildGridWorld`) ya no existe. Un migrador v2 → v3 es opción futura si aparecen proyectos antiguos.
+3. **Audio, AI, quests, inventory, etc.**: aún no existen; son fases futuras (F3+).
+
+**Resueltas en deuda técnica (§16):**
+- ✅ `Engine3D.update()` orquesta física v3 (C1).
+- ✅ Sectores cóncavos soportados via ear-clipping (D.1, `core/triangulate.js`).
+- ✅ Colisión con techo implementada (C6).
+- ✅ Normales analíticas en superficies planas (H4).
+- ✅ Índice espacial BVH para `getSectorAt` (prioridad media).
+- ✅ `getSectorAtOrNearest` restringido a adyacentes (prioridad media).
+- ✅ Gravedad acelerada por `velocityZ` (prioridad media).
+- ✅ Validador de `project.json` (prioridad media).
+- ✅ Manejo `webglcontextlost`/`restored` (prioridad media).
+- ✅ Carga `Promise.all` + filtros una vez (H9).
+- ✅ Cache de texturas de color (E.3).
+- ✅ Settings de `project.render` en `Renderer3D` (E.1).
 
 ### Veredicto
-La base es **sólida para continuar hacia F3+** (sistemas RPG, audio, visual scripting) porque el núcleo de mundo 3D sectorial ya funciona. Lo prioritario antes de añadir grandes sistemas es:
-1. Soportar sectores cóncavos.
-2. Añadir sorting por profundidad en sprites.
+La base es **sólida para continuar hacia F3** (Studio MVP: Base + Level Editor Mínimo con Vite+TS). La deuda técnica del motor (Fases A–E de §16) está **saldada**; todos los checks de §16.6 están marcados excepto validación manual de jugabilidad de la demo.
+
+Siguiente paso crítico: **F3 — Studio MVP** (Base + Level Editor Mínimo).
 
 ---
 
@@ -257,8 +272,8 @@ La base es **sólida para continuar hacia F3+** (sistemas RPG, audio, visual scr
 
 **Sí.** El schema v3 del motor está diseñado exactamente para ser escrito por herramientas de edición:
 
-- **Level Editor** del Studio podría crear `vertices`, `sectors`, `walls`, `ramps` y `sprites` arrastrando puntos en un canvas 2D top-down.
-- **Asset Manager** podría poblar `world.textures` y `world.sprites`.
+- **Level Editor** del Studio (F6.5) podría crear `vertices`, `sectors`, `walls`, `ramps` y `sprites` arrastrando puntos en un canvas 2D top-down.
+- **Asset Manager** (F6.4) podría poblar `world.textures` y `world.sprites`.
 - El motor **solo lee** esos datos, por lo que cualquier herramienta que genere `project.json` v3 funcionará sin cambios en el motor.
 
 ### Qué falta del lado de herramientas
@@ -284,7 +299,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **86 tests pasan, 0 fallan**.
+Resultado actual: **107 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v3 (`physics-sector.test.js`, `physics-vertical.test.js`).
@@ -296,12 +311,15 @@ Cobertura:
 - Instanciación del motor (`engine3d.test.js`).
 - Jugador (`player.test.js`).
 - Texturas (`textures.test.js`).
-- Geometría sectorial y UV repeat (`sector-geometry.test.js`).
+- UV repeat (`sector-geometry.test.js`).
+- Triangulación ear-clipping (`triangulate.test.js`).
 
 ---
 
 ## 8. Referencias
 
-- `ROADMAP.md` §2 (decisiones técnicas), §5 (schema `project.json`), §13 (arquitectura de capas), §14–§15 (fases F2–F3), F2.5 (motor de sectores poligonales).
+- `ROADMAP.md` §2 (decisiones técnicas: LiteGraph.js), §5 (schema `project.json`), §13 (arquitectura de capas), §14–§15 (fases F1–F13, HITO tras F4), §16 (deuda técnica saldada).
 - `README.md`: visión de dos capas y modelo de datos.
 - `AGENTS.md`: convenciones del proyecto.
+- `DESIGN.md`: design system Catppuccin Mocha para Studio.
+- `DATABASE.md`: esquema Prisma/PostgreSQL para backend.
