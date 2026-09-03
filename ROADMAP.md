@@ -900,8 +900,8 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 | H5 | Sin lifecycle de resize/dispose. | `engine/three/Renderer3D.js`, `engine/Engine3D.js` | Añadir `resize(w,h)` y `dispose()`. | validada |
 | H6 | API pública demasiado amplia. | `engine/index.js`, `engine/Engine3D.js` | Surface mínima: `Engine3D`, `Player`, utilidades de datos. | validada |
 | H7 | Faltan tests de física vertical v3. | `test/engine/` | Tests de `updateVerticalSector`, techo, `Engine3D.update`. | validada |
-| H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. | realizada |
-| H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. | pendiente |
+| H8 | Schema v2 convive como ciudadano de primera clase. | `engine/core/collision.js`, `engine/core/physics.js`, `engine/three/WorldMesh.js` | Deprecar v2; conservar solo migrador si es necesario. | validada |
+| H9 | Carga de texturas secuencial + mutación de texturas en `makeMaterial`. | `engine/three/textures.js` | `Promise.all` en carga; setear filtros una sola vez. | realizada |
 
 ### 16.3 Items de prioridad media (pueden entrar tras los críticos/altos)
 

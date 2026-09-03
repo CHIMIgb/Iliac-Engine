@@ -277,7 +277,7 @@ Comando:
 node --test test/engine/*.test.js
 ```
 
-Resultado actual: **78 tests pasan, 0 fallan**.
+Resultado actual: **82 tests pasan, 0 fallan**.
 
 Cobertura:
 - Física v3 (`physics-sector.test.js`, `physics-vertical.test.js`).
@@ -288,6 +288,7 @@ Cobertura:
 - Ruido y terreno (`noise.test.js`, `terrain.test.js`).
 - Instanciación del motor (`engine3d.test.js`).
 - Jugador (`player.test.js`).
+- Texturas (`textures.test.js`).
 
 ---
 

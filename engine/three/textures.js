@@ -3,14 +3,30 @@ import * as THREE from 'three';
 export async function loadTextures(textureDefs) {
   const textures = {};
   const loader = new THREE.TextureLoader();
+  const pending = [];
+
   for (const key in textureDefs) {
     const def = textureDefs[key];
     if (typeof def === 'string') {
-      textures[key] = await loader.loadAsync(def);
+      pending.push(
+        loader.loadAsync(def).then((tex) => {
+          textures[key] = tex;
+        }),
+      );
     } else if (typeof def === 'number') {
       textures[key] = colorTexture(def);
     }
   }
+
+  await Promise.all(pending);
+
+  // Filtros y colorSpace se aplican una sola vez por textura, no en cada material.
+  for (const tex of Object.values(textures)) {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+  }
+
   return textures;
 }
 
@@ -30,9 +46,6 @@ export function colorTexture(hex) {
 export function makeMaterial(textures, id, fallbackColor, side = THREE.FrontSide) {
   const tex = textures[id];
   if (tex) {
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.colorSpace = THREE.SRGBColorSpace;
     return new THREE.MeshStandardMaterial({ map: tex, side });
   }
   return new THREE.MeshStandardMaterial({ color: fallbackColor, side });
