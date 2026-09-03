@@ -913,7 +913,7 @@ El orden de trabajo está diseñado para alcanzar un **Vertical Slice (Demo Func
 - ✅ `getSectorAtOrNearest` más robusto (solo devuelve sector adyacente al último conocido). — **validada**
 - ✅ Gravedad basada en velocidad (`velocityZ`) en lugar de velocidad de caída constante. — **validada**
 - ✅ Validador ligero de `project.json` al cargar. — **validada**
-- ✅ Renombrar `raycaster.test.js` → `player.test.js`.
+- ✅ Renombrar `raycaster.test.js` → `player.test.js`. — **validada**
 - ✅ Manejo de `webglcontextlost`. — **realizada**
 
 ### 16.4 Plan de ejecución propuesto
@@ -953,8 +953,8 @@ Las tareas se agrupan en **5 fases**. Cada fase termina con tests pasando, demo 
 
 #### Fase E — Polish y producción (parcial)
 1. ✔ Leer settings de `project.json` en `Renderer3D`.
-2. ✔ Carga de texturas con `Promise.all` (H9 — pendiente de validar).
-3. ⏳ Cache de texturas de color. — **pendiente**
+2. ✔ Carga de texturas con `Promise.all` (H9 — **validada**).
+3. ✔ Cache de texturas de color.
 4. ✔ Manejo de `webglcontextlost`.
 5. ✔ Actualizar `docs/ENGINE_COMPONENTS.md` (parcial).
 
@@ -976,6 +976,6 @@ Se considera saldada la deuda cuando:
 - [ ] La demo sigue jugable: portales, rampas, escaleras, sprites y paredes sólidas.
 - [x] (Fase D) Triangulación robusta para sectores cóncavos (ear-clipping).
 - [x] (Fase E) Leer settings de `project.json` en `Renderer3D`.
-- [ ] (Fase E) Cache de texturas de color.
+- [x] (Fase E) Cache de texturas de color.
 
 **Hasta que estos checks no estén todos marcados, NO se avanza a F3 (Studio TS/Vite).**
