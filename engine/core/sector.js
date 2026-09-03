@@ -235,13 +235,20 @@ export function distancePointToSegment(px, py, a, b) {
   return Math.hypot(px - closest.x, py - closest.y);
 }
 
-export function getSectorAtOrNearest(world, x, y, vertexMap) {
+export function getSectorAtOrNearest(world, x, y, vertexMap, lastSector) {
   const sector = getSectorAt(world, x, y, vertexMap);
   if (sector) return sector;
 
+  const index = buildSectorIndex(world);
+  const candidates = lastSector
+    ? adjacentSectors(world, lastSector, index.wallsBySector)
+    : world.sectors;
+  // Sin sector adyacente al último conocido, no inventamos uno no conectado.
+  if (lastSector && candidates.length === 0) return null;
+
   let best = null;
   let bestDist = Infinity;
-  for (const s of world.sectors) {
+  for (const s of candidates) {
     const verts = getSectorVertices(world, s, vertexMap);
     if (!verts.length) continue;
     let cx = 0;
@@ -259,4 +266,13 @@ export function getSectorAtOrNearest(world, x, y, vertexMap) {
     }
   }
   return best;
+}
+
+function adjacentSectors(world, sector, wallsBySector) {
+  const adjacent = new Set();
+  for (const wall of wallsBySector.get(sector.id) || []) {
+    if (wall.sectorBack) adjacent.add(wall.sectorBack);
+    if (wall.sectorFront !== sector.id) adjacent.add(wall.sectorFront);
+  }
+  return world.sectors.filter((s) => adjacent.has(s.id));
 }

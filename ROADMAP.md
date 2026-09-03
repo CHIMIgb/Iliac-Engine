@@ -906,8 +906,8 @@ Ver también: desglose conceptual original en las secciones → §1 Visión, §2
 ### 16.3 Items de prioridad media (pueden entrar tras los críticos/altos)
 
 - ✅ UVs configurables (`textureRepeat`/`uvScale`) en schema v3. — **validada**
-- ✅ Índice espacial para `getSectorAt` (BVH de bounding boxes de sectores). — **realizada**
-- `getSectorAtOrNearest` más robusto (no devolver sector no adyacente).
+- ✅ Índice espacial para `getSectorAt` (BVH de bounding boxes de sectores). — **validada**
+- ✅ `getSectorAtOrNearest` más robusto (solo devuelve sector adyacente al último conocido). — **realizada**
 - Gravedad basada en velocidad (`velocityZ`) en lugar de velocidad de caída constante.
 - Validador ligero de `project.json` al cargar.
 - ✅ Renombrar `raycaster.test.js` → `player.test.js`.

@@ -4,6 +4,7 @@ import {
   pointInPolygon,
   pointInSector,
   getSectorAt,
+  getSectorAtOrNearest,
   getFloorHeightAt,
   getCeilHeightAt,
   getSolidWalls,
@@ -143,4 +144,27 @@ test('distancePointToSegment calcula distancia mínima', () => {
   assert.equal(distancePointToSegment(2, 3, a, b), 3);
   assert.equal(distancePointToSegment(-1, 0, a, b), 1);
   assert.equal(distancePointToSegment(5, 0, a, b), 1);
+});
+
+test('getSectorAtOrNearest fuera del mapa sin lastSector usa el centroide más cercano', () => {
+  const s0 = world.sectors[0];
+  assert.equal(getSectorAtOrNearest(world, 1, 1), s0, 'dentro de s0 usa getSectorAt');
+  assert.equal(getSectorAtOrNearest(world, -1, 1), s0, 'fuera, s0 es el más cercano');
+});
+
+test('getSectorAtOrNearest con lastSector solo devuelve sector adyacente', () => {
+  const s0 = world.sectors[0];
+  const s1 = world.sectors[1];
+  const s3 = world.sectors[3];
+  // Fuera del mapa: s1 es el único adyacente a s0 (portal w1), se devuelve s1.
+  assert.equal(getSectorAtOrNearest(world, -1, 1, undefined, s0), s1, 's1 es adyacente a s0');
+  assert.equal(getSectorAtOrNearest(world, 1, 1, undefined, s0), s0, 'dentro de s0 usa getSectorAt');
+  // s3 no comparte muro con s0: no debe devolverse como adyacente aunque sea lejano.
+  assert.notEqual(getSectorAtOrNearest(world, -1000, 0, undefined, s0), s3);
+});
+
+test('getSectorAtOrNearest con lastSector ignora sectores no conectados', () => {
+  // s0 solo conecta con s1: un punto lejano a la izquierda sigue devolviendo s1,
+  // nunca un sector sin conexión directa como s3.
+  assert.equal(getSectorAtOrNearest(world, -1000, 0, undefined, world.sectors[0]).id, 's1');
 });

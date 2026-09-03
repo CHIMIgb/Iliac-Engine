@@ -95,8 +95,8 @@ Funciones principales:
 - `buildSectorIndex(world)`: construye `vertexMap`, `wallsBySector` y `solidWalls`.
 - `getSectorVertices(world, sector, vertexMap)`: resuelve vértices de un sector.
 - `pointInPolygon(polygon, x, y)` / `pointInSector(world, sector, x, y)`: test de punto dentro de polígono (ray casting).
-- `getSectorAt(world, x, y, vertexMap)`: devuelve el sector que contiene un punto. Acepta `vertexMap` cacheado.
-- `getSectorAtOrNearest(world, x, y, vertexMap)`: fallback al centroide más cercano si el punto queda fuera. Acepta `vertexMap` cacheado.
+- `getSectorAt(world, x, y, vertexMap)`: devuelve el sector que contiene un punto (usa el índice BVH). Acepta `vertexMap` cacheado.
+- `getSectorAtOrNearest(world, x, y, vertexMap, lastSector)`: si el punto queda fuera de todos los sectores, fallback al centroide más cercano **solo entre sectores adyacentes a `lastSector`** (el sector actual del jugador), evitando saltos a sectores no conectados. Acepta `vertexMap` cacheado.
 - `getFloorHeightAt(world, sector, x, y, vertexMap)` / `getCeilHeightAt(world, sector, x, y, vertexMap)`: altura interpolada baricéntricamente (soporta `floorH`/`ceilH` como array de alturas por vértice o slope uniforme). Aceptan `vertexMap` cacheado.
 - `getSolidWalls(world, sectorId)`: segmentos sólidos de un sector.
 - `closestPointOnSegment(px, py, a, b)` / `distancePointToSegment(px, py, a, b)`: utilidades de proyección sobre segmentos.

@@ -77,8 +77,9 @@ export function moveWithSectorCollision(player, world, dirX, dirY, speed, dt, ra
 
 export function updateVerticalSector(player, world, dt, sectorIndex) {
   const { vertexMap } = sectorIndex || buildSectorIndex(world);
-  const sector = getSectorAtOrNearest(world, player.posX, player.posY, vertexMap);
+  const sector = getSectorAtOrNearest(world, player.posX, player.posY, vertexMap, player.currentSector);
   if (!sector) return;
+  player.currentSector = sector;
 
   // Altura de suelo en el punto actual (soporta slopes y alturas por vértice).
   const floorH = getFloorHeightAt(world, sector, player.posX, player.posY, vertexMap);
