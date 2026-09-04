@@ -1,0 +1,67 @@
+/**
+ * CameraControls — control de la cámara del editor.
+ *
+ * Dos modos:
+ *  - 'game':  cámara de juego (WASD + pointer lock), como en la demo.
+ *  - 'orbit': cámara orbital de edición (arrastrar para orbitar, rueda para zoom).
+ *
+ * Intercambio con Tabulador (o botón del viewport).
+ */
+
+export type CameraMode = 'game' | 'orbit';
+
+export interface OrbitState {
+  theta: number;  // azimut (rad)
+  phi: number;    // elevación (rad)
+  radius: number; // distancia al objetivo
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+}
+
+export class CameraControls {
+  mode: CameraMode = 'orbit';
+  orbit: OrbitState = { theta: 0.6, phi: 1.2, radius: 12, targetX: 0, targetY: 0, targetZ: 0 };
+
+  // Estado del modo juego (POS no se gestiona aquí: el motor lo posee).
+  // Aquí solo guardamos los ejes de movimiento.
+  moveX = 0;
+  moveY = 0; // profundidad (adelante/atrás)
+  moveSpeed = 0;
+
+  onModeChange?: (mode: CameraMode) => void;
+
+  /** Cambia de modo y notifica. */
+  setMode(mode: CameraMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.onModeChange?.(mode);
+  }
+
+  toggleMode(): void {
+    this.setMode(this.mode === 'game' ? 'orbit' : 'game');
+  }
+
+  /** Procesa la rueda del ratón (zoom en modo orbit). */
+  onWheel(deltaY: number): void {
+    if (this.mode !== 'orbit') return;
+    this.orbit.radius = Math.max(2, Math.min(60, this.orbit.radius + deltaY * 0.01));
+  }
+
+  /** Procesa arrastre (orbitar en modo orbit). */
+  onDrag(dx: number, dy: number): void {
+    if (this.mode !== 'orbit') return;
+    this.orbit.theta -= dx * 0.005;
+    this.orbit.phi = Math.max(0.05, Math.min(Math.PI * 0.49, this.orbit.phi - dy * 0.005));
+  }
+
+  /** Devuelve la posición de la cámara en modo orbit. */
+  orbitPosition(): { x: number; y: number; z: number } {
+    const { theta, phi, radius, targetX, targetY, targetZ } = this.orbit;
+    return {
+      x: targetX + radius * Math.sin(phi) * Math.cos(theta),
+      y: targetY + radius * Math.cos(phi),
+      z: targetZ + radius * Math.sin(phi) * Math.sin(theta),
+    };
+  }
+}
