@@ -245,7 +245,7 @@ motor-raycast/
 | F2.6 Terreno procedural: Simplex noise + generador de grilla + texturas por pendiente | ✅ Realizada |
 | F3 Studio MVP: Base + Design System (Vite+TS) | ✅ Validada |
 | F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ✅ Realizada |
-| F4 Studio MVP: **Blueprints Mínimos (LiteGraph.js)** | ✅ Realizada |
+| F4 Studio: **Herramientas de edición 3D** (picking, tools, ToolManager, Overlay2D, viewport interactivo) | ✅ Realizada |
 | F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |
@@ -457,9 +457,9 @@ La demo debe: reproducir música en loop al cargar; sonar pasos/puerta/impacto c
 | **F2** | Verticalidad/3D sobre motor F1 | F1 | Plataforma elevada, escaleras, objetos a distinta altura |
 | **F2.5** | Motor de sectores poligonales | F2 | Sectores con rampas, portales; tests pasando |
 | **F3** | Studio MVP: Level Editor Mínimo (Vite+TS) | F2.5 | Pintar mapa con sectores, guardarlo en project.json |
-| **F4** | Studio MVP: Blueprints Mínimos (LiteGraph.js) | F3 | OnInteract → OpenDoor funcional via blueprints |
+| **F4** | Studio: Herramientas de edición 3D (Level Editor interactivo) | F3 | Editar vértices/paredes/sectores/sprtites con el ratón en el viewport orbit; live reload |
 | **F4.5** | **Audio Engine (Web Audio API)** | F2.5 | Buses y SFX espacial; música adaptativa suena al cambiar de zona/combate |
-| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | **F4 + F4.5** | **Abrir Studio, pintar nivel con 1 puerta, conectar blueprint, colocar 1 enemigo, dar Playtest. El core está completo.** |
+| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | **F4 + F4.5** | **Abrir Studio, pintar nivel con sectores y entidades, dar Playtest. El core está completo.** |
 | **F5** | Asset Pipeline Completo (Asset Manager, Sprite Pipeline) | HITO | Sprite animado importado y recortado aparece en la demo |
 | **F6** | Sistemas RPG en TypeScript (Combate, IA, Inventario) | F5 | Enemigo persigue y ataca; loot al inventario |
 | **F7** | Polish Visual (Font Manager DOS, Loading, UI runtime) | F5 | HUD retro, pantalla de carga |

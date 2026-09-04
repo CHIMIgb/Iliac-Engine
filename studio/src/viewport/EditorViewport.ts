@@ -1,37 +1,57 @@
 /**
- * EditorViewport — canvas WebGL integrado con el motor.
+ * EditorViewport — canvas WebGL integrado con el motor + herramientas de edición.
  *
- * Embeje Engine3D del motor (JS vanilla) y gestiona dos modos de cámara:
- *  - 'game':  cámara de juego (WASD + pointer lock).
- *  - 'orbit': cámara orbital de edición (arrastrar para orbitar, rueda zoom).
+ * Embeje Engine3D y gestiona dos modos de cámara:
+ *  - 'game':  WASD + pointer lock.
+ *  - 'orbit': cámara orbital de edición + herramientas activas con el ratón.
  *
- * En modo game delegamos en engine.update()/render().
- * En modo orbit NO tocamos al jugador; reposicionamos directamente la cámara
- * del renderer y llamamos a renderer.render() (saltando syncCamera).
+ * En modo orbit:
+ *  - botón izquierdo = herramienta activa (ToolManager).
+ *  - botón derecho / medio = orbitar la cámara (CameraControls).
+ *  - Overlay2D dibuja vértices/paredes/selección sobre el WebGL.
  *
- * El canvas del motor vive dentro de un contenedor que es lo que se monta en
- * el layout.
+ * Este archivo SÍ toca Three.js (proyección, raycaster, cámara);
+ * la lógica de picking propiamente dicha vive en tools/picking.ts (puro).
  */
 
 import { Engine3D } from '@engine/index.js';
+import * as THREE from 'three';
 import { CameraControls, CameraMode } from './CameraControls';
+import { Overlay2D } from './Overlay2D';
+import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { sampleProject } from '../sample-project';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const MOVE_SPEED = 3.0;
+
+const _v3 = new THREE.Vector3();
+const _raycaster = new THREE.Raycaster();
+const _suelo = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _target = new THREE.Vector3();
 
 export class EditorViewport {
   readonly el: HTMLElement;
   private canvas: HTMLCanvasElement;
   private engine: Engine3D | null = null;
   private controls: CameraControls = new CameraControls();
+  private overlay: Overlay2D = new Overlay2D();
   private keys: Record<string, boolean> = {};
   private raf = 0;
   private last = 0;
-  private dragging = false;
+  private disposed = false;
+
+  // ── Órbita (botón derecho / medio) ──────────────────────────
+  private orbitDrag = false;
+  private orbitDragButton = -1;
   private lastDragX = 0;
   private lastDragY = 0;
-  private disposed = false;
+
+  // ── Posición del cursor en canvas (para picking) ─────────────
+  private lastCanvasX = 0;
+  private lastCanvasY = 0;
+
+  /** Herramientas de edición. Se asigna desde main.ts antes de init(). */
+  toolManager: ToolManager | null = null;
 
   /** Callbacks opcionales */
   onCoordsChange?: (x: number, y: number, z: number) => void;
@@ -43,33 +63,30 @@ export class EditorViewport {
     this.el.className = 'editor-viewport';
     this.el.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
 
-    // Canvas
+    // Canvas WebGL
     this.canvas = document.createElement('canvas');
     this.canvas.style.cssText = 'display:block;width:100%;height:100%;image-rendering:pixelated;';
     this.el.appendChild(this.canvas);
 
+    // Canvas de overlay (gizmos 2D)
+    this.el.appendChild(this.overlay.canvas);
+
     this._bindEvents();
   }
 
+  // ── Ciclo de vida ────────────────────────────────────────────
+
   /** Inicializa el motor con un proyecto. */
   async init(project = sampleProject): Promise<void> {
-    // Construir y cargar ANTES de asignarlo, para no dejar estado parcial si falla.
     const engine = new Engine3D(project);
     await engine.load(this.canvas);
     this.engine = engine;
-    // El canvas se redimensiona con ResizeObserver (el engine.resize usa clientWidth).
     this._setupResize();
     this.controls.onModeChange = (mode) => this.onModeChange?.(mode);
-
-    // Iniciar bucle
     this.last = performance.now();
     this._frame(this.last);
   }
 
-  /**
-   * Recarga el mundo desde un project.json (tras editar/importar).
-   * Destruye el motor actual y crea uno nuevo, conservando el modo de cámara.
-   */
   async reload(project: unknown): Promise<void> {
     const mode = this.controls.mode;
     const engine = new Engine3D(project as unknown);
@@ -79,6 +96,96 @@ export class EditorViewport {
     this.controls.setMode(mode);
     this.last = performance.now();
   }
+
+  dispose(): void {
+    this.disposed = true;
+    cancelAnimationFrame(this.raf);
+    document.removeEventListener('keydown', this._onKeyDown);
+    document.removeEventListener('keyup', this._onKeyUp);
+    document.removeEventListener('pointerlockchange', this._onPointerLockChange);
+    document.removeEventListener('mousemove', this._onGameMouseMove);
+    this.canvas.removeEventListener('mousedown', this._onMouseDown);
+    this.canvas.removeEventListener('mousemove', this._onCanvasMouseMove);
+    window.removeEventListener('mouseup', this._onMouseUp);
+    this.canvas.removeEventListener('wheel', this._onWheel);
+    this.canvas.removeEventListener('dblclick', this._onDblClick);
+    this._ro?.disconnect();
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    this.engine?.dispose();
+    this.engine = null;
+  }
+
+  get mode(): CameraMode { return this.controls.mode; }
+  get player() { return this.engine?.player ?? null; }
+  get project() { return this.engine?.project ?? null; }
+
+  setMode(mode: CameraMode): void {
+    const wasGame = this.controls.mode === 'game';
+    this.controls.setMode(mode);
+    if (wasGame && this.canvas.ownerDocument.pointerLockElement === this.canvas) {
+      this.canvas.ownerDocument.exitPointerLock();
+    }
+  }
+
+  toggleMode(): void {
+    this.setMode(this.controls.mode === 'game' ? 'orbit' : 'game');
+  }
+
+  // ── Bucle principal ──────────────────────────────────────────
+
+  private _frame(now: number): void {
+    if (this.disposed) return;
+    const dt = Math.min((now - this.last) / 1000, 0.05);
+    this.last = now;
+    if (this.engine) {
+      if (this.controls.mode === 'game') {
+        this._updateGame(now, dt);
+      } else {
+        this._updateOrbit();
+      }
+    }
+    this.raf = requestAnimationFrame(this._frame);
+  }
+
+  private _updateGame(now: number, dt: number): void {
+    const p = this.engine!.player;
+    const fwdX = Math.cos(p.yaw);
+    const fwdY = Math.sin(p.yaw);
+    const rightX = Math.cos(p.yaw + Math.PI / 2);
+    const rightY = Math.sin(p.yaw + Math.PI / 2);
+    let dirX = 0, dirY = 0;
+    if (this.keys['ArrowUp'] || this.keys['KeyW']) { dirX += fwdX; dirY += fwdY; }
+    if (this.keys['ArrowDown'] || this.keys['KeyS']) { dirX -= fwdX; dirY -= fwdY; }
+    if (this.keys['ArrowLeft'] || this.keys['KeyA']) { dirX -= rightX; dirY -= rightY; }
+    if (this.keys['ArrowRight'] || this.keys['KeyD']) { dirX += rightX; dirY += rightY; }
+    this.engine!.update({ dirX, dirY, speed: MOVE_SPEED }, dt);
+    this.engine!.render();
+    this.onCoordsChange?.(p.posX, p.posY, p.posZ);
+  }
+
+  private _updateOrbit(): void {
+    const r = this.engine!.renderer;
+    const pos = this.controls.orbitPosition();
+    const { targetX, targetY, targetZ } = this.controls.orbit;
+    r.camera.position.set(pos.x, pos.y, pos.z);
+    r.camera.lookAt(targetX, targetY, targetZ);
+    r.render();
+    this.onCoordsChange?.(targetX, targetY, targetZ);
+
+    // Overlay: dibujar gizmos si hay toolManager y doc
+    const tm = this.toolManager;
+    if (tm) {
+      const w = this.canvas.clientWidth || 1;
+      const h = this.canvas.clientHeight || 1;
+      this.overlay.resize(w, h);
+      this.overlay.draw(tm.doc, r.camera, tm.selection, tm.hoverId);
+    }
+  }
+
+  // ── Resize ───────────────────────────────────────────────────
+
+  private _ro: ResizeObserver | null = null;
+  private _resizeHandler: (() => void) | null = null;
 
   private _setupResize(): void {
     const resize = () => {
@@ -97,138 +204,44 @@ export class EditorViewport {
     this._resizeHandler = resize;
   }
 
-  private _ro: ResizeObserver | null = null;
-  private _resizeHandler: (() => void) | null = null;
-
-  private _frame(now: number): void {
-    if (this.disposed) return;
-    const dt = Math.min((now - this.last) / 1000, 0.05);
-    this.last = now;
-
-    if (this.engine) {
-      if (this.controls.mode === 'game') {
-        this._updateGame(now, dt);
-      } else {
-        this._updateOrbit();
-      }
-    }
-
-    this.raf = requestAnimationFrame(this._frame);
-  }
-
-  private _updateGame(now: number, dt: number): void {
-    const p = this.engine!.player;
-    const fwdX = Math.cos(p.yaw);
-    const fwdY = Math.sin(p.yaw);
-    const rightX = Math.cos(p.yaw + Math.PI / 2);
-    const rightY = Math.sin(p.yaw + Math.PI / 2);
-
-    let dirX = 0;
-    let dirY = 0;
-    if (this.keys['ArrowUp'] || this.keys['KeyW']) { dirX += fwdX; dirY += fwdY; }
-    if (this.keys['ArrowDown'] || this.keys['KeyS']) { dirX -= fwdX; dirY -= fwdY; }
-    if (this.keys['ArrowLeft'] || this.keys['KeyA']) { dirX -= rightX; dirY -= rightY; }
-    if (this.keys['ArrowRight'] || this.keys['KeyD']) { dirX += rightX; dirY += rightY; }
-
-    this.engine!.update({ dirX, dirY, speed: MOVE_SPEED }, dt);
-    this.engine!.render();
-
-    this.onCoordsChange?.(p.posX, p.posY, p.posZ);
-  }
-
-  private _updateOrbit(): void {
-    const r = this.engine!.renderer;
-    const pos = this.controls.orbitPosition();
-    const { targetX, targetY, targetZ } = this.controls.orbit;
-
-    r.camera.position.set(pos.x, pos.y, pos.z);
-    r.camera.lookAt(targetX, targetY, targetZ);
-
-    r.render();
-    this.onCoordsChange?.(targetX, targetY, targetZ);
-  }
-
-  /** Cambia el modo de cámara. */
-  setMode(mode: CameraMode): void {
-    const wasGame = this.controls.mode === 'game';
-    this.controls.setMode(mode);
-    if (wasGame && this.canvas.ownerDocument.pointerLockElement === this.canvas) {
-      this.canvas.ownerDocument.exitPointerLock();
-    }
-  }
-
-  toggleMode(): void {
-    this.setMode(this.controls.mode === 'game' ? 'orbit' : 'game');
-  }
-
-  get mode(): CameraMode {
-    return this.controls.mode;
-  }
-
-  get player() {
-    return this.engine?.player ?? null;
-  }
-
-  /** Devuelve el project que tiene cargado el motor. */
-  get project() {
-    return this.engine?.project ?? null;
-  }
+  // ── Eventos ──────────────────────────────────────────────────
 
   private _bindEvents(): void {
-    // Teclado
     this.canvas.tabIndex = 0;
-
     document.addEventListener('keydown', this._onKeyDown);
     document.addEventListener('keyup', this._onKeyUp);
-
-    // Pointer lock change
     document.addEventListener('pointerlockchange', this._onPointerLockChange);
-    document.addEventListener('mousemove', this._onMouseMove);
-
-    // Ratón en modo orbit
+    document.addEventListener('mousemove', this._onGameMouseMove); // pointer lock modo game
     this.canvas.addEventListener('mousedown', this._onMouseDown);
-    this.canvas.addEventListener('mousemove', this._onOrbitMouseMove);
+    this.canvas.addEventListener('mousemove', this._onCanvasMouseMove);
     window.addEventListener('mouseup', this._onMouseUp);
     this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
-
-    // Doble clic para entrar en modo game
     this.canvas.addEventListener('dblclick', this._onDblClick);
   }
 
+  // ── Keyboard ─────────────────────────────────────────────────
+
   private _onKeyDown = (e: KeyboardEvent): void => {
     this.keys[e.code] = true;
-
-    // Tab → alternar modo
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      this.toggleMode();
-      return;
-    }
-
-    // En modo game, activar pointer lock con teclas de movimiento
+    if (e.key === 'Tab') { e.preventDefault(); this.toggleMode(); return; }
     const c = this.controls;
     if (c.mode === 'game' && !this.canvas.ownerDocument.pointerLockElement && MOVE_KEYS.includes(e.code)) {
       this.canvas.requestPointerLock();
     }
-
-    // Escape salir de pointer lock en modo game
     if (e.key === 'Escape' && this.canvas.ownerDocument.pointerLockElement) {
       this.canvas.ownerDocument.exitPointerLock();
     }
   };
 
-  private _onKeyUp = (e: KeyboardEvent): void => {
-    this.keys[e.code] = false;
-  };
+  private _onKeyUp = (e: KeyboardEvent): void => { this.keys[e.code] = false; };
 
   private _onPointerLockChange = (): void => {
-    const locked = this.canvas.ownerDocument.pointerLockElement === this.canvas;
-    if (!locked) {
-      this.keys = {};
-    }
+    if (this.canvas.ownerDocument.pointerLockElement !== this.canvas) this.keys = {};
   };
 
-  private _onMouseMove = (e: MouseEvent): void => {
+  // ── Mouse · modo game (pointer lock) ─────────────────────────
+
+  private _onGameMouseMove = (e: MouseEvent): void => {
     const locked = this.canvas.ownerDocument.pointerLockElement === this.canvas;
     if (!locked || this.controls.mode !== 'game') return;
     const p = this.engine?.player;
@@ -237,59 +250,128 @@ export class EditorViewport {
     p.rotatePitch(-e.movementY * 0.002);
   };
 
+  // ── Mouse · modo orbit ───────────────────────────────────────
+
   private _onMouseDown = (e: MouseEvent): void => {
     if (this.controls.mode !== 'orbit') return;
-    if (e.button !== 0) return;
-    this.dragging = true;
-    this.lastDragX = e.clientX;
-    this.lastDragY = e.clientY;
-    this.canvas.style.cursor = 'grabbing';
+
+    if (e.button === 0) {
+      // Botón izquierdo → herramienta
+      if (this.toolManager && this.engine) {
+        this.toolManager.onPointerDown(this._buildPickContext());
+      }
+      return;
+    }
+
+    // Botón derecho (2) o medio (1) → orbitar
+    if (e.button === 1 || e.button === 2) {
+      e.preventDefault();
+      this.orbitDrag = true;
+      this.orbitDragButton = e.button;
+      this.lastDragX = e.clientX;
+      this.lastDragY = e.clientY;
+      this.canvas.style.cursor = 'grabbing';
+    }
   };
 
-  private _onOrbitMouseMove = (e: MouseEvent): void => {
-    if (!this.dragging || this.controls.mode !== 'orbit') return;
-    const dx = e.clientX - this.lastDragX;
-    const dy = e.clientY - this.lastDragY;
-    this.lastDragX = e.clientX;
-    this.lastDragY = e.clientY;
-    this.controls.onDrag(dx, dy);
+  private _onCanvasMouseMove = (e: MouseEvent): void => {
+    const rect = this.canvas.getBoundingClientRect();
+    this.lastCanvasX = e.clientX - rect.left;
+    this.lastCanvasY = e.clientY - rect.top;
+
+    // Órbita (botón derecho/medio mantenido)
+    if (this.orbitDrag) {
+      const dx = e.clientX - this.lastDragX;
+      const dy = e.clientY - this.lastDragY;
+      this.lastDragX = e.clientX;
+      this.lastDragY = e.clientY;
+      this.controls.onDrag(dx, dy);
+    }
+
+    // Herramienta: hover + drag tool (si hay toolManager y estamos en modo orbit)
+    if (this.toolManager && this.controls.mode === 'orbit' && this.engine) {
+      this.toolManager.onPointerMove(this._buildPickContext());
+    }
   };
 
-  private _onMouseUp = (): void => {
-    this.dragging = false;
-    this.canvas.style.cursor = '';
+  private _onMouseUp = (e: MouseEvent): void => {
+    if (e.button === this.orbitDragButton) {
+      this.orbitDrag = false;
+      this.orbitDragButton = -1;
+      this.canvas.style.cursor = '';
+    }
+    if (e.button === 0 && this.toolManager) {
+      this.toolManager.onPointerUp();
+    }
   };
 
   private _onWheel = (e: WheelEvent): void => {
     if (this.controls.mode !== 'orbit') return;
     e.preventDefault();
+    // Primero intentar herramienta (H: cambio de altura)
+    if (this.toolManager?.onWheel(e.deltaY, e.shiftKey)) return;
+    // Si no consumió → zoom órbita
     this.controls.onWheel(e.deltaY);
   };
 
-  private _onDblClick = (e: MouseEvent): void => {
-    // Doble clic en modo orbit → activar modo game
+  private _onDblClick = (): void => {
     if (this.controls.mode === 'orbit') {
       this.setMode('game');
       this.canvas.requestPointerLock();
     }
   };
 
-  /** Libera recursos del motor. */
-  dispose(): void {
-    this.disposed = true;
-    cancelAnimationFrame(this.raf);
-    document.removeEventListener('keydown', this._onKeyDown);
-    document.removeEventListener('keyup', this._onKeyUp);
-    document.removeEventListener('pointerlockchange', this._onPointerLockChange);
-    document.removeEventListener('mousemove', this._onMouseMove);
-    this.canvas.removeEventListener('mousedown', this._onMouseDown);
-    this.canvas.removeEventListener('mousemove', this._onOrbitMouseMove);
-    window.removeEventListener('mouseup', this._onMouseUp);
-    this.canvas.removeEventListener('wheel', this._onWheel);
-    this.canvas.removeEventListener('dblclick', this._onDblClick);
-    this._ro?.disconnect();
-    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
-    this.engine?.dispose();
-    this.engine = null;
+  // ── Pick context (proyección 3D→2D con Three.js) ─────────────
+
+  private _buildPickContext(): PickContext {
+    const px = this.lastCanvasX;
+    const py = this.lastCanvasY;
+    const w = this.canvas.clientWidth || 1;
+    const h = this.canvas.clientHeight || 1;
+
+    // Si no hay motor, devolver ctx vacío
+    if (!this.engine || !this.toolManager) {
+      return { px, py, world: null, screenVertices: [], screenWalls: [], screenSprites: [] };
+    }
+
+    const camera = this.engine.renderer.camera;
+    const doc = this.toolManager.doc;
+
+    // World pick: intersección del rayo del cursor con el plano suelo (y=0 de Three).
+    const ndcX = (px / w) * 2 - 1;
+    const ndcY = -(py / h) * 2 + 1;
+    _raycaster.setFromCamera({ x: ndcX, y: ndcY } as THREE.Vector2, camera);
+    const intersect = _raycaster.ray.intersectPlane(_suelo, _target);
+    const world = intersect ? { x: _target.x, z: _target.z } : null;
+
+    // Proyectar vértices del mundo (suelo y=0) a pantalla.
+    const screenVertices = doc.world.vertices.map((v) => {
+      _v3.set(v.x, 0, v.y);
+      const p = _v3.clone().project(camera);
+      return { id: v.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
+    });
+
+    // Proyectar paredes (segmentos a y b) a pantalla.
+    const screenWalls = doc.world.walls.map((wa) => {
+      const va = doc.getVertex(wa.a);
+      const vb = doc.getVertex(wa.b);
+      if (!va || !vb) return { id: wa.id, x1: 0, y1: 0, x2: 0, y2: 0 };
+      _v3.set(va.x, 0, va.y); const pa = _v3.clone().project(camera);
+      _v3.set(vb.x, 0, vb.y); const pb = _v3.clone().project(camera);
+      return {
+        id: wa.id,
+        x1: (pa.x + 1) * 0.5 * w, y1: (1 - pa.y) * 0.5 * h,
+        x2: (pb.x + 1) * 0.5 * w, y2: (1 - pb.y) * 0.5 * h,
+      };
+    });
+
+    // Proyectar sprites (posición 3D) a pantalla.
+    const screenSprites = doc.world.sprites.map((sp) => {
+      _v3.set(sp.pos.x, sp.pos.z, sp.pos.y); // Three: x=altura=z del doc, z=profundidad=y del doc
+      const p = _v3.clone().project(camera);
+      return { id: sp.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
+    });
+
+    return { px, py, world, screenVertices, screenWalls, screenSprites };
   }
 }

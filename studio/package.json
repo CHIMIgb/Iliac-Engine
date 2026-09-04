@@ -13,6 +13,7 @@
     "setup:textures": "node -e \"const fs=require('fs');const d='public/textures';fs.mkdirSync(d,{recursive:true});for(const f of fs.readdirSync('../demo/textures'))fs.copyFileSync('../demo/textures/'+f,d+'/'+f);console.log('Texturas copiadas a public/textures');\""
   },
   "dependencies": {
+    "lucide": "^1.41.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
