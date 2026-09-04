@@ -10,8 +10,8 @@ export function validateProject(project) {
   const vertexIds = new Set((world.vertices || []).map((v) => v.id));
   const sectorIds = new Set((world.sectors || []).map((s) => s.id));
 
-  if (!Array.isArray(world.vertices) || world.vertices.length === 0) {
-    finish(errors, '"world.vertices" debe ser un array no vacío');
+  if (!Array.isArray(world.vertices)) {
+    finish(errors, '"world.vertices" debe ser un array');
   } else {
     for (const v of world.vertices) {
       if (v.id == null) errors.push(`vértice sin "id" en posición ${JSON.stringify(v)}`);
@@ -21,8 +21,8 @@ export function validateProject(project) {
     }
   }
 
-  if (!Array.isArray(world.sectors) || world.sectors.length === 0) {
-    finish(errors, '"world.sectors" debe ser un array no vacío');
+  if (!Array.isArray(world.sectors)) {
+    finish(errors, '"world.sectors" debe ser un array');
   } else {
     for (const s of world.sectors) {
       if (s.id == null) errors.push('sector sin "id"');

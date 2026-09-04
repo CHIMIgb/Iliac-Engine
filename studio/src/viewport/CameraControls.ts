@@ -55,6 +55,32 @@ export class CameraControls {
     this.orbit.phi = Math.max(0.05, Math.min(Math.PI * 0.49, this.orbit.phi - dy * 0.005));
   }
 
+  /** Procesa el arrastre para mover el objetivo (panning horizontal). */
+  onPan(dx: number, dy: number): void {
+    if (this.mode !== 'orbit') return;
+    const speed = this.orbit.radius * 0.002;
+    const rightX = -Math.sin(this.orbit.theta);
+    const rightZ = Math.cos(this.orbit.theta);
+
+    this.orbit.targetX += -dx * rightX * speed;
+    this.orbit.targetZ += -dx * rightZ * speed;
+    // dy del ratón → vertical (Y en Three.js)
+    this.orbit.targetY += dy * speed;
+  }
+
+  /** Panning con teclado (WASD = horizontal, QE = vertical). */
+  panWASD(dx: number, dz: number, dy = 0): void {
+    if (this.mode !== 'orbit') return;
+    const rightX = -Math.sin(this.orbit.theta);
+    const rightZ = Math.cos(this.orbit.theta);
+    const fwdX = -Math.cos(this.orbit.theta);
+    const fwdZ = -Math.sin(this.orbit.theta);
+
+    this.orbit.targetX += dx * rightX + dz * fwdX;
+    this.orbit.targetZ += dx * rightZ + dz * fwdZ;
+    this.orbit.targetY += dy;
+  }
+
   /** Devuelve la posición de la cámara en modo orbit. */
   orbitPosition(): { x: number; y: number; z: number } {
     const { theta, phi, radius, targetX, targetY, targetZ } = this.orbit;
@@ -65,3 +91,4 @@ export class CameraControls {
     };
   }
 }
+

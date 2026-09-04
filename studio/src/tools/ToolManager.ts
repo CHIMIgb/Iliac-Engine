@@ -88,14 +88,19 @@ export class ToolManager {
     this.cb.onSelectionChange?.(sel);
   }
 
-  onPointerDown(ctx: PickContext): void {
+  /**
+   * Procesa un clic del botón izquierdo.
+   * @returns `true` si la herramienta consumió el clic (agarre, creación o
+   * selección); `false` si cayó en vacío y el viewport puede orbitar la cámara.
+   */
+  onPointerDown(ctx: PickContext): boolean {
     switch (this.activeTool) {
-      case 'vertex':    this.toolVertexDown(ctx); break;
-      case 'sector':    this.toolSectorDown(ctx); break;
-      case 'wall':      this.toolWallDown(ctx); break;
-      case 'height':    this.toolHeightDown(ctx); break;
-      case 'entity':    this.toolEntityDown(ctx); break;
-      default:          this.toolSelectDown(ctx);
+      case 'vertex':    return this.toolVertexDown(ctx);
+      case 'sector':    return this.toolSectorDown(ctx);
+      case 'wall':      return this.toolWallDown(ctx);
+      case 'height':    return this.toolHeightDown(ctx);
+      case 'entity':    return this.toolEntityDown(ctx);
+      default:          return this.toolSelectDown(ctx);
     }
   }
 
@@ -115,13 +120,27 @@ export class ToolManager {
     this.drag = null;
   }
 
-  /** Devuelve true si consumió la rueda (hubo cambio de altura). */
+  /**
+   * Devuelve true si consumió la rueda (hubo cambio de altura).
+   * Herramienta H + sector seleccionado → piso/techo.
+   * Sprite seleccionado (cualquier herramienta) → altura Y del sprite.
+   */
   onWheel(deltaY: number, shiftKey: boolean): boolean {
-    if (this.activeTool !== 'height') return false;
-    if (this.selection?.kind !== 'sector') return false;
-    const step = deltaY > 0 ? -0.25 : 0.25; // rueda abajo baja, arriba sube
-    changeSectorHeight(this.doc, this.selection.id, step, shiftKey);
-    return true;
+    if (this.activeTool === 'height' && this.selection?.kind === 'sector') {
+      const step = deltaY > 0 ? -0.25 : 0.25; // rueda abajo baja, arriba sube
+      changeSectorHeight(this.doc, this.selection.id, step, shiftKey);
+      return true;
+    }
+    if (this.selection?.kind === 'sprite') {
+      const sel = this.selection;
+      const sp = this.doc.world.sprites.find((s) => s.id === sel.id);
+      if (sp) {
+        const step = deltaY > 0 ? -0.25 : 0.25;
+        this.doc.moveSprite(sp.id, sp.pos.x, sp.pos.y, Math.max(0, sp.pos.z + step));
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Elimina el objeto seleccionado. Devuelve true si eliminó algo. */
@@ -144,50 +163,54 @@ export class ToolManager {
 
   // ── Gestos por herramienta ────────────────────────────────────
 
-  private toolSelectDown(ctx: PickContext): void {
+  private toolSelectDown(ctx: PickContext): boolean {
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
     if (vid) {
       this.select({ kind: 'vertex', id: vid });
       this.drag = { kind: 'vertex', id: vid };
-      return;
+      return true;
     }
     const wid = pickWall(ctx.px, ctx.py, ctx.screenWalls);
     if (wid) {
       this.select({ kind: 'wall', id: wid });
-      return;
+      return true;
     }
     const sid = pickSprite(ctx.px, ctx.py, ctx.screenSprites);
     if (sid) {
       this.select({ kind: 'sprite', id: sid });
       this.drag = { kind: 'sprite', id: sid };
-      return;
+      return true;
     }
     // Clic en un sector (por el punto del suelo)
     if (ctx.world) {
       const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
-      this.select(sector ? { kind: 'sector', id: sector } : null);
-      return;
+      if (sector) {
+        this.select({ kind: 'sector', id: sector });
+        return true;
+      }
     }
     this.select(null);
+    return false; // vacío → el viewport orbita
   }
 
-  private toolVertexDown(ctx: PickContext): void {
-    if (!ctx.world) return;
+  private toolVertexDown(ctx: PickContext): boolean {
+    if (!ctx.world) return false;
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
     if (vid) {
       // Agarrar vértice existente para moverlo
       this.select({ kind: 'vertex', id: vid });
       this.drag = { kind: 'vertex', id: vid };
-      return;
+      return true;
     }
     // Crear vértice nuevo
     const id = createVertexAt(this.doc, ctx.world.x, ctx.world.z);
     this.select({ kind: 'vertex', id });
     this.drag = { kind: 'vertex', id };
+    return true;
   }
 
-  private toolSectorDown(ctx: PickContext): void {
-    if (!ctx.world) return;
+  private toolSectorDown(ctx: PickContext): boolean {
+    if (!ctx.world) return false;
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
 
     // Cerrar polígono al volver al primer vértice
@@ -200,28 +223,32 @@ export class ToolManager {
         this.cb.onNotice?.(r.message ?? 'No se pudo crear el sector', 'warning');
       }
       this.polygon = [];
-      return;
+      return true;
     }
 
     // Añadir vértice al polígono
     if (vid) {
       if (!this.polygon.includes(vid)) this.polygon.push(vid);
-      return;
+      return true;
     }
 
     // Clic en suelo sin vértice: seleccionar el sector existente
     const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
-    this.select(sector ? { kind: 'sector', id: sector } : null);
+    if (sector) {
+      this.select({ kind: 'sector', id: sector });
+      return true;
+    }
+    return false;
   }
 
-  private toolWallDown(ctx: PickContext): void {
+  private toolWallDown(ctx: PickContext): boolean {
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
-    if (!vid) return;
+    if (!vid) return false;
     if (this.wallA === null) {
       // Primer extremo
       this.wallA = vid;
       this.cb.onNotice?.('Clic en el segundo vértice para crear la pared', 'info');
-      return;
+      return true;
     }
     // Segundo extremo: crear la pared con el punto del suelo como referencia
     const click = ctx.world ?? { x: 0, z: 0 };
@@ -235,27 +262,33 @@ export class ToolManager {
       this.cb.onNotice?.(r.message ?? 'No se pudo crear la pared', 'warning');
     }
     this.wallA = null;
+    return true;
   }
 
-  private toolHeightDown(ctx: PickContext): void {
-    if (!ctx.world) return;
+  private toolHeightDown(ctx: PickContext): boolean {
+    if (!ctx.world) return false;
     const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
-    this.select(sector ? { kind: 'sector', id: sector } : null);
+    if (sector) {
+      this.select({ kind: 'sector', id: sector });
+      return true;
+    }
+    return false;
   }
 
-  private toolEntityDown(ctx: PickContext): void {
-    if (!ctx.world) return;
+  private toolEntityDown(ctx: PickContext): boolean {
+    if (!ctx.world) return false;
     const sid = pickSprite(ctx.px, ctx.py, ctx.screenSprites);
     if (sid) {
       // Agarrar sprite existente para moverlo
       this.select({ kind: 'sprite', id: sid });
       this.drag = { kind: 'sprite', id: sid };
-      return;
+      return true;
     }
     // Crear sprite nuevo
     const id = placeSpriteAt(this.doc, ctx.world.x, ctx.world.z, defaultSpriteTex(this.doc));
     this.select({ kind: 'sprite', id });
     this.drag = { kind: 'sprite', id };
+    return true;
   }
 
   // ── Internos ──────────────────────────────────────────────────

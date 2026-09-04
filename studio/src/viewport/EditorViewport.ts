@@ -40,9 +40,9 @@ export class EditorViewport {
   private last = 0;
   private disposed = false;
 
-  // ── Órbita (botón derecho / medio) ──────────────────────────
-  private orbitDrag = false;
-  private orbitDragButton = -1;
+  // ── Control de cámara (órbita/pan) ──────────────────────────
+  private controlDrag = false;
+  private controlDragButton = -1;
   private lastDragX = 0;
   private lastDragY = 0;
 
@@ -81,6 +81,7 @@ export class EditorViewport {
     const engine = new Engine3D(project);
     await engine.load(this.canvas);
     this.engine = engine;
+    this._addEditorGrid();
     this._setupResize();
     this.controls.onModeChange = (mode) => this.onModeChange?.(mode);
     this.last = performance.now();
@@ -93,6 +94,7 @@ export class EditorViewport {
     await engine.load(this.canvas);
     this.engine?.dispose();
     this.engine = engine;
+    this._addEditorGrid();
     this.controls.setMode(mode);
     this.last = performance.now();
   }
@@ -107,6 +109,7 @@ export class EditorViewport {
     this.canvas.removeEventListener('mousedown', this._onMouseDown);
     this.canvas.removeEventListener('mousemove', this._onCanvasMouseMove);
     window.removeEventListener('mouseup', this._onMouseUp);
+    window.removeEventListener('mousemove', this._onControlDragMove);
     this.canvas.removeEventListener('wheel', this._onWheel);
     this.canvas.removeEventListener('dblclick', this._onDblClick);
     this._ro?.disconnect();
@@ -141,7 +144,7 @@ export class EditorViewport {
       if (this.controls.mode === 'game') {
         this._updateGame(now, dt);
       } else {
-        this._updateOrbit();
+        this._updateOrbit(dt);
       }
     }
     this.raf = requestAnimationFrame(this._frame);
@@ -163,8 +166,22 @@ export class EditorViewport {
     this.onCoordsChange?.(p.posX, p.posY, p.posZ);
   }
 
-  private _updateOrbit(): void {
+  private _updateOrbit(dt: number): void {
     const r = this.engine!.renderer;
+
+    let panX = 0, panZ = 0, panY = 0;
+    const speed = 15 * dt;
+    if (this.keys['ArrowUp'] || this.keys['KeyW']) panZ -= speed;
+    if (this.keys['ArrowDown'] || this.keys['KeyS']) panZ += speed;
+    if (this.keys['ArrowLeft'] || this.keys['KeyA']) panX -= speed;
+    if (this.keys['ArrowRight'] || this.keys['KeyD']) panX += speed;
+    if (this.keys['KeyQ']) panY -= speed;
+    if (this.keys['KeyE']) panY += speed;
+
+    if (panX !== 0 || panZ !== 0 || panY !== 0) {
+      this.controls.panWASD(panX, panZ, panY);
+    }
+
     const pos = this.controls.orbitPosition();
     const { targetX, targetY, targetZ } = this.controls.orbit;
     r.camera.position.set(pos.x, pos.y, pos.z);
@@ -204,6 +221,22 @@ export class EditorViewport {
     this._resizeHandler = resize;
   }
 
+  // ── Grid de referencia ──────────────────────────────────────
+
+  /** Añade una grilla de referencia al escenario 3D para orientación espacial. */
+  private _addEditorGrid(): void {
+    if (!this.engine) return;
+    const scene = this.engine.renderer.scene;
+    // Grilla 100×100 con divisiones de 1 unidad
+    const grid = new THREE.GridHelper(100, 100, 0x444466, 0x333355);
+    grid.name = '__editor_grid__';
+    scene.add(grid);
+    // Ejes de color (rojo=X, verde=Y/up, azul=Z)
+    const axes = new THREE.AxesHelper(5);
+    axes.name = '__editor_axes__';
+    scene.add(axes);
+  }
+
   // ── Eventos ──────────────────────────────────────────────────
 
   private _bindEvents(): void {
@@ -214,6 +247,7 @@ export class EditorViewport {
     document.addEventListener('mousemove', this._onGameMouseMove); // pointer lock modo game
     this.canvas.addEventListener('mousedown', this._onMouseDown);
     this.canvas.addEventListener('mousemove', this._onCanvasMouseMove);
+    this.canvas.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mouseup', this._onMouseUp);
     this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
     this.canvas.addEventListener('dblclick', this._onDblClick);
@@ -252,25 +286,63 @@ export class EditorViewport {
 
   // ── Mouse · modo orbit ───────────────────────────────────────
 
+  /**
+   * Reparto de botones en modo orbit:
+   *  - Izquierdo (0): herramienta activa. Si la herramienta NO consume el clic
+   *    (cayó en vacío) → orbita la cámara.
+   *  - Medio (1): pan (mover el objetivo de la cámara).
+   *  - Derecho (2): orbitar.
+   */
   private _onMouseDown = (e: MouseEvent): void => {
     if (this.controls.mode !== 'orbit') return;
 
     if (e.button === 0) {
-      // Botón izquierdo → herramienta
       if (this.toolManager && this.engine) {
-        this.toolManager.onPointerDown(this._buildPickContext());
+        const consumed = this.toolManager.onPointerDown(this._buildPickContext());
+        if (!consumed) this._startControlDrag(e.button, e.clientX, e.clientY);
       }
       return;
     }
 
-    // Botón derecho (2) o medio (1) → orbitar
-    if (e.button === 1 || e.button === 2) {
+    if (e.button === 1) {
       e.preventDefault();
-      this.orbitDrag = true;
-      this.orbitDragButton = e.button;
-      this.lastDragX = e.clientX;
-      this.lastDragY = e.clientY;
-      this.canvas.style.cursor = 'grabbing';
+      this._startControlDrag(e.button, e.clientX, e.clientY);
+      return;
+    }
+
+    if (e.button === 2) {
+      e.preventDefault();
+      this._startControlDrag(e.button, e.clientX, e.clientY);
+    }
+  };
+
+  private _startControlDrag(button: number, clientX: number, clientY: number): void {
+    this.controlDrag = true;
+    this.controlDragButton = button;
+    this.lastDragX = clientX;
+    this.lastDragY = clientY;
+    this.canvas.style.cursor = 'grabbing';
+    // Escuchar en window: el arrastre no se corta al salir del canvas.
+    window.addEventListener('mousemove', this._onControlDragMove);
+  }
+
+  private _stopControlDrag(): void {
+    this.controlDrag = false;
+    this.controlDragButton = -1;
+    this.canvas.style.cursor = this.toolManager?.hoverId ? 'pointer' : '';
+    window.removeEventListener('mousemove', this._onControlDragMove);
+  }
+
+  private _onControlDragMove = (e: MouseEvent): void => {
+    if (!this.controlDrag) return;
+    const dx = e.clientX - this.lastDragX;
+    const dy = e.clientY - this.lastDragY;
+    this.lastDragX = e.clientX;
+    this.lastDragY = e.clientY;
+    if (this.controlDragButton === 1) {
+      this.controls.onPan(dx, dy);   // botón medio → pan
+    } else {
+      this.controls.onDrag(dx, dy);  // botón izq/dcho → órbita
     }
   };
 
@@ -279,26 +351,19 @@ export class EditorViewport {
     this.lastCanvasX = e.clientX - rect.left;
     this.lastCanvasY = e.clientY - rect.top;
 
-    // Órbita (botón derecho/medio mantenido)
-    if (this.orbitDrag) {
-      const dx = e.clientX - this.lastDragX;
-      const dy = e.clientY - this.lastDragY;
-      this.lastDragX = e.clientX;
-      this.lastDragY = e.clientY;
-      this.controls.onDrag(dx, dy);
-    }
+    // Durante órbita/pan el drag se procesa en window; aquí solo hover/cursor.
+    if (this.controlDrag) return;
 
     // Herramienta: hover + drag tool (si hay toolManager y estamos en modo orbit)
     if (this.toolManager && this.controls.mode === 'orbit' && this.engine) {
       this.toolManager.onPointerMove(this._buildPickContext());
+      this.canvas.style.cursor = this.toolManager.hoverId ? 'pointer' : '';
     }
   };
 
   private _onMouseUp = (e: MouseEvent): void => {
-    if (e.button === this.orbitDragButton) {
-      this.orbitDrag = false;
-      this.orbitDragButton = -1;
-      this.canvas.style.cursor = '';
+    if (e.button === this.controlDragButton) {
+      this._stopControlDrag();
     }
     if (e.button === 0 && this.toolManager) {
       this.toolManager.onPointerUp();

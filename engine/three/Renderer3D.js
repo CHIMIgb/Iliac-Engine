@@ -26,7 +26,7 @@ export class Renderer3D {
 
   _createRenderer() {
     this.renderer = this.createRenderer(this.canvas);
-    this.renderer.setSize(this.canvas.width, this.canvas.height);
+    this.renderer.setSize(this.canvas.width, this.canvas.height, false);
   }
 
   _addLights(settings = {}) {
@@ -76,7 +76,7 @@ export class Renderer3D {
 
   resize(width, height) {
     if (this.contextLost) return;
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }

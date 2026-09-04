@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState } from '../src/editor/EditorState';
+import { ToolManager } from '../src/tools/ToolManager';
+import type { PickContext } from '../src/tools/ToolManager';
 import {
   createVertexAt,
   moveVertexTo,
@@ -209,5 +211,75 @@ describe('tools · sprites', () => {
   it('moveSpriteTo devuelve false si no existe', () => {
     const state = makeRoom();
     expect(moveSpriteTo(state, 'nope', 1, 1)).toBe(false);
+  });
+});
+
+// ── ToolManager: consumo de clic y rueda ───────────────────────
+
+/** PickContext mínimo: solo el punto del suelo (sin proyecciones). */
+function ctxAt(x: number, z: number): PickContext {
+  return { px: 0, py: 0, world: { x, z }, screenVertices: [], screenWalls: [], screenSprites: [] };
+}
+
+describe('ToolManager · onPointerDown devuelve si consumió el clic', () => {
+  it('select: clic en vacío → false (el viewport puede orbitar)', () => {
+    const tm = new ToolManager(makeRoom());
+    expect(tm.onPointerDown(ctxAt(20, 20))).toBe(false);
+    expect(tm.selection).toBeNull();
+  });
+
+  it('select: clic dentro de un sector → true y selecciona', () => {
+    const tm = new ToolManager(makeRoom());
+    expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
+    expect(tm.selection?.kind).toBe('sector');
+  });
+
+  it('entity: clic en suelo sin sprite → crea sprite y consume (true)', () => {
+    const tm = new ToolManager(makeRoom());
+    tm.setTool('entity');
+    expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
+    expect(tm.selection?.kind).toBe('sprite');
+    expect(tm.doc.world.sprites).toHaveLength(1);
+  });
+
+  it('height: clic fuera de todo sector → false', () => {
+    const tm = new ToolManager(makeRoom());
+    tm.setTool('height');
+    expect(tm.onPointerDown(ctxAt(20, 20))).toBe(false);
+  });
+});
+
+describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () => {
+  it('rueda sobre sprite seleccionado cambia pos.z y consume', () => {
+    const state = makeRoom();
+    const id = placeSpriteAt(state, 4, 4);
+    const tm = new ToolManager(state);
+    // Seleccionar el sprite con un clic proyectado
+    tm.onPointerDown({ px: 10, py: 10, world: null, screenVertices: [], screenWalls: [], screenSprites: [{ id, x: 10, y: 10 }] });
+    expect(tm.selection?.kind).toBe('sprite');
+
+    const before = state.world.sprites.find((s) => s.id === id)!.pos.z;
+    expect(before).toBe(0); // nacen en el suelo
+    tm.onWheel(-100, false); // rueda arriba → sube (y consume)
+    const up = state.world.sprites.find((s) => s.id === id)!.pos.z;
+    expect(up).toBe(0.25);
+    tm.onWheel(100, false); // rueda abajo → baja
+    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
+    tm.onWheel(100, false); // clamp: sin altura negativa
+    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
+  });
+
+  it('rueda sin selección sprite → false (el viewport hace zoom)', () => {
+    const tm = new ToolManager(makeRoom());
+    expect(tm.onWheel(100, false)).toBe(false);
+  });
+
+  it('rueda con herramienta H y sector seleccionado sigue funcionando', () => {
+    const state = makeRoom();
+    const tm = new ToolManager(state);
+    tm.setTool('height');
+    tm.onPointerDown(ctxAt(4, 4));
+    expect(tm.onWheel(-100, false)).toBe(true);
+    expect(state.world.sectors[0]!.floorH).toBe(0.25);
   });
 });

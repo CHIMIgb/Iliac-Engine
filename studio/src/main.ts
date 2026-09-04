@@ -20,6 +20,10 @@ if (!app) throw new Error('#app no encontrado');
 const layout = new AppLayout();
 layout.mount(app);
 
+// Limpiar proyecto guardado anterior para arrancar limpio con el proyecto vacío.
+// TODO: quitar esta línea cuando el editor tenga flujo "Nuevo proyecto" vs "Abrir".
+clearLocal();
+
 // ── Estado editable ────────────────────────────────────────────
 let doc: EditorState;
 const saved = loadFromLocal();
@@ -66,12 +70,12 @@ viewport.init(toRawProject(doc) as never).catch((err) => {
 // ── Toolbar: herramientas ──────────────────────────────────────
 const toolGroup = layout.toolbar.addGroup();
 const toolActions: { icon: string; label: string; key: string; id: ToolId }[] = [
-  { icon: 'cursor',         label: 'Seleccionar',  key: 'Q', id: 'select' },
-  { icon: 'box',            label: 'Vértices',     key: 'V', id: 'vertex' },
-  { icon: 'grid-3x3',       label: 'Sectores',     key: 'S', id: 'sector' },
-  { icon: 'layers',         label: 'Paredes',       key: 'W', id: 'wall' },
-  { icon: 'ruler',          label: 'Alturas',       key: 'H', id: 'height' },
-  { icon: 'person-standing',label: 'Entidades',    key: 'E', id: 'entity' },
+  { icon: 'cursor',         label: 'Seleccionar',  key: '1', id: 'select' },
+  { icon: 'box',            label: 'Vértices',     key: '2', id: 'vertex' },
+  { icon: 'grid-3x3',       label: 'Sectores',     key: '3', id: 'sector' },
+  { icon: 'layers',         label: 'Paredes',       key: '4', id: 'wall' },
+  { icon: 'ruler',          label: 'Alturas',       key: '5', id: 'height' },
+  { icon: 'person-standing',label: 'Entidades',    key: '6', id: 'entity' },
 ];
 
 let activeToolId: ToolId = 'select';
@@ -172,7 +176,7 @@ viewport.onModeChange = (mode) => {
   showToast(
     mode === 'game'
       ? 'Modo juego — WASD + ratón. Tab para volver.'
-      : 'Modo editor — clic izq = herramienta, clic der = orbitar. Doble clic para jugar.',
+      : 'Modo editor — clic izq edita (y orbita en vacío), clic der orbita, medio pan, WASD+QE pan, rueda zoom. Doble clic para jugar.',
     'info', 2500,
   );
 };
@@ -182,10 +186,10 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
 
-  // Teclas de herramienta (sin ctrl/meta)
+  // Teclas de herramienta (sin ctrl/meta) — números 1-6
   const toolMap: Record<string, ToolId> = {
-    Q: 'select', V: 'vertex', S: 'sector',
-    W: 'wall', H: 'height', E: 'entity',
+    '1': 'select', '2': 'vertex', '3': 'sector',
+    '4': 'wall', '5': 'height', '6': 'entity',
   };
   if (toolMap[key] && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
