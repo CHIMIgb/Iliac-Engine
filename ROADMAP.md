@@ -7,7 +7,7 @@
 
 ## 1. Visión
 
-Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir videojuegos de rol en primera persona con estética retro-3D. El producto tiene **tres caras**:
+Convertir **RayCast.js** en un **motor de videojuegos web** (tipo *RPG Maker* para RPG en primera persona con estética retro-3D): un conjunto completo de creación que, más liviano que Unreal/Unity/Godot por correr en navegador, conserve el **conjunto mínimo de capacidades que definen a un motor de videojuegos**: mundo 3D recorrible, física cinemática, audio, visual scripting, **múltiples escenas/niveles**, **cámaras gestionables**, **editor de secuencias/cutscenes**, y **manipulación 3D libre en el editor** (ver §3, §5, §6.23–6.25). El producto tiene **tres caras**:
 
 - **Studio** — conjunto de herramientas web (editor de niveles 3D, pipeline de sprites, IA, misiones, diálogos, combate, magia, comercio, progresión, visual scripting).
 - **Runtime** — doble motor de render que ejecuta los juegos: modo **retro** (raycaster Canvas clásico) y modo **3d** (WebGL con verticalidad/eje Z, estilo XnGine/Daggerfall).
@@ -45,6 +45,9 @@ Convertir **RayCast.js** en una plataforma web tipo *RPG Maker* para construir v
 | **Motor de físicas** | ✅ Sí (ligero) | Módulo `src/core/physics` **cinemático para el género**: mover-y-colisionar contra sectores (muros, alturas piso/techo), gravedad para saltos, escaleras/elevadores, zonas trigger. | Ver §2: física *de género* cubre el 100% de las mecánicas pedidas (saltos, rampas, pisos) sin el costo de un Rigidbody completo. |
 | **Gestor de audio** | ✅ Sí | Módulo `src/core/audio` sobre **Web Audio API** (stdio del navegador, sin librería): `PannerNode` para **sonido espacial 3D**, música de fondo en loop, SFX one-shot, mixers por categoría. | Nunca se había contemplado; necesario en cualquier RPG. |
 | **Sistema de scripting** | ❌ NO como código | **Visual Scripting Engine + Blueprint Editor**: grafos de nodos (Eventos/Condiciones/Acciones/Variables/Flujo) unidos con cables. **Nunca C#/C++.** | Requisito del usuario: arrastrar bloques y unirlos, no escribir código. |
+| **Gestión de escenas / niveles** | ✅ Sí (visión futura) | Un juego puede tener **múltiples escenas/niveles** (`scenes[]` en `project.json`), cada una con su `map` + entidades + audio, y **transiciones entre ellas** (viaje por portal, cambio por blueprint, telón de carga). | Los demás motores (Unity/Godot/Unreal) son multi-escena; un motor sin cambio de nivel no es un motor RPG completo. |
+| **Sistema de cámaras** | ✅ Sí (visión futura) | La **cámara es una entidad gestionable** (`cameras[]`): cámara de juego (primera persona), de vista cenital, de secuencia/cutscene, y cinematográfica (pos/target/fov interpolables). | Mínimo indispensable de motor; necesario para cutscenes, cinemáticas y vistas alternativas. |
+| **Editor de secuencias / cutscenes** | ✅ Sí (visión futura) | Editor de **timeline** (`sequences[]`): secuencias temporizadas (cuándo mueve una cámara, cuándo dispara un diálogo, cuándo activa un blueprint), encima del runtime de visual scripting. | Un motor de RPG necesita contar historia con cutscenes; hoy los blueprints lo cubren parcialmente (F4/F11), se formaliza como herramienta dedicada. |
 
 ---
 
@@ -88,6 +91,9 @@ Systems: player, ai, combat, magic, inventory/trade, quests, dialogue, progressi
   "textStyles": [ { "id", "fontId", "sizePx", "color", "shadow" } ],
   "audio":      [ { "id", "src", "loop", "volume", "spatial": true } ],
   "loading":    [ { "id", "bg", "progressBar", "tips": [ ... ] } ],       // pantallas de carga
+  "scenes":     [ { "id", "name", "mapId", "entry": { "pos": {x,y,z}, "yaw" }, "audioId" } ],  // multi-nivel (visión)
+  "cameras":    [ { "id", "name", "type": "game|cinematic|cutscene", "fov", "pos", "target", "interp" } ],
+  "sequences":  [ { "id", "name", "timeline": [ { "time", "action", "target", "params" } ] } ], // cutscenes (visión)
   "map":        {
     "size", "grid": [],                          // solo retro: ids de tiles
     "sectors": [ { "id", "floorH", "ceilH",      // retro-vertical + 3d
@@ -270,6 +276,9 @@ Para cada una: **objetivo · justificación · flujo de uso · entradas/salidas 
 | 6.20 | **Game Library / DB Manager** 🆕 | 🆕 (visión: backend) | F6+ |
 | 6.21 | **Cloud Gallery (publicar online)** 🆕 | 🆕 API y reproductor listos; publicación desde F12 | F12 |
 | 6.22 | **Design System / Componentes reutilizables** 🆕 | 🆕 | F0.7 |
+| 6.23 | **Escena / Level Manager (múltiples niveles + transiciones)** | 🆕 (visión futura) | F14 |
+| 6.24 | **Sequence / Cutscene Editor (timeline)** | 🆕 (visión futura) | F15 |
+| 6.25 | **Camera Editor (cámaras gestionables)** | 🆕 (visión futura) | F15 |
 
 ### 6.1 Sprite Slicer + Background Remover (SpriteSplicer) — 🆕 DESDE CERO
 - **Objetivo:** cortar hojas de sprites (p.ej. Daedroth 718×1509px) en frames y eliminar fondo.
@@ -303,6 +312,7 @@ Para cada una: **objetivo · justificación · flujo de uso · entradas/salidas 
   4. Colocar entidades desde el Entity Builder, ajustar rotación/z (drag & drop al viewport).
   5. Zonas de trigger (entrar/colisionar/activar) → enlazar blueprint o bloque.
   6. Playtest dentro del editor (F5).
+- **Manipulación 3D estándar (visión futura, comparable a Unity/Godot):** gizmos de **mover/rotar/escalar** sobre el objeto seleccionado, **snapping** a grid/vertex/surface, navegación libre con cámara orbit + WASD/pan/zoom, **multi-viewport** simultáneo (top, front, side, perspective). El estándar se implementa de forma incremental desde la versión mínima (punto 1-6) sin romperla.
 - **I/O:** `map` + `entities`.
 
 ### 6.6 3D Viewport / Playtest — 🆕
@@ -421,6 +431,27 @@ Para cada una: **objetivo · justificación · flujo de uso · entradas/salidas 
 - **I/O:** `src/studio/ui/` — componentes vanilla JS, migrables a Lit/Svelte.
 - **Entregable:** demo page (`/components`) que muestra todos los componentes en todos sus estados.
 
+### 6.23 Escena / Level Manager — 🆕 (visión futura)
+- **Objetivo:** gestionar **múltiples escenas/niveles** dentro de un mismo juego y las **transiciones** entre ellos (viaje por portal, cambio por evento/blueprint, telón de carga).
+- **Justificación:** los demás motores (Unity/Godot/Unreal) son multi-escena; sin cambio de nivel no hay RPG completo (dungeon → pueblo → exterior). Hoy el motor modela un **solo mundo** de sectores (§5 `map`); esto lo eleva a `scenes[]`.
+- **Flujo:** panel izquierdo con la lista de escenas → crear/duplicar/renombrar/borrar → establecer la escena de entrada del juego → cada escena tiene su `map` + entidades + audio → conectar escenas con transiciones.
+- **I/O:** `scenes[]` + `scenes[].mapId` + `entities[].pos` + audio.
+- **Estado:** ⏳ **visión futura** — no afecta a F3 (Level Editor mínimo de un solo mundo); el diseño de `map`/`sectors` se mantiene para no romper la ruta crítica.
+
+### 6.24 Sequence / Cutscene Editor — 🆕 (visión futura)
+- **Objetivo:** construir **secuencias temporizadas** (timeline) y cutscenes: en el segundo 0 la cámara hace A, en el 2 se abre el diálogo, en el 5 se activa un blueprint, etc. Encima del runtime de visual scripting.
+- **Justificación:** contar historia con cinemáticas es un mínimo de motor; hoy los blueprints lo cubren parcialmente (F4 eventos + F11 avanzados) pero sin línea de tiempo visual.
+- **Flujo:** pista de timeline (ejes: cámara, diálogo, blueprint, audio) → colocar claves en el tiempo → configurar acción/objetivo → previsualizar en el viewport.
+- **I/O:** `sequences[]` + reutiliza `cameras[]`, `dialogue[]`, `blueprints[]`, `audio[]`.
+- **Estado:** ⏳ **visión futura** — depende de F4 (blueprints) y de la gestión de cámaras (6.25).
+
+### 6.25 Camera Editor — 🆕 (visión futura)
+- **Objetivo:** definir y gestionar **cámaras** como objetos: de juego (primera persona), cinematográficas, de cutscene, de vista cenital. Ajustar fov, posición, target e interpolación.
+- **Justificación:** la cámara es parte del lenguaje cinematográfico del motor; necesaria para cutscenes y para dar alternancia de vistas.
+- **Flujo:** panel de cámaras → crear cámara → tipo → colocar en el viewport (gizmos) → ajustar fov/target → asignar a una secuencia (6.24) o al jugador (6.5).
+- **I/O:** `cameras[]` + `settings.fov` + viewport.
+- **Estado:** ⏳ **visión futura** — la cámara de juego actual (primera persona) se mantiene fija en la ruta crítica; esto añade cámaras gestionables.
+
 ---
 
 ## 7. Flujo end-to-end del creador
@@ -512,7 +543,10 @@ raycastjs/
 │   │   ├── progression-editor/ events/  blocks-catalog/
 │   │   ├── font-manager/       → 6.15 tipografías DOS + convertidor TTF→bitmap
 │   │   ├── loading-editor/     → 6.16
-│   │   └── publisher/          → 6.19 HTML autónomo + 6.21 galería
+│   │   ├── publisher/          → 6.19 HTML autónomo + 6.21 galería
+│   │   ├── scene-manager/      → 6.23 (visión futura) escenas/niveles + transiciones
+│   │   ├── sequence-editor/    → 6.24 (visión futura) cutscenes con timeline
+│   │   └── camera-editor/      → 6.25 (visión futura) cámaras gestionables
 │   ├── vite.config.ts · tsconfig.json · index.html
 │   └── tests/                  → Vitest (front)
 ├── public/
@@ -567,6 +601,8 @@ raycastjs/
 | F7–F8 Polish Visual (Font Manager DOS, Loading Editor) | ⏳ Pendiente |
 | F9–F12 Sistemas RPG (Combate, Magia, Diálogos, Misiones, Economía) | ⏳ Pendiente |
 | F13 Publisher y Cloud Gallery | ⏳ Pendiente |
+| **F14 Múltiples escenas/niveles + transiciones (6.23)** | ⏳ Visión futura |
+| **F15 Editor de secuencias/cutscenes + gestión de cámaras (6.24–6.25)** | ⏳ Visión futura |
 
 > La ruta crítica y la redefinición de fases (F3 en adelante + HITO) se describen en **§15**.
 
@@ -869,6 +905,8 @@ El orden de trabajo está diseñado para alcanzar un **Vertical Slice (Demo Func
 | **F7-F8** | **Polish Visual** (Font Manager DOS, Loading Editor, UI del runtime) | F5 | HUD con tipografía retro; pantalla de carga operativa |
 | **F9-F12**| **Sistemas RPG Restantes** (Combate, Magia, Diálogos, Misiones, Economía) | F6 | Quests operativas, inventario funcionando y diálogos en árbol |
 | **F13** | **Publisher y Cloud Gallery** | F12 | Exportación a HTML autónomo y publicación online |
+| **F14** | **Múltiples escenas/niveles + transiciones (6.23)** *(visión futura)* | F12 | Un juego con ≥2 escenas y viaje entre ellas (portal o blueprint) con telón de carga |
+| **F15** | **Secuencias/cutscenes + cámaras gestionables (6.24–6.25)** *(visión futura)* | F14 | Cutscene con timeline (cámara + diálogo + acción) reproducida en el runtime |
 
 ¿Por qué este acomodo? Al mover el Asset Pipeline complejo (Sprite tools, Slicer, Animator) y el Polish Visual (Fonts, Loading Screens) después del Hito Funcional, garantizas que no te quedarás atascado programando un editor de sprites de recortes de píxeles durante un mes sin haber validado primero que tu motor 3D y tu editor de niveles se comunican bien con la lógica de los blueprints. Para la Demo Funcional, puedes usar un par de sprites y texturas precargadas de prueba ("placeholder assets").
 
