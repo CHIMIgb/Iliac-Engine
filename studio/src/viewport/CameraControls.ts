@@ -51,19 +51,22 @@ export class CameraControls {
   /** Procesa arrastre (orbitar en modo orbit). */
   onDrag(dx: number, dy: number): void {
     if (this.mode !== 'orbit') return;
-    this.orbit.theta -= dx * 0.005;
-    this.orbit.phi = Math.max(0.05, Math.min(Math.PI * 0.49, this.orbit.phi - dy * 0.005));
+    // Aumento de sensibilidad (de 0.005 a 0.01) e inversión del eje X (+= dx en lugar de -= dx)
+    this.orbit.theta += dx * 0.01;
+    this.orbit.phi = Math.max(0.05, Math.min(Math.PI * 0.49, this.orbit.phi - dy * 0.01));
   }
 
   /** Procesa el arrastre para mover el objetivo (panning horizontal). */
   onPan(dx: number, dy: number): void {
     if (this.mode !== 'orbit') return;
-    const speed = this.orbit.radius * 0.002;
+    // Aumento de sensibilidad (de 0.002 a 0.005)
+    const speed = this.orbit.radius * 0.005;
     const rightX = -Math.sin(this.orbit.theta);
     const rightZ = Math.cos(this.orbit.theta);
 
-    this.orbit.targetX += -dx * rightX * speed;
-    this.orbit.targetZ += -dx * rightZ * speed;
+    // Inversión del eje X: sumamos dx en lugar de restar
+    this.orbit.targetX += dx * rightX * speed;
+    this.orbit.targetZ += dx * rightZ * speed;
     // dy del ratón → vertical (Y en Three.js)
     this.orbit.targetY += dy * speed;
   }

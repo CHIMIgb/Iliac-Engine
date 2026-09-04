@@ -136,7 +136,7 @@ export class EditorViewport {
 
   // ── Bucle principal ──────────────────────────────────────────
 
-  private _frame(now: number): void {
+  private _frame = (now: number): void => {
     if (this.disposed) return;
     const dt = Math.min((now - this.last) / 1000, 0.05);
     this.last = now;
