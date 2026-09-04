@@ -191,7 +191,8 @@ Ver §15 para la ruta crítica actual.
 motor-raycast/
 ├── engine/                     ← MOTOR DEL JUEGO · JS vanilla puro, aislado
 │   ├── core/                   → math.js · player.js · physics.js · collision.js
-│   │                            → sector.js · stairs.js · blueprint-runtime.js · audio.js
+│   │                            → sector.js · stairs.js · blueprint-runtime.js
+│   │                            → audio.js · music.js (F4.5)
 │   ├── three/                  → Renderer3D.js · WorldMesh.js · SectorGeometry.js
 │   │                            → SpriteSystem.js · textures.js · StairsMesh.js
 │   ├── Engine3D.js             → orquestador: carga, loop, API pública
@@ -245,6 +246,7 @@ motor-raycast/
 | F3 Studio MVP: Base + Design System (Vite+TS) | ✅ Validada |
 | F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ✅ Realizada |
 | F4 Studio MVP: **Blueprints Mínimos (LiteGraph.js)** | ✅ Realizada |
+| F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |
 | F6 Sistemas RPG en TypeScript (Combate, IA, Inventario) | ⏳ Pendiente |
@@ -392,6 +394,59 @@ La demo debe permitir: caminar entre sectores poligonales, subir rampa lisa, sub
 
 Simplex noise + generador de grilla + texturas por pendiente.
 
+### F4.5 — Audio Engine (Web Audio API) — fase de ruta crítica (§14)
+
+El **audio es una fase propia de la ruta crítica**, previa al HITO (Vertical Slice): un juego retro-3D sin sonido no se siente completo (enemigo que ataca, puerta que abre, pasos). Se implementa en `engine/core/` (JS vanilla, sin Three.js) con **Web Audio API** (nativa del navegador, sin dependencias). Técnicas según la skill `audio-design` del repo.
+
+#### 1. Arquitectura de buses (`engine/core/audio.js`)
+
+- Un `AudioContext` global, creado/reanudado en el primer gesto del usuario (política de autoplay).
+- Mezclador por **buses** (no por sonido individual): `Master ← { Music, SFX, Ambience, Voice }`, cada uno con su `GainNode`.
+- **Ganancia en decibelios**, no lineal: mapear sliders `0..1` con `linear_to_db` (`linear_to_db(clamp(v, 1e-4, 1))`), para que el volumen percibido sea logarítmico.
+- **Headroom**: el Master debe picoar por debajo de 0 dBFS para evitar clipping; limiter de seguridad en Master.
+- **SFX one-shot**: `AudioBufferSourceNode` + `start()`, se auto-destruye al terminar (`onended`), o pool de nodos reutilizables.
+- **Música en loop**: `source.loop = true`; crossfade entre tracks con rampas de ganancia (`linearRampToValueAtTime`).
+
+#### 2. Sonido espacial 3D
+
+- `PannerNode` con `panningModel: 'HRTF'` para posicionar sonidos en el mundo.
+- `distanceModel: 'inverse'`, `refDistance`, `rolloffFactor` para atenuación por distancia.
+- Cada entidad/sprite con `audio[]` espacial se enlaza a su posición 3D; el panner se actualiza al mover la cámara/jugador.
+
+#### 3. Ducking (sidechain) — la música baja bajo diálogos/impactos
+
+- Compresor con sidechain en el bus Music, o rampa de ganancia: al iniciar diálogo/impacto, bajar `Music` unos ~12 dB con `attack` rápido (~10 ms) y `release` lento (~300-500 ms) para que se recupere suave, sin "pumping".
+- Alternativa sin middleware: tween/cambiar el bus de Music a un `target_db` y volver al final.
+
+#### 4. Variación de SFX — evitar el "machine gun"
+
+- Aleatorizar `playbackRate`/pitch ±~6 % y volumen ±~20 % por disparo.
+- Pools de muestras (varias tomas) por sonido: pasos, golpes, puertas.
+
+#### 5. Música adaptativa (`engine/core/music.js`)
+
+- **Vertical layering**: N stems sincronizados (base, batería, tensión) que arrancan juntos y solo cambian sus volúmenes por intensidad (0 calmado … 2 combate); fades de ~0.5-1.5 s. Cambia intensidad sin perder sincronía.
+- **Horizontal re-sequencing** (opcional): secciones (intro, loop A, loop B, combate, outro) con cambio cuantizado al siguiente límite de barra/frase.
+- **Intensidad** desde el estado del juego, suavizada (`lerp`) y con histéresis para que no oscile: `intensity_from_state(enemies_near, player_hp01)` → `level_from_intensity`.
+- Sincronizar eventos de juego a la **pista del reloj de audio**, no al frame: `seconds_per_beat = 60 / BPM`, cuantizar a la siguiente barra.
+
+#### 6. Integración en `project.json`
+
+Los datos de audio viven en el `audio[]` del schema (§5): `{ id, src, loop, volume, spatial }`, ampliado con `bus` y `musicLayers` para música adaptativa. El **motor lee** el `audio[]`; la **demo/Studio escribe** los datos. Sin duplicar lógica. (El schema se amplía en la fase de implementación, no ahora.)
+
+#### 7. Tests obligatorios
+
+- `test/engine/audio.test.js`:
+  - `linear_to_db` mapea 0→−∞, 0.5→≈−6 dB, 1→0 dB (y `db_to_linear` inverso).
+  - Un one-shot se auto-destruye al terminar (`onended` → free/pool).
+  - Cambio de intensidad → fades de los stems correctos (nivel 1 añade batería, nivel 2 añade tensión).
+  - `seconds_per_beat` y `time_until_next_beat` correctos para un BPM dado.
+  - Test de ducking: el bus de Music baja al activar ducking y vuelve al desactivar.
+
+#### 8. Criterio de aceptación
+
+La demo debe: reproducir música en loop al cargar; sonar pasos/puerta/impacto con variación y espacialidad 3D; bajar la música (ducking) al iniciar un diálogo; y cambiar la intensidad musical (layers) al entrar en combate. Todos los tests pasan.
+
 ---
 
 ## 14. Fases del proyecto (Ruta Crítica)
@@ -403,7 +458,8 @@ Simplex noise + generador de grilla + texturas por pendiente.
 | **F2.5** | Motor de sectores poligonales | F2 | Sectores con rampas, portales; tests pasando |
 | **F3** | Studio MVP: Level Editor Mínimo (Vite+TS) | F2.5 | Pintar mapa con sectores, guardarlo en project.json |
 | **F4** | Studio MVP: Blueprints Mínimos (LiteGraph.js) | F3 | OnInteract → OpenDoor funcional via blueprints |
-| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | **F4** | **Abrir Studio, pintar nivel con 1 puerta, conectar blueprint, colocar 1 enemigo, dar Playtest. El core está completo.** |
+| **F4.5** | **Audio Engine (Web Audio API)** | F2.5 | Buses y SFX espacial; música adaptativa suena al cambiar de zona/combate |
+| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | **F4 + F4.5** | **Abrir Studio, pintar nivel con 1 puerta, conectar blueprint, colocar 1 enemigo, dar Playtest. El core está completo.** |
 | **F5** | Asset Pipeline Completo (Asset Manager, Sprite Pipeline) | HITO | Sprite animado importado y recortado aparece en la demo |
 | **F6** | Sistemas RPG en TypeScript (Combate, IA, Inventario) | F5 | Enemigo persigue y ataca; loot al inventario |
 | **F7** | Polish Visual (Font Manager DOS, Loading, UI runtime) | F5 | HUD retro, pantalla de carga |
