@@ -40,6 +40,8 @@ export interface AppLayoutOptions {
   // Callbacks
   onBottomTabChange?: (id: string) => void;
   onSplitResize?: (sizes: number[]) => void;
+  /** Hook para Ctrl+S (guardado real; por defecto muestra un toast). */
+  onSave?: () => void;
 }
 
 export interface AppLayoutInstance {
@@ -80,6 +82,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
     statusRight = [],
     onBottomTabChange,
     onSplitResize,
+    onSave,
   } = options;
 
   // Contenedor raíz
@@ -194,7 +197,8 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
     // Ctrl+S - Guardar (prevenir default del navegador)
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
-      showToast({ message: 'Proyecto guardado (Ctrl+S)', variant: 'success' });
+      if (onSave) onSave();
+      else showToast({ message: 'Proyecto guardado (Ctrl+S)', variant: 'success' });
     }
     // Ctrl+P - Command Palette
     if ((e.ctrlKey || e.metaKey) && e.key === 'p') {

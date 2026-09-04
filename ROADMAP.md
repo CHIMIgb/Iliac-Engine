@@ -593,7 +593,7 @@ raycastjs/
 | **F2.5 Motor de sectores poligonales: rampas/escaleras reales + sprites billboard + física de rampa** | **✅ Validada** |
 | **F2.6 Terreno procedural: Simplex noise + generador de grilla + texturas por pendiente** | **✅ Realizada** |
 | **F3 Studio MVP: Base + Design System (Vite+TS)** | **✅ Validada** |
-| F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ⏳ Pendiente |
+| F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | **✅ Realizada** |
 | F4 Studio MVP: **Blueprints Mínimos (LiteGraph.js)** | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline Completo (Asset Manager, Sprite tools, Splicer, Animator) | ⏳ Pendiente |

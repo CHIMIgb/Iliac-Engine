@@ -12,6 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "allowJs": true,
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": ".",

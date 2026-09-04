@@ -23,6 +23,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // Permitir importar el motor desde ../../engine (fuera del root del Studio)
+    fs: {
+      allow: ['..'],
+    },
     hmr: {
       clientPort: 24678,
     },
