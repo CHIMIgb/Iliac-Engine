@@ -161,6 +161,11 @@ export class ToolManager {
     return this.hoverId;
   }
 
+  /** Vértices del polígono en construcción (para el overlay). */
+  get polyline(): string[] {
+    return [...this.polygon];
+  }
+
   // ── Gestos por herramienta ────────────────────────────────────
 
   private toolSelectDown(ctx: PickContext): boolean {
@@ -193,19 +198,42 @@ export class ToolManager {
     return false; // vacío → el viewport orbita
   }
 
+  /**
+   * Herramienta vértices = "dibujar sala": cada clic izquierdo coloca un punto
+   * (creando un vértice o reutilizando uno existente). Al pulsar de nuevo el
+   * PRIMER punto (con ≥3) se cierra el polígono y se crea el sector 3D con
+   * sus paredes de borde.
+   *
+   * Para mover vértices existentes se usa la herramienta Seleccionar (1).
+   */
   private toolVertexDown(ctx: PickContext): boolean {
     if (!ctx.world) return false;
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
-    if (vid) {
-      // Agarrar vértice existente para moverlo
-      this.select({ kind: 'vertex', id: vid });
-      this.drag = { kind: 'vertex', id: vid };
+
+    // Cerrar: clic sobre el primer vértice con ≥3 puntos → crea el sector 3D
+    if (vid && this.polygon.length >= 3 && this.polygon[0] === vid) {
+      const r = closeSector(this.doc, this.polygon);
+      if (r.ok) {
+        this.select({ kind: 'sector', id: r.sectorId! });
+        this.cb.onNotice?.('Habitación creada', 'success');
+      } else {
+        this.cb.onNotice?.(r.message ?? 'No se pudo crear el sector', 'warning');
+      }
+      this.polygon = [];
       return true;
     }
-    // Crear vértice nuevo
+
+    // Clic sobre un vértice existente → añadirlo al esqueleto del polígono
+    if (vid) {
+      if (!this.polygon.includes(vid)) this.polygon.push(vid);
+      this.select({ kind: 'vertex', id: vid });
+      return true;
+    }
+
+    // Clic en el suelo → crear vértice nuevo y añadirlo al polígono
     const id = createVertexAt(this.doc, ctx.world.x, ctx.world.z);
     this.select({ kind: 'vertex', id });
-    this.drag = { kind: 'vertex', id };
+    if (!this.polygon.includes(id)) this.polygon.push(id);
     return true;
   }
 

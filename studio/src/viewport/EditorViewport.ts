@@ -195,7 +195,7 @@ export class EditorViewport {
       const w = this.canvas.clientWidth || 1;
       const h = this.canvas.clientHeight || 1;
       this.overlay.resize(w, h);
-      this.overlay.draw(tm.doc, r.camera, tm.selection, tm.hoverId);
+      this.overlay.draw(tm.doc, r.camera, tm.selection, tm.hoverId, tm.polyline);
     }
   }
 

@@ -41,6 +41,7 @@ export class Overlay2D {
     camera: THREE.PerspectiveCamera | THREE.OrthographicCamera,
     selection: { kind: string; id: string } | null,
     hover: { kind: string; id: string } | null,
+    polygonIds: string[] | null = null,
   ): void {
     const { ctx } = this;
     const w = this.canvas.width;
@@ -136,6 +137,29 @@ export class Overlay2D {
       ctx.fillStyle = isSel ? '#a6e3a1' : isHover ? '#f9e2af' : 'rgba(137,180,250,0.85)';
       const size = isSel || isHover ? 5 : 4;
       ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+    }
+
+    // Polígono en construcción (herramienta vértices): línea + primer punto
+    if (polygonIds && polygonIds.length >= 2) {
+      const pts = polygonIds
+        .map((vid) => doc.getVertex(vid))
+        .filter((v) => v !== undefined)
+        .map((v) => project(v!.x, v!.y));
+      if (pts.length >= 2) {
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#a6e3a1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pts[0]!.x, pts[0]!.y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]!.x, pts[i]!.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Clic aquí para cerrar y crear la habitación
+        ctx.strokeStyle = '#a6e3a1';
+        ctx.beginPath();
+        ctx.arc(pts[0]!.x, pts[0]!.y, 9, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
   }
 }

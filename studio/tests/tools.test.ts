@@ -283,3 +283,61 @@ describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () =
     expect(state.world.sectors[0]!.floorH).toBe(0.25);
   });
 });
+
+describe('ToolManager · herramienta vértices dibuja salas', () => {
+  /** Clic proyectado sobre un vértice concreto (para el cierre del polígono). */
+  const clickVertex = (id: string, px = 10, py = 10): PickContext => ({
+    px,
+    py,
+    world: { x: 0, z: 0 },
+    screenVertices: [{ id, x: px, y: py }],
+    screenWalls: [],
+    screenSprites: [],
+  });
+
+  it('3 clics colocan puntos y el clic en el primero cierra y crea el sector 3D', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('vertex');
+
+    expect(tm.onPointerDown(ctxAt(0, 0))).toBe(true);
+    expect(tm.onPointerDown(ctxAt(8, 0))).toBe(true);
+    expect(tm.onPointerDown(ctxAt(4, 8))).toBe(true);
+    expect(state.world.vertices).toHaveLength(3);
+    expect(tm.polyline).toHaveLength(3);
+
+    // Clic izquierdo sobre el primer vértice → cierra y crea la habitación
+    const first = state.world.vertices[0]!.id;
+    expect(tm.onPointerDown(clickVertex(first))).toBe(true);
+
+    expect(state.world.sectors).toHaveLength(1);
+    const sectorId = state.world.sectors[0]!.id;
+    expect(state.world.walls.filter((w) => w.sectorFront === sectorId)).toHaveLength(3);
+    expect(tm.polyline).toHaveLength(0);
+    expect(tm.selection?.kind).toBe('sector');
+  });
+
+  it('clic sobre un vértice existente lo añade al polígono sin duplicar', () => {
+    const state = makeRoom();
+    const existing = state.world.vertices[0]!.id;
+    const tm = new ToolManager(state);
+    tm.setTool('vertex');
+
+    expect(tm.onPointerDown(clickVertex(existing))).toBe(true);
+    expect(tm.polyline).toEqual([existing]);
+
+    expect(tm.onPointerDown(clickVertex(existing))).toBe(true);
+    expect(tm.polyline).toEqual([existing]);
+  });
+
+  it('cambiar de herramienta cancela el polígono en construcción', () => {
+    const tm = new ToolManager(new EditorState());
+    tm.setTool('vertex');
+    tm.onPointerDown(ctxAt(0, 0));
+    tm.onPointerDown(ctxAt(8, 0));
+    expect(tm.polyline).toHaveLength(2);
+
+    tm.setTool('select');
+    expect(tm.polyline).toHaveLength(0);
+  });
+});
