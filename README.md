@@ -12,9 +12,9 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 | Capa | Estado | Descripción |
 |------|--------|-------------|
-| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). 107 tests pasan. |
+| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). 108 tests pasan. |
 | **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + montaña exterior con pozos. |
-| **Studio** (`studio/`) | ✅ **F0.7 Validado** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha): 18 componentes UI, layout principal (toolbar, split view 3 paneles, bottom tabs, status bar), demo page `/components`, atajos globales, cliente API tipado. 39 tests pasan. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes (X rojo, Y verde, Z azul), herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, rueda para alturas, guardar/exportar/importar (localStorage). 57 tests pasan. |
 | **Backend** (`server/`) | ⏳ Visión | Hono + Prisma + PostgreSQL (pendiente, tras Hito). |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
@@ -44,19 +44,21 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 ```bash
 # Motor (JS vanilla)
-npm run test:engine    # 107 tests del motor (Node --test)
+npm run test:engine    # 108 tests del motor (Node --test)
 
 # Studio (TypeScript + Vite)
 cd studio
 npm run dev            # Dev server en http://localhost:5173
-npm run test           # 39 tests (Vitest + jsdom)
-npm run build          # Typecheck + build producción en ../public/studio
+npm run setup:textures # Copia texturas SVG de demo/textures a public/textures (1 vez)
+npm run test           # 57 tests (Vitest)
+npm run build          # Typecheck + build producción en studio/dist
 
 # Raíz (conveniencia)
-npm run test:engine    # Desde raíz
-npm run studio:dev     # Studio dev server
-npm run studio:build   # Studio build
-npm run studio:test    # Studio tests
+npm run test:engine      # Desde raíz
+npm run studio:dev       # Studio dev server
+npm run studio:test      # Studio tests
+npm run studio:typecheck # Typecheck del Studio
+npm run studio:build     # Studio build
 ```
 
 > El motor F1/F2 se abre directo en el navegador (`demo/index.html`), sin build.
@@ -82,20 +84,23 @@ raycastjs/
 │   └── project.js              → Mundo: 2 pisos + montaña + pozos (schema v3)
 ├── studio/                     ← STUDIO · TypeScript + Vite
 │   ├── src/
-│   │   ├── main.ts             → Bootstrap AppLayout
+│   │   ├── main.ts             → Bootstrap AppLayout + herramientas (atajos 1-6)
 │   │   ├── style.css · tokens.css  → Design System (Catppuccin Mocha)
-│   │   ├── ui/                 → 18 componentes (Button, Input, Tabs, Table, Modal, Toast, ...)
-│   │   ├── layout/             → AppLayout, Toolbar, StatusBar, BottomTabs
-│   │   ├── components/         → ComponentsDemo (/components)
-│   │   └── api/client.ts       → apiFetch<T> tipado (contrato {success,data,error})
-│   ├── tests/                  → 39 tests (Vitest)
+│   │   ├── editor/             → EditorState (proyecto editable) + tipos
+│   │   ├── tools/              → ToolManager · picking.ts · tools.ts (mutaciones)
+│   │   ├── viewport/           → EditorViewport (3D orbit) · Overlay2D · CameraControls
+│   │   ├── io/                 → Serializer (project.json ↔ EditorState) · FileManager (guardar/exportar)
+│   │   ├── layout/             → AppLayout, Toolbar, StatusBar
+│   │   └── ui/                 → Componentes UI (Button, Tabs, Table, Modal, Toast, ...)
+│   ├── public/textures/        → Texturas SVG (npm run setup:textures)
+│   ├── tests/                  → 57 tests (Vitest)
 │   ├── vite.config.ts · tsconfig.json · index.html
 │   └── package.json
 ├── server/                     ← VISIÓN: API + Postgres (tras Hito)
 ├── docs/
 │   └── ENGINE_COMPONENTS.md    → Documentación técnica del motor
 ├── test/
-│   └── engine/                 → 107 tests motor (Node --test)
+│   └── engine/                 → 108 tests motor (Node --test)
 ├── ROADMAP.md                  ← Plan maestro: fases F1–F13, Ruta Crítica §15
 ├── DESIGN.md                   ← Design System (paleta, tipografía, componentes, layout)
 ├── DATABASE.md                 ← Esquema Prisma/PostgreSQL
@@ -136,18 +141,17 @@ Ver `ROADMAP.md` §5 para esquema completo y `docs/ENGINE_COMPONENTS.md` para AP
 | **F1** | Motor raycast base (JS vanilla) | ✅ Validada |
 | **F2** | Verticalidad / 3D (Three.js) | ✅ Validada |
 | **F2.5** | Motor sectores poligonales (rampas, escaleras, sprites) | ✅ Validada |
-| **F2.6** | Terreno procedural (Simplex noise) | ✅ Realizada |
-| **F0.7** | Design System + Studio base (Vite+TS) | ✅ **Validada** |
-| **F3** | **Level Editor Mínimo** (vista 2D/3D, playtest F5/F6) | 🎯 **Siguiente** |
-| **F4** | **Blueprints Mínimos (LiteGraph.js)** | ⏳ Pendiente |
-| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
-| F5 | Asset Pipeline (Sprite tools, Asset Manager) | ⏳ Pendiente |
-| F6 | Blueprints Avanzados + IA + Catálogo bloques | ⏳ Pendiente |
-| F7–F8 | Polish Visual (Font Manager DOS, Loading Editor) | ⏳ Pendiente |
-| F9–F12 | Sistemas RPG (Combate, Magia, Diálogos, Misiones, Economía) | ⏳ Pendiente |
-| F13 | Publisher + Cloud Gallery | ⏳ Pendiente |
+| **F3** | Studio MVP: Level Editor Mínimo (Vite+TS) | ✅ Realizada |
+| **F4** | Studio: Herramientas de edición 3D (Level Editor interactivo) | ✅ **Realizada** |
+| **F4.5** | Audio Engine (Web Audio API) | ⏳ Pendiente |
+| 🚀 **HITO** | **DEMO FUNCIONAL (Vertical Slice)** — requiere F4 + F4.5 | ⏳ Pendiente |
+| **F5** | Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |
+| **F6** | Sistemas RPG en TypeScript (Combate, IA, Inventario) | ⏳ Pendiente |
+| **F7** | Polish Visual (Font Manager DOS, Loading, UI runtime) | ⏳ Pendiente |
+| **F8** | Publicación local (HTML autónomo) | ⏳ Pendiente |
+| **F9+** | Escenas múltiples, sistemas RPG avanzados, Cloud Gallery | ⏳ Visión futura |
 
-> **Próximo objetivo:** F3 Level Editor Mínimo — vista 2D top-down + viewport 3D orbit, materiales, playtest F5/F6 en vivo.
+> **Próximo objetivo:** F4.5 Audio Engine — buses Web Audio API, SFX espacial y música adaptativa (prerrequisito del HITO).
 
 ---
 
@@ -158,9 +162,9 @@ Ver `ROADMAP.md` §5 para esquema completo y `docs/ENGINE_COMPONENTS.md` para AP
 cd demo && npx serve -p 8080
 # → http://localhost:8080  (WASD + ratón, F11 fullscreen)
 
-# Studio (Design System demo)
+# Studio (Level Editor interactivo)
 cd studio && npm run dev
-# → http://localhost:5173  (F11 maximiza viewport, /components para demo UI)
+# → http://localhost:5173  (atajos 1-6 = herramientas; clic izq edita u orbita en vacío, clic der orbita, medio pan, WASD+QE pan, rueda zoom/alturas)
 ```
 
 ---

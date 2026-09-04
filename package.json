@@ -2,7 +2,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test:engine": "node --test \"test/engine/*.test.js\""
+    "test:engine": "node --test \"test/engine/*.test.js\"",
+    "studio:dev": "npm --prefix studio run dev",
+    "studio:test": "npm --prefix studio run test",
+    "studio:typecheck": "npm --prefix studio run typecheck",
+    "studio:build": "npm --prefix studio run build"
   },
   "dependencies": {
     "ponytail": "^1.0.57",
