@@ -4,6 +4,8 @@
  */
 
 import { createButton, buttonHTML } from './Button.js';
+import { escapeHTML } from './utils.js';
+import { iconHTML } from './Icon.js';
 
 export interface ErrorStateOptions {
   title: string;
@@ -68,7 +70,7 @@ export function createErrorState(options: ErrorStateOptions): HTMLElement {
 }
 
 export function errorStateHTML(options: ErrorStateOptions): string {
-  const { title, description, details, className = '' } = options;
+  const { title, description, details, onRetry, className = '' } = options;
   return `
     <div class="error ${className}">
       <div class="error__icon" aria-hidden="true">${iconHTML('alert-triangle', 48)}</div>
@@ -88,96 +90,7 @@ export function errorStateHTML(options: ErrorStateOptions): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS['alert-triangle'];
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
-}
 
-export const errorCSS = `
-/* ==========================================================================
-   ErrorState Component
-   ========================================================================== */
 
-.error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-8);
-  text-align: center;
-  color: var(--text-primary);
-}
 
-.error__icon {
-  color: var(--accent-danger);
-  flex-shrink: 0;
-}
-
-.error__title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.error__desc {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin: 0;
-  max-width: 320px;
-  line-height: var(--line-height-base);
-}
-
-.error__actions {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-.error__details {
-  width: 100%;
-  max-width: 500px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--border-radius-md);
-  overflow: hidden;
-}
-
-.error__details-summary {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.error__details-summary:hover {
-  color: var(--text-primary);
-}
-
-.error__details-pre {
-  padding: var(--space-3);
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-base);
-  color: var(--text-secondary);
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-`;

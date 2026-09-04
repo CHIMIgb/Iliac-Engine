@@ -3,5 +3,8 @@ dist/
 .env
 *.log
 
+# build output del Studio (vite build -> ../public/studio)
+public/
+
 # assets con copyright (sprites de Daggerfall) — nunca versionar
 assets/

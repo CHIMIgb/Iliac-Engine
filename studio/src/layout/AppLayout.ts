@@ -87,7 +87,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
   root.className = 'app-layout';
   root.innerHTML = `
     <header class="app-toolbar"></header>
-    <div class="app-split"></div>
+    <div class="app-split" style="flex: 1; min-height: 0;"></div>
     <div class="app-bottom-panel"></div>
     <footer class="app-statusbar"></footer>
   `;
@@ -139,7 +139,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
     direction: 'horizontal',
     panes: [
       {
-        content: (leftContent as any).element || leftContent,
+        content: leftContent.element,
         minSize: 200,
         maxSize: 400,
         defaultSize: 280,
@@ -150,7 +150,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
         defaultSize: '100%',
       },
       {
-        content: (rightContent as any).element || rightContent,
+        content: rightContent.element,
         minSize: 240,
         maxSize: 480,
         defaultSize: 320,
@@ -158,7 +158,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
     ],
     onResize: onSplitResize,
   });
-  splitEl.appendChild((splitView as any).element || splitView);
+  splitEl.appendChild(splitView.element);
 
   // --- Bottom Tabs ---
   const bottomTabsInstance = createBottomTabs({
@@ -166,7 +166,7 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
     activeId: activeBottomTab,
     onChange: onBottomTabChange,
   });
-  bottomEl.appendChild((bottomTabsInstance as any).element || bottomTabsInstance);
+  bottomEl.appendChild(bottomTabsInstance.element);
 
   // --- Status Bar ---
   const statusBar = createStatusBar({
@@ -257,16 +257,4 @@ export function createAppLayout(options: AppLayoutOptions = {}): AppLayoutInstan
   (instance as any).element = root;
 
   return instance;
-}
-
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'layout': 'M3 3h18v18H3zM12 3v18M3 12h18',
-    'folder': 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z',
-    'terminal': 'M4 17l4-4 4 4M9 11V3M15 11V3',
-    'code': 'M16 18l6-6-6-6M8 6l-6 6 6 6',
-    'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS.layout;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
 }

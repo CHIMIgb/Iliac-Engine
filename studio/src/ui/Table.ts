@@ -3,6 +3,7 @@
  * BEM: .table, .table__header, .table__row, .table__cell, .table__sort
  */
 
+import { escapeHTML } from './utils.js';
 export interface TableColumn {
   key: string;
   header: string;
@@ -231,9 +232,10 @@ export function createTable(options: TableOptions): HTMLElement {
 
   function updateRowCheckboxes() {
     tbody.querySelectorAll('.table__row-checkbox').forEach(cb => {
-      const tr = cb.closest('tr')!;
-      cb.checked = selectedIds.has(tr.dataset.key!);
-      tr.classList.toggle('table__row--selected', cb.checked);
+      const checkbox = cb as HTMLInputElement;
+      const tr = checkbox.closest('tr')!;
+      checkbox.checked = selectedIds.has(tr.dataset.key!);
+      tr.classList.toggle('table__row--selected', checkbox.checked);
     });
   }
 
@@ -285,128 +287,5 @@ export function tableHTML(options: TableOptions): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-export const tableCSS = `
-/* ==========================================================================
-   Table Component
-   ========================================================================== */
 
-.table-wrapper {
-  overflow: auto;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-default);
-  border-radius: var(--border-radius-md);
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-}
-
-.table__header {
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: var(--font-size-xs);
-  white-space: nowrap;
-}
-
-.table__header-content {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.table__header--sortable {
-  user-select: none;
-}
-
-.table__header--sortable:hover {
-  color: var(--text-primary);
-}
-
-.table__sort-icon {
-  flex-shrink: 0;
-  opacity: 0.5;
-  transition: transform var(--transition-fast);
-}
-
-.table__cell {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-divider);
-  vertical-align: middle;
-}
-
-.table__cell--checkbox {
-  padding: var(--space-2);
-  text-align: center;
-}
-
-.table__body tr:last-child .table__cell {
-  border-bottom: none;
-}
-
-.table--striped .table__body tr:nth-child(even) {
-  background: var(--bg-surface);
-}
-
-.table__row {
-  transition: background var(--transition-fast);
-}
-
-.table__row:hover {
-  background: var(--bg-hover);
-}
-
-.table__row[style*="cursor: pointer"]:hover {
-  background: var(--bg-hover);
-}
-
-.table__row--selected {
-  background: var(--bg-active) !important;
-}
-
-.table__row--selected:hover {
-  background: var(--bg-active) !important;
-}
-
-.table__select-all,
-.table__row-checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-primary);
-  cursor: pointer;
-}
-
-.table__empty {
-  padding: var(--space-8) !important;
-  border: none !important;
-}
-
-.table__empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.table__empty-title {
-  font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  margin: 0;
-}
-`;

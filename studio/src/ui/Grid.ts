@@ -62,16 +62,3 @@ export function gridHTML(options: GridOptions = {}): string {
   return `<div class="grid ${className}" style="display:grid;grid-template-columns:${templateColumns};gap:${gapCSS}">${childrenHTML}</div>`;
 }
 
-export const gridCSS = `
-/* ==========================================================================
-   Grid Component
-   ========================================================================== */
-
-.grid {
-  display: grid;
-}
-
-.grid__item {
-  min-width: 0;
-}
-`;

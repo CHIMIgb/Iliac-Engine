@@ -5,6 +5,7 @@
 
 import { createTabs, type TabsOptions } from '../ui/Tabs.js';
 import { createIcon, iconHTML } from '../ui/Icon.js';
+import { escapeHTML } from '../ui/utils.js';
 
 export interface BottomTabItem {
   id: string;
@@ -22,6 +23,7 @@ export interface BottomTabsOptions {
 }
 
 export interface BottomTabsInstance {
+  element: HTMLElement;
   setActiveTab: (id: string) => void;
   getActiveTab: () => string;
   setBadge: (id: string, count: number) => void;
@@ -75,6 +77,7 @@ export function createBottomTabs(options: BottomTabsOptions): BottomTabsInstance
 
   // API
   const instance: BottomTabsInstance = {
+    element: container,
     setActiveTab: (id: string) => {
       (tabsComponent as any).setActiveTab(id);
     },
@@ -103,7 +106,7 @@ export function createBottomTabs(options: BottomTabsOptions): BottomTabsInstance
 
 export function bottomTabsHTML(options: BottomTabsOptions): string {
   // Usar tabsHTML interno
-  const { tabs, activeId } = options;
+  const { tabs, activeId, className = '' } = options;
   const tabsOptions = {
     tabs: tabs.map(t => ({ id: t.id, label: t.label, icon: t.icon, content: t.content })),
     activeId,
@@ -132,22 +135,5 @@ function tabsHTML(options: any): string {
   return `<div class="tabs ${vertical ? 'tabs--vertical' : ''}" role="tablist"><div class="tabs__header" role="tablist">${headerTabs}</div><div class="tabs__panels">${panels}</div></div>`;
 }
 
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'folder': 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z',
-    'terminal': 'M4 17l4-4 4 4M9 11V3M15 11V3',
-    'code': 'M16 18l6-6-6-6M8 6l-6 6 6 6',
-    'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS.folder;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
-}
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
+

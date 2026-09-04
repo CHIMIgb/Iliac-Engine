@@ -9,8 +9,8 @@ import {
   createEmptyState, createErrorState, createLoadingState,
   createSpinner, createSkeleton, createProgressBar,
   createPanel, createSplitView, createStack, createGrid,
-  createScrollArea, createDivider, createToast,
-  showToast, toast,
+  createScrollArea, createDivider,
+  showToast, toast, closeAllToasts,
 } from '../ui/index.js';
 import { createAppLayout } from '../layout/AppLayout.js';
 

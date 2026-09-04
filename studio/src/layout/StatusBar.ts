@@ -4,6 +4,7 @@
  */
 
 import { createIcon, iconHTML } from '../ui/Icon.js';
+import { escapeHTML } from '../ui/utils.js';
 
 export interface StatusBarItem {
   icon?: string;
@@ -77,31 +78,6 @@ export function statusBarHTML(options: StatusBarOptions = {}): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'cpu': 'M12 2a2 2 0 00-2 2v2a2 2 0 002 2h4a2 2 0 002-2V4a2 2 0 00-2-2h-4a2 2 0 00-2-2zM12 16a2 2 0 01-2-2v-2a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2z',
-    'memory': 'M6 2v2a2 2 0 002 2h8a2 2 0 002-2V2a2 2 0 00-2-2H8a2 2 0 00-2 2zm0 16v-2a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2zm-4-8v8a2 2 0 002 2h8a2 2 0 002-2v-8a2 2 0 00-2-2H8a2 2 0 00-2 2z',
-    'globe': 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM12 12a3 3 0 100-6 3 3 0 000 6z',
-    'user': 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 100 8 4 4 0 000-8z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS.globe;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
-}
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
+

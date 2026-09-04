@@ -3,6 +3,7 @@
  * BEM: .progress, .progress--sm, .progress--md, .progress--lg, .progress__track, .progress__fill, .progress__label
  */
 
+import { escapeHTML } from './utils.js';
 export interface ProgressBarOptions {
   value: number;              // 0-100
   max?: number;               // default 100
@@ -74,58 +75,5 @@ export function progressBarHTML(options: ProgressBarOptions): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-export const progressCSS = `
-/* ==========================================================================
-   ProgressBar Component
-   ========================================================================== */
 
-.progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--font-size-xs);
-}
-
-.progress__track {
-  height: 100%;
-  border-radius: var(--border-radius-sm);
-  overflow: hidden;
-  position: relative;
-}
-
-.progress--sm .progress__track { height: 4px; }
-.progress--md .progress__track { height: 8px; }
-.progress--lg .progress__track { height: 12px; }
-
-.progress__fill {
-  height: 100%;
-  border-radius: var(--border-radius-sm);
-  transition: width var(--transition-base);
-  transform-origin: left center;
-}
-
-.progress--indeterminate .progress__fill {
-  width: 30% !important;
-  animation: progress-indeterminate 1.5s ease-in-out infinite;
-}
-
-@keyframes progress-indeterminate {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(300%); }
-}
-
-.progress__label {
-  color: var(--text-secondary);
-  text-align: right;
-  font-family: var(--font-mono);
-}
-`;

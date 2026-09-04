@@ -34,8 +34,13 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock de requestAnimationFrame / cancelAnimationFrame
-global.requestAnimationFrame = vi.fn((cb) => setTimeout(cb, 16));
-global.cancelAnimationFrame = vi.fn((id) => clearTimeout(id));
+global.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+  const id = setTimeout(() => cb(performance.now()), 16);
+  return id as unknown as number;
+}) as typeof requestAnimationFrame;
+global.cancelAnimationFrame = ((id: number) => {
+  clearTimeout(id);
+}) as typeof cancelAnimationFrame;
 
 // Mock de HTMLDialogElement (para Modal)
 if (typeof HTMLDialogElement === 'undefined') {

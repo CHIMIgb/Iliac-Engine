@@ -54,24 +54,3 @@ export function stackHTML(options: StackOptions = {}): string {
   `;
 }
 
-export const stackCSS = `
-/* ==========================================================================
-   Stack Component
-   ========================================================================== */
-
-.stack {
-  display: flex;
-}
-
-.stack--horizontal {
-  flex-direction: row;
-}
-
-.stack--vertical {
-  flex-direction: column;
-}
-
-.stack--wrap {
-  flex-wrap: wrap;
-}
-`;

@@ -28,6 +28,8 @@ const ICON_PATHS: Record<string, string> = {
   minimize: 'M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3',
   grid: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
   list: 'M3 12h18M3 6h18M3 18h18',
+  layout: 'M3 3h18v18H3zM12 3v18M3 12h18',
+  layers: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
 
   // Herramientas
   move: 'M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l3 3-3 3M19 9l3 3-3 3M2 12h20M12 2v20',
@@ -35,6 +37,9 @@ const ICON_PATHS: Record<string, string> = {
   scale: 'M3 3h6v6M21 3h-6v6M3 21v-6h6M21 21h-6v-6',
   cursor: 'M13.5 21.5a.5.5 0 01-.5-.5V13a1 1 0 011-1h4a1 1 0 011 1v8a.5.5 0 01-.5.5h-4a.5.5 0 01-.5-.5zM5 5l3.5 3.5M9.5 9.5l1.5 1.5M15 15l1.5 1.5',
   brush: 'M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 2a8 8 0 118 8 8 8 0 01-8-8z',
+  code: 'M16 18l6-6-6-6M8 6l-6 6 6 6',
+  terminal: 'M4 17l6-6-6-6M12 19h8',
+  settings: 'M12.22 2h-.44a2 2 0 0 0-2 2v.44a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM21 10.22V9.78a2 2 0 0 0-2-2h-.44a2 2 0 0 0-2 2v.44a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2zm-8 10h.44a2 2 0 0 0 2-2v-.44a2 2 0 0 0-2-2h-.44a2 2 0 0 0-2 2v.44a2 2 0 0 0 2 2zm-10 0h.44a2 2 0 0 0 2-2v-.44a2 2 0 0 0-2-2h-.44a2 2 0 0 0-2 2v.44a2 2 0 0 0 2 2z',
 
   // Estado
   check: 'M20 6L9 17l-5-5',
@@ -42,6 +47,9 @@ const ICON_PATHS: Record<string, string> = {
   'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01',
   info: 'M13 16h-2v-4h2M13 12h-2v-2h2M12 2a10 10 0 100 20 10 10 0 000-20z',
   loader: 'M21 12a9 9 0 11-6.219-8.56',
+  cpu: 'M12 2a2 2 0 00-2 2v2a2 2 0 002 2h4a2 2 0 002-2V4a2 2 0 00-2-2h-4a2 2 0 00-2-2zM12 16a2 2 0 01-2-2v-2a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2z',
+  globe: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM12 12a3 3 0 100-6 3 3 0 000 6z',
+  user: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 100 8 4 4 0 000-8z',
 
   // Navegación
   'chevron-down': 'M6 9l6 6 6-6',
@@ -68,7 +76,7 @@ const ICON_PATHS: Record<string, string> = {
  * @param size Tamaño en px (default 16)
  * @returns SVGElement
  */
-export function createIcon(name: string, size: 16 | 20 = 16): SVGSVGElement {
+export function createIcon(name: string, size: number = 16): SVGSVGElement {
   const path = ICON_PATHS[name];
   if (!path) {
     console.warn(`Icon "${name}" not found, using "alert-triangle"`);
@@ -97,7 +105,7 @@ export function createIcon(name: string, size: 16 | 20 = 16): SVGSVGElement {
 /**
  * Renderiza un icono como string HTML (para uso en innerHTML).
  */
-export function iconHTML(name: string, size: 16 | 20 = 16): string {
+export function iconHTML(name: string, size: number = 16): string {
   const path = ICON_PATHS[name] || ICON_PATHS['alert-triangle'];
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;display:block"><path d="${path}"></path></svg>`;
 }

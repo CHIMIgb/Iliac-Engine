@@ -52,25 +52,3 @@ export function scrollAreaHTML(options: ScrollAreaOptions): string {
   `;
 }
 
-export const scrollAreaCSS = `
-/* ==========================================================================
-   ScrollArea Component
-   ========================================================================== */
-
-.scroll-area {
-  position: relative;
-  overflow: hidden;
-}
-
-.scroll-area__viewport {
-  position: absolute;
-  inset: 0;
-  overflow: auto;
-  /* Scrollbar personalizada via ::webkit-scrollbar en tokens.css */
-}
-
-.scroll-area__content {
-  min-height: 100%;
-  min-width: 100%;
-}
-`;

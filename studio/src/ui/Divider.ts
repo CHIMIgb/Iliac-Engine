@@ -3,6 +3,7 @@
  * BEM: .divider, .divider--vertical, .divider--with-text
  */
 
+import { escapeHTML } from './utils.js';
 export interface DividerOptions {
   orientation?: 'horizontal' | 'vertical';
   text?: string;
@@ -44,65 +45,5 @@ export function dividerHTML(options: DividerOptions = {}): string {
   return `<div class="divider divider--${orientation} ${className}" role="separator"></div>`;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-export const dividerCSS = `
-/* ==========================================================================
-   Divider Component
-   ========================================================================== */
 
-.divider {
-  display: flex;
-  align-items: center;
-  color: var(--border-default);
-}
-
-.divider--horizontal {
-  width: 100%;
-  height: 1px;
-}
-
-.divider--vertical {
-  width: 1px;
-  height: 100%;
-}
-
-.divider::before,
-.divider::after,
-.divider__before,
-.divider__after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: currentColor;
-}
-
-.divider--vertical::before,
-.divider--vertical::after,
-.divider--vertical .divider__before,
-.divider--vertical .divider__after {
-  width: 1px;
-  height: auto;
-}
-
-.divider--with-text {
-  gap: var(--space-3);
-  white-space: nowrap;
-}
-
-.divider__text {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  flex-shrink: 0;
-}
-`;

@@ -133,13 +133,8 @@ body {
    ========================================================================== */
 
 .app-layout {
-  display: grid;
-  grid-template-rows: var(--toolbar-h) 1fr var(--statusbar-h);
-  grid-template-columns: var(--panel-left-w) 1fr var(--panel-right-w);
-  grid-template-areas:
-    "toolbar toolbar toolbar"
-    "left center right"
-    "status status status";
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
   background: var(--bg-primary);
@@ -147,7 +142,6 @@ body {
 
 /* Toolbar */
 .app-toolbar {
-  grid-area: toolbar;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -156,6 +150,7 @@ body {
   border-bottom: 1px solid var(--border-default);
   height: var(--toolbar-h);
   z-index: var(--z-sticky);
+  flex-shrink: 0;
 }
 
 .app-toolbar__left,
@@ -189,7 +184,6 @@ body {
 
 /* Panel Left */
 .app-panel-left {
-  grid-area: left;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -201,7 +195,6 @@ body {
 
 /* Viewport Central */
 .app-viewport {
-  grid-area: center;
   position: relative;
   background: var(--bg-primary);
   overflow: hidden;
@@ -215,7 +208,6 @@ body {
 
 /* Panel Right */
 .app-panel-right {
-  grid-area: right;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -227,7 +219,6 @@ body {
 
 /* Bottom Panel */
 .app-bottom-panel {
-  grid-column: 1 / -1;
   height: var(--bottom-panel-h);
   background: var(--bg-panel);
   border-top: 1px solid var(--border-default);
@@ -237,11 +228,11 @@ body {
   max-height: 400px;
   resize: vertical;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* Status Bar */
 .app-statusbar {
-  grid-area: status;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -251,6 +242,7 @@ body {
   height: var(--statusbar-h);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .app-statusbar__left,

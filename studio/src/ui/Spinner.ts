@@ -3,6 +3,7 @@
  * BEM: .spinner, .spinner--sm, .spinner--md, .spinner--lg, .spinner--inline
  */
 
+import { escapeHTML } from './utils.js';
 export type SpinnerSize = 'sm' | 'md' | 'lg';
 
 export interface SpinnerOptions {
@@ -46,71 +47,5 @@ export function spinnerHTML(options: SpinnerOptions = {}): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-export const spinnerCSS = `
-/* ==========================================================================
-   Spinner Component
-   ========================================================================== */
 
-.spinner {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent-primary);
-  flex-shrink: 0;
-}
-
-.spinner--sm { width: 16px; height: 16px; }
-.spinner--md { width: 24px; height: 24px; }
-.spinner--lg { width: 32px; height: 32px; }
-
-.spinner--inline {
-  vertical-align: middle;
-}
-
-.spinner__svg {
-  width: 100%;
-  height: 100%;
-  animation: spinner-rotate 1s linear infinite;
-}
-
-.spinner__track {
-  stroke: currentColor;
-}
-
-.spinner__indicator {
-  stroke: currentColor;
-  transform-origin: center;
-  animation: spinner-dash 1.5s ease-in-out infinite;
-}
-
-@keyframes spinner-rotate {
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes spinner-dash {
-  0% { stroke-dasharray: 1, 31.4; stroke-dashoffset: 0; }
-  50% { stroke-dasharray: 31.4, 31.4; stroke-dashoffset: -15.7; }
-  100% { stroke-dasharray: 31.4, 31.4; stroke-dashoffset: -31.4; }
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-`;

@@ -448,7 +448,7 @@ Para cada una: **objetivo · justificación · flujo de uso · entradas/salidas 
 |------|-----------|-----------|------------------------|
 | **F0** | *(histórica)* Toolchain Vite+TS+Vitest; migrar raycaster a `src/render/retro/`; mapa a `project.json`; tests base; Launcher mínimo | — | *(reformulado: ver objetivo del Studio en §15, F3)* |
 | **F0.5** | *(histórica)* **Backend + base de datos**: API Hono+**Prisma**+Postgres (auth JWT, CRUD de `/api/projects` y `/api/assets`, `/api/templates` seed, `/api/gallery`); **Game Library 6.20**; migración a **schema v2** + de-hardcoding del motor (piso/techo, flags de sprite, minimapa) | F0 | *(reformulado: parte de la visión a largo plazo, tras el motor JS vanilla)* |
-| **F0.7** | **Design System + componentes reutilizables**: paleta de colores (tokens CSS), tipografía, espaciado, y componentes UI: botones (5 variantes), inputs (text, number, select, checkbox, slider, color, file), tabs, tablas, modales, toasts, spinners, skeletons, progress bars, estados (vacío, error, carga), iconos (lucide SVG), layout helpers (Panel, SplitView, Stack, ScrollArea, Divider). Ver `DESIGN.md`. | F0.5 | Todos los componentes renderizados en una **demo page** (`/components`); paleta dark consistente; cada componente con 3+ estados (default, hover, disabled); atajos de teclado documentados |
+| **F0.7** | **Design System + componentes reutilizables**: paleta de colores (tokens CSS), tipografía, espaciado, y componentes UI: botones (5 variantes), inputs (text, number, select, checkbox, slider, color, file), tabs, tablas, modales, toasts, spinners, skeletons, progress bars, estados (vacío, error, carga), iconos (lucide SVG), layout helpers (Panel, SplitView, Stack, ScrollArea, Divider). Ver `DESIGN.md`. | F0.5 | ✅ **Validada** — Todos los componentes renderizados en demo page (`/components`); paleta dark consistente; cada componente con 3+ estados; atajos de teclado documentados; 39 tests pasando |
 | **F1** | **Level Editor + viewport 3D + playtest** | F0.7 | Pinto un mapa con rampas/pisos, lo camino en 3D y guardo/cargo (por API) |
 | **F2** | Motor 3D jugable: sector system, colisión por altura, gravedad/saltos (física cinemática), sprites billboard, minimapa 3D, **módulo de audio** (Web Audio espacial) | F1 | Rampa, escaleras y piso superior en vivo; sprites bien ocluidos; sonido espacial |
 | **F3** | *(visión)* Sprite Splicer + Animator + Entity Builder (6.1–6.3); Asset Manager (texturas/sprites/audio/fuentes); **Font Manager DOS** + convertidor TTF→bitmap; **pantallas de carga** | F0 | Daedroth animado en el editor; HUD con tipo DOS; pantalla de carga configurable |
@@ -558,7 +558,8 @@ raycastjs/
 | F2 Verticalidad / 3D (sector system) sobre el motor F1 | ✅ Migración completada |
 | **F2.5 Motor de sectores poligonales: rampas/escaleras reales + sprites billboard + física de rampa** | **✅ Validada** |
 | **F2.6 Terreno procedural: Simplex noise + generador de grilla + texturas por pendiente** | **✅ Realizada** |
-| F3 Studio MVP: Base + **Level Editor Mínimo** (Vite+TS) | ⏳ Pendiente |
+| **F3 Studio MVP: Base + Design System (Vite+TS)** | **✅ Validada** |
+| F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ⏳ Pendiente |
 | F4 Studio MVP: **Blueprints Mínimos (LiteGraph.js)** | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline Completo (Asset Manager, Sprite tools, Splicer, Animator) | ⏳ Pendiente |

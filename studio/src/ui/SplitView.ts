@@ -11,7 +11,7 @@ export interface SplitViewOptions {
     content: HTMLElement | string;
     minSize?: number;      // px
     maxSize?: number;      // px
-    defaultSize?: number;  // px o % (ej: '50%')
+    defaultSize?: number | string;  // px o % (ej: '50%')
   }>;
   className?: string;
   onResize?: (sizes: number[]) => void;
@@ -93,19 +93,19 @@ export function createSplitView(options: SplitViewOptions): SplitViewInstance {
         if (!isDragging) return;
         const delta = direction === 'horizontal' ? clientX - startPos : clientY - startPos;
         const newSizes = [...startSizes];
-        const pane1 = panesElements[index];
-        const pane2 = panesElements[index + 1];
+        const pane1 = panesElements[index]!;
+        const pane2 = panesElements[index + 1]!;
         const rect1 = pane1.getBoundingClientRect();
         const rect2 = pane2.getBoundingClientRect();
 
         if (direction === 'horizontal') {
-          const newWidth1 = Math.max(panes[index].minSize || 200, rect1.width + delta);
-          const newWidth2 = Math.max(panes[index + 1].minSize || 200, rect2.width - delta);
+          const newWidth1 = Math.max(panes[index]!.minSize || 200, rect1.width + delta);
+          const newWidth2 = Math.max(panes[index + 1]!.minSize || 200, rect2.width - delta);
           pane1.style.flexBasis = `${newWidth1}px`;
           pane2.style.flexBasis = `${newWidth2}px`;
         } else {
-          const newHeight1 = Math.max(panes[index].minSize || 200, rect1.height + delta);
-          const newHeight2 = Math.max(panes[index + 1].minSize || 200, rect2.height - delta);
+          const newHeight1 = Math.max(panes[index]!.minSize || 200, rect1.height + delta);
+          const newHeight2 = Math.max(panes[index + 1]!.minSize || 200, rect2.height - delta);
           pane1.style.flexBasis = `${newHeight1}px`;
           pane2.style.flexBasis = `${newHeight2}px`;
         }
@@ -116,8 +116,8 @@ export function createSplitView(options: SplitViewOptions): SplitViewInstance {
       const handleMouseDown = (e: MouseEvent | TouchEvent) => {
         isDragging = true;
         startPos = direction === 'horizontal'
-          ? (e as MouseEvent).clientX || (e as TouchEvent).touches[0].clientX
-          : (e as MouseEvent).clientY || (e as TouchEvent).touches[0].clientY;
+          ? (e as MouseEvent).clientX || (e as TouchEvent).touches[0]!.clientX
+          : (e as MouseEvent).clientY || (e as TouchEvent).touches[0]!.clientY;
         startSizes = getSizes();
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -130,7 +130,7 @@ export function createSplitView(options: SplitViewOptions): SplitViewInstance {
       const handleMouseMove = (e: MouseEvent) => handleDrag(e.clientX, e.clientY);
       const handleTouchMove = (e: TouchEvent) => {
         e.preventDefault();
-        handleDrag(e.touches[0].clientX, e.touches[0].clientY);
+        handleDrag(e.touches[0]!.clientX, e.touches[0]!.clientY);
       };
       const handleMouseUp = () => {
         isDragging = false;
@@ -158,18 +158,18 @@ export function createSplitView(options: SplitViewOptions): SplitViewInstance {
         }
         if (delta !== 0) {
           e.preventDefault();
-          const pane1 = panesElements[index];
-          const pane2 = panesElements[index + 1];
+          const pane1 = panesElements[index]!;
+          const pane2 = panesElements[index + 1]!;
           const rect1 = pane1.getBoundingClientRect();
           const rect2 = pane2.getBoundingClientRect();
           if (direction === 'horizontal') {
-            const newWidth1 = Math.max(panes[index].minSize || 200, rect1.width + delta);
-            const newWidth2 = Math.max(panes[index + 1].minSize || 200, rect2.width - delta);
+            const newWidth1 = Math.max(panes[index]!.minSize || 200, rect1.width + delta);
+            const newWidth2 = Math.max(panes[index + 1]!.minSize || 200, rect2.width - delta);
             pane1.style.flexBasis = `${newWidth1}px`;
             pane2.style.flexBasis = `${newWidth2}px`;
           } else {
-            const newHeight1 = Math.max(panes[index].minSize || 200, rect1.height + delta);
-            const newHeight2 = Math.max(panes[index + 1].minSize || 200, rect2.height - delta);
+            const newHeight1 = Math.max(panes[index]!.minSize || 200, rect1.height + delta);
+            const newHeight2 = Math.max(panes[index + 1]!.minSize || 200, rect2.height - delta);
             pane1.style.flexBasis = `${newHeight1}px`;
             pane2.style.flexBasis = `${newHeight2}px`;
           }
@@ -189,7 +189,7 @@ export function createSplitView(options: SplitViewOptions): SplitViewInstance {
   function setSizes(sizes: number[]) {
     sizes.forEach((size, i) => {
       if (i < panesElements.length) {
-        panesElements[i].style.flexBasis = `${size}px`;
+        panesElements[i]!.style.flexBasis = `${size}px`;
       }
     });
     onResize?.(getSizes());
@@ -214,47 +214,3 @@ export function splitViewHTML(options: SplitViewOptions): string {
   return `<div class="split split--${direction} ${className}" style="display:flex;flex-direction:${direction === 'horizontal' ? 'row' : 'column'};height:100%">${panesHTML}</div>`;
 }
 
-export const splitCSS = `
-/* ==========================================================================
-   SplitView Component
-   ========================================================================== */
-
-.split {
-  display: flex;
-  overflow: hidden;
-}
-
-.split__pane {
-  flex: 1;
-  overflow: auto;
-  min-width: 0;
-  min-height: 0;
-}
-
-.split__handle {
-  flex-shrink: 0;
-  background: var(--border-divider);
-  transition: background var(--transition-fast);
-  z-index: 1;
-}
-
-.split__handle--vertical {
-  width: 4px;
-  cursor: col-resize;
-}
-
-.split__handle--horizontal {
-  height: 4px;
-  cursor: row-resize;
-}
-
-.split__handle:hover,
-.split__handle--dragging {
-  background: var(--accent-primary);
-}
-
-.split__handle:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -2px;
-}
-`;

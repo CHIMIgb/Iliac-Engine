@@ -3,6 +3,8 @@
  * BEM: .toast, .toast--success, .toast__icon, .toast__message, .toast__close
  */
 
+import { escapeHTML } from './utils.js';
+import { iconHTML } from './Icon.js';
 export type ToastVariant = 'success' | 'warning' | 'error' | 'info';
 
 export interface ToastOptions {
@@ -73,7 +75,7 @@ export function showToast(options: ToastOptions): () => void {
   };
 
   closeBtn.addEventListener('click', close);
-  actionBtn?.addEventListener('click', () => { action.onClick(); close(); });
+  actionBtn?.addEventListener('click', () => { action?.onClick(); close(); });
 
   getContainer().appendChild(toast);
   toasts.push(toast);
@@ -110,25 +112,9 @@ function getOrCreateContainer(): HTMLElement {
   return container as HTMLElement;
 }
 
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    check: 'M20 6L9 17l-5-5',
-    x: 'M18 6L6 18M6 6l12 12',
-    'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
-    info: 'M13 16h-2v-4h2M13 12h-2v-2h2M12 2a10 10 0 100 20 10 10 0 000-20z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS.info;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="${path}"></path></svg>`;
-}
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
+
+
 
 // Helpers de conveniencia
 export const toast = {
@@ -139,116 +125,3 @@ export const toast = {
   closeAll: closeAllToasts,
 };
 
-export const toastCSS = `
-/* ==========================================================================
-   Toast Component
-   ========================================================================== */
-
-.toast-container {
-  position: fixed;
-  top: var(--space-4);
-  right: var(--space-4);
-  z-index: var(--z-toast);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  pointer-events: none;
-  max-width: 360px;
-}
-
-.toast-container > * {
-  pointer-events: auto;
-}
-
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-panel);
-  border: 1px solid var(--border-default);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-lg);
-  min-width: 280px;
-  max-width: 100%;
-  transform: translateX(120%);
-  opacity: 0;
-  transition: transform var(--transition-base), opacity var(--transition-base);
-}
-
-.toast--visible {
-  transform: translateX(0);
-  opacity: 1;
-}
-
-.toast--closing {
-  transform: translateX(120%);
-  opacity: 0;
-}
-
-.toast__icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-}
-
-.toast__message {
-  flex: 1;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-base);
-  color: var(--text-primary);
-}
-
-.toast__action {
-  flex-shrink: 0;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--accent-primary);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.toast__action:hover {
-  color: var(--accent-primary);
-  opacity: 0.8;
-}
-
-.toast__close {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  border-radius: var(--border-radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-  margin-left: var(--space-2);
-}
-.toast__close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-/* Variantes - borde lateral */
-.toast::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: var(--border-radius-md) 0 0 var(--border-radius-md);
-}
-
-.toast--success::before { background: var(--accent-success); }
-.toast--warning::before { background: var(--accent-warning); }
-.toast--error::before { background: var(--accent-danger); }
-.toast--info::before { background: var(--accent-info); }
-`;

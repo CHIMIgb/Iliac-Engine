@@ -5,6 +5,7 @@
 
 import { createButton, buttonHTML } from '../ui/Button.js';
 import { createIcon, iconHTML } from '../ui/Icon.js';
+import { escapeHTML } from '../ui/utils.js';
 
 export interface ToolbarOptions {
   title: string;
@@ -103,19 +104,5 @@ export function toolbarHTML(options: ToolbarOptions): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'chevron-right': 'M9 18l6-6-6-6',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS['chevron-right'];
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
-}
+

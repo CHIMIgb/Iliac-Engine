@@ -4,9 +4,11 @@
  */
 
 import './style.css';
+import './components.css';
 import { createAppLayout } from './layout/AppLayout.js';
 import { showToast, closeAllToasts } from './ui/Toast.js';
 import { closeAllModals } from './ui/Modal.js';
+import { iconHTML } from './ui/Icon.js';
 
 // Inicializar contenedor de toasts (se crea automáticamente en showToast)
 // Inicializar contenedor de modales (se crea automáticamente en createModal)
@@ -97,10 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `,
     bottomTabs: [
-      { id: 'assets', label: 'Assets', icon: 'folder', content: '<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("folder", 48)}</div><h4 class="empty__title">Asset Manager</h4><p class="empty__desc">Arrastra texturas, sprites, audio aquí</p></div>' },
-      { id: 'console', label: 'Console', icon: 'terminal', content: '<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("terminal", 48)}</div><h4 class="empty__title">Consola</h4><p class="empty__desc">Logs, warnings, errors</p></div>' },
-      { id: 'output', label: 'Output', icon: 'code', content: '<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("code", 48)}</div><h4 class="empty__title">Salida</h4><p class="empty__desc">Build output, task output</p></div>' },
-      { id: 'problems', label: 'Problems', icon: 'alert-triangle', badge: 0, content: '<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("alert-triangle", 48)}</div><h4 class="empty__title">Problemas</h4><p class="empty__desc">Errores y warnings del proyecto</p></div>' },
+      { id: 'assets', label: 'Assets', icon: 'folder', content: `<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("folder", 48)}</div><h4 class="empty__title">Asset Manager</h4><p class="empty__desc">Arrastra texturas, sprites, audio aquí</p></div>` },
+      { id: 'console', label: 'Console', icon: 'terminal', content: `<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("terminal", 48)}</div><h4 class="empty__title">Consola</h4><p class="empty__desc">Logs, warnings, errors</p></div>` },
+      { id: 'output', label: 'Output', icon: 'code', content: `<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("code", 48)}</div><h4 class="empty__title">Salida</h4><p class="empty__desc">Build output, task output</p></div>` },
+      { id: 'problems', label: 'Problems', icon: 'alert-triangle', badge: 0, content: `<div class="empty" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="empty__icon" aria-hidden="true">${iconHTML("alert-triangle", 48)}</div><h4 class="empty__title">Problemas</h4><p class="empty__desc">Errores y warnings del proyecto</p></div>` },
     ],
     activeBottomTab: 'assets',
     statusLeft: [
@@ -141,16 +143,3 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }, 3000);
 });
-
-// Helper para iconos en main
-function iconHTML(name: string, size: number): string {
-  const ICON_PATHS: Record<string, string> = {
-    'layout': 'M3 3h18v18H3zM12 3v18M3 12h18',
-    'folder': 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z',
-    'terminal': 'M4 17l4-4 4 4M9 11V3M15 11V3',
-    'code': 'M16 18l6-6-6-6M8 6l-6 6 6 6',
-    'alert-triangle': 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
-  };
-  const path = ICON_PATHS[name] || ICON_PATHS.layout;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg>`;
-}

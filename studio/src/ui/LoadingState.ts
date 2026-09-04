@@ -4,6 +4,7 @@
  */
 
 import { createSpinner, spinnerHTML } from './Spinner.js';
+import { escapeHTML } from './utils.js';
 
 export interface LoadingStateOptions {
   text?: string;
@@ -37,37 +38,5 @@ export function loadingStateHTML(options: LoadingStateOptions = {}): string {
   `;
 }
 
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#039;');
-}
 
-export const loadingCSS = `
-/* ==========================================================================
-   LoadingState Component
-   ========================================================================== */
 
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.loading__spinner {
-  flex-shrink: 0;
-}
-
-.loading__text {
-  font-size: var(--font-size-sm);
-  margin: 0;
-}
-`;
