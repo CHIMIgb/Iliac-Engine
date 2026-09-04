@@ -1,4 +1,4 @@
-# AGENTS.md — RayCast Studio
+# AGENTS.md — Iliac Engine
 
 Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 **Plan maestro y estado de fases: `ROADMAP.md`** (leer antes de proponer features; secciones clave §13 arquitectura de capas, §14–§15 fases).

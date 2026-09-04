@@ -1,4 +1,4 @@
-# DESIGN.md — Sistema de Diseño UI/UX de RayCast Studio
+# DESIGN.md — Sistema de Diseño UI/UX de Iliac Engine
 
 > Referencia visual y de comportamiento para todos los componentes de la interfaz.
 > Basado en editores profesionales: Unity, Unreal Engine, Godot, Blender.
