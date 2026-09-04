@@ -78,6 +78,10 @@ function buildBVH(world) {
 }
 
 function buildBVHRecursive(nodes) {
+  // Ponytail: caso base para mundo sin sectores. Antes recursaba infinitamente
+  // con una lista vacía (construir el engine con world.sectors=[] lanzaba
+  // RangeError). Si hay 0 sectores, el BVH es null; queryBVH ya lo tolera.
+  if (nodes.length === 0) return null;
   if (nodes.length === 1) {
     return { ...nodes[0], left: null, right: null };
   }

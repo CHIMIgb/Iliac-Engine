@@ -123,3 +123,25 @@ test('Engine3D.dispose libera texturas y renderer', () => {
   assert.equal(engine.renderer, null);
   assert.equal(engine.textures, null);
 });
+
+test('Engine3D se construye con mundo vacío (sin sectores)', () => {
+  // El Studio arranca con world.sectors=[] (mundo vacío). buildBVHRecursive
+  // recursaba infinitamente con 0 nodos → RangeError (Maximum call stack size).
+  const emptyProject = {
+    meta: { name: 'Vacío', schemaVersion: 3, renderMode: '3d' },
+    camera: { posX: 0, posY: 0, posZ: 0.6, yaw: -Math.PI / 2, pitch: 0 },
+    world: {
+      vertices: [],
+      sectors: [],
+      walls: [],
+      ramps: [],
+      sprites: [],
+      textures: {},
+    },
+  };
+  assert.doesNotThrow(() => {
+    const engine = new Engine3D(emptyProject);
+    assert.equal(engine.sectorIndex.bvh, null, 'BVH sin sectores es null');
+    assert.equal(engine.world.sectors.length, 0);
+  });
+});
