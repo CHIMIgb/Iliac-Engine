@@ -27,6 +27,7 @@ import {
   findSectorAt,
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
+import type { EntityDef } from '../entities/entityCatalog';
 
 export type ToolId = 'select' | 'vertex' | 'wall' | 'height' | 'entity';
 
@@ -75,6 +76,8 @@ export class ToolManager {
   private entityPicker: HTMLSelectElement | null = null;
   /** Momento (performance.now) en que se abrió el selector. */
   private pickerOpenedAt = 0;
+  /** Tipo de entidad activo: el clic en la cuadrícula coloca este tipo. */
+  activeEntity: EntityDef | null = null;
 
   constructor(doc: EditorState, cb: ToolManagerCallbacks = {}) {
     this.doc = doc;
@@ -290,19 +293,30 @@ export class ToolManager {
       this._closeEntityPicker();
       return true;
     }
-    // Clic en el suelo → abrir el selector de tipos de entidad
-    this._openEntityPicker(ctx.world.x, ctx.world.z, ctx.clientX, ctx.clientY);
+    // Sin tipo activo: recordar que hay que elegirlo en el icono Entidades.
+    if (!this.activeEntity) {
+      this.cb.onNotice?.('Elige el tipo de entidad en el icono Entidades', 'info');
+      return true;
+    }
+    // Colocar la entidad del tipo activo en el punto de la cuadrícula.
+    const id = placeEntityAt(this.doc, ctx.world.x, ctx.world.z, this.activeEntity);
+    this.select({ kind: 'sprite', id });
+    this.drag = { kind: 'sprite', id };
     return true;
   }
 
-  // ── Selector de entidades (dropdown categorizado) ─────────────
+  // ── Selector de entidades (dropdown desde el icono Entidades) ──
 
   /**
-   * Abre un `<select>` flotante junto al cursor con las entidades del
-   * catálogo agrupadas por categoría (NPC / Enemigo-Humano / Enemigo-Animal).
-   * Al elegir una opción se coloca la entidad en el punto del clic.
+   * Abre el `<select>` de entidades bajo el icono Entidades de la toolbar.
+   * Al elegir se fija `activeEntity`; después cada clic en la cuadrícula
+   * coloca una entidad de ese tipo.
    */
-  private _openEntityPicker(x: number, z: number, clientX?: number, clientY?: number): void {
+  openEntityPicker(clientX?: number, clientY?: number): void {
+    this._openEntityPicker(clientX, clientY);
+  }
+
+  private _openEntityPicker(clientX?: number, clientY?: number): void {
     this._closeEntityPicker();
     // Sin DOM (tests/SSR) no hay selector; el clic ya se consume igualmente.
     if (typeof document === 'undefined') return;
@@ -310,6 +324,15 @@ export class ToolManager {
     select.className = 'entity-picker';
     select.title = 'Elige el tipo de entidad a colocar';
 
+    // Placeholder vacío como primera opción (obliga a elegir un tipo).
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '— Selecciona entidad —';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+
+    let totalOptions = 0;
     for (const cat of ENTITY_CATEGORIES) {
       const items = ENTITIES.filter((e) => e.category === cat.id);
       if (items.length === 0) continue;
@@ -320,15 +343,19 @@ export class ToolManager {
         opt.value = def.id;
         opt.textContent = def.name;
         group.appendChild(opt);
+        totalOptions++;
       }
       select.appendChild(group);
     }
 
-    // Posicionar junto al cursor (con margen) o centrado si no hay coords.
+    // Lista expandida (no dropdown nativo) para evitar problemas de foco.
+    select.size = Math.min(totalOptions + 1, 12);
+
+    // Posicionar bajo el punto indicado (botón de la toolbar) o centrado.
     select.style.position = 'fixed';
     if (clientX !== undefined && clientY !== undefined) {
-      select.style.left = `${Math.min(clientX + 4, window.innerWidth - 220)}px`;
-      select.style.top = `${Math.min(clientY + 4, window.innerHeight - 40)}px`;
+      select.style.left = `${Math.min(clientX, window.innerWidth - 240)}px`;
+      select.style.top = `${Math.min(clientY + 4, window.innerHeight - 200)}px`;
     } else {
       select.style.left = '50%';
       select.style.top = '50%';
@@ -338,10 +365,8 @@ export class ToolManager {
     select.addEventListener('change', () => {
       const def = ENTITIES.find((e) => e.id === select.value);
       if (def) {
-        const id = placeEntityAt(this.doc, x, z, def);
-        this.select({ kind: 'sprite', id });
-        this.drag = { kind: 'sprite', id };
-        this.cb.onNotice?.(`${def.name} colocada`, 'success');
+        this.activeEntity = def;
+        this.cb.onNotice?.(`${def.name} activa — clic en la cuadrícula para colocar`, 'success');
       }
       this._closeEntityPicker();
     });
@@ -351,12 +376,11 @@ export class ToolManager {
 
     document.body.appendChild(select);
     this.entityPicker = select;
-    // El clic del canvas roba el foco por tabindex → NO cerrar por blur.
-    // Se cierra con un clic fuera (fuera del select y > 300 ms después de abrir).
     this.pickerOpenedAt = performance.now();
     document.addEventListener('click', this._onDocClick);
     this.cb.onNotice?.('Elige el tipo de entidad a colocar', 'info');
-    select.focus();
+    // Dar foco en el siguiente frame para que el mouseup del canvas no lo robe
+    requestAnimationFrame(() => select.focus());
   }
 
   private _closeEntityPicker(): void {

@@ -14,6 +14,7 @@ import {
   sectorsSharingEdge,
   defaultSpriteTex,
 } from '../src/tools/tools';
+import { getEntityDef } from '../src/entities/entityCatalog';
 
 /** Estado con una habitación simple 8×8 (vértices + sector). */
 function makeRoom(): EditorState {
@@ -253,13 +254,21 @@ describe('ToolManager · onPointerDown devuelve si consumió el clic', () => {
     expect(tm.selection?.kind).toBe('sector');
   });
 
-  it('entity: clic en suelo sin sprite → abre el selector (consume true, aún no coloca)', () => {
+  it('entity: clic en suelo sin sprite ni tipo activo → consume true, aún no coloca', () => {
     const tm = new ToolManager(makeRoom());
     tm.setTool('entity');
-    // En el navegador este clic abre el dropdown de tipos; el sprite se coloca
-    // al elegir una entidad. Sin DOM, el clic se consume sin crear nada.
     expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
     expect(tm.doc.world.sprites).toHaveLength(0);
+  });
+
+  it('entity: con tipo activo, el clic en suelo coloca la entidad', () => {
+    const tm = new ToolManager(makeRoom());
+    tm.setTool('entity');
+    // El selector fija activeEntity al elegir; aquí se simula esa elección.
+    tm.activeEntity = getEntityDef('enemy_wolf')!;
+    expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
+    expect(tm.doc.world.sprites).toHaveLength(1);
+    expect(tm.doc.world.sprites[0]!.entityType).toBe('enemy_wolf');
   });
 
   it('height: clic fuera de todo sector → false', () => {

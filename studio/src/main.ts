@@ -96,7 +96,14 @@ toolActions.forEach((action) => {
     label: action.label,
     shortcut: action.key,
     active: action.id === activeToolId,
-    onClick: () => setActiveTool(action.id),
+    onClick: () => {
+      setActiveTool(action.id);
+      // El selector de entidades cuelga del icono Entidades (debajo de él).
+      if (action.id === 'entity') {
+        const r = btn.getBoundingClientRect();
+        toolManager.openEntityPicker(r.left, r.bottom);
+      }
+    },
   });
   toolGroup.appendChild(btn);
 });
