@@ -521,6 +521,13 @@ html, body, #app {
   color: var(--text-primary);
 }
 
+/* El placeholder "— Selecciona entidad —" es disabled+selected: sin badge,
+   solo texto apagado para que no parezca una opción válida */
+.entity-picker option:disabled {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 /* Entrada: fade + desliz sutil desde arriba */
 @keyframes entity-picker-in {
   from {
