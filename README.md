@@ -12,9 +12,9 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 | Capa | Estado | Descripción |
 |------|--------|-------------|
-| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). 108 tests pasan. |
-| **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + montaña exterior con pozos. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes (X rojo, Y verde, Z azul), herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, rueda para alturas, guardar/exportar/importar (localStorage). 57 tests pasan. |
+| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
+| **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + exteriores, más variantes `rooms/`, `stairs/`, `terrain/`. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage). **90 tests** pasan. |
 | **Backend** (`server/`) | ⏳ Visión | Hono + Prisma + PostgreSQL (pendiente, tras Hito). |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
@@ -25,8 +25,8 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 ```
 ┌─ STUDIO (TypeScript + Vite) ───── herramientas de creación ─────┐
-│  Design System · Layout · Level Editor · Blueprints · Assets ·  │
-│  AI/Quest/Dialogue Editors · Font Manager · Publisher           │
+│  Design System · Layout · Level Editor · Dungeon Browser ·      │
+│  Catálogo de entidades · (futuro) Blueprints · Assets · RPG     │
 └────────────────┬────────────────────────────────────────────────┘
                  │  escribe / prepara DATOS (project.json + assets)
 ┌────────────────▼────────────────────────────────────────────────┐
@@ -43,69 +43,145 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 ## Comandos
 
 ```bash
-# Motor (JS vanilla)
-npm run test:engine    # 108 tests del motor (Node --test)
+# Motor (JS vanilla) — 108 tests (Node --test)
+npm run test:engine
 
 # Studio (TypeScript + Vite)
-cd studio
-npm run dev            # Dev server en http://localhost:5173
-npm run setup:textures # Copia texturas SVG de demo/textures a public/textures (1 vez)
-npm run test           # 57 tests (Vitest)
-npm run build          # Typecheck + build producción en studio/dist
+npm run studio:dev        # Dev server en http://localhost:5173
+npm run studio:test       # 90 tests (Vitest)
+npm run studio:typecheck  # tsc --noEmit
+npm run studio:build      # Typecheck + build producción en studio/dist
 
-# Raíz (conveniencia)
-npm run test:engine      # Desde raíz
-npm run studio:dev       # Studio dev server
-npm run studio:test      # Studio tests
-npm run studio:typecheck # Typecheck del Studio
-npm run studio:build     # Studio build
+# Dentro de studio/
+cd studio
+npm run setup:textures    # Copia texturas SVG de ../demo/textures a public/textures (1 vez)
+npm test                  # 90 tests (Vitest)
+npm run build             # Typecheck + build
 ```
 
 > El motor F1/F2 se abre directo en el navegador (`demo/index.html`), sin build.
 
 ---
 
-## Estructura real
+## Estructura real y explicación por archivo
+
+### Motor (`engine/`) — JS vanilla puro
 
 ```
-raycastjs/
-├── engine/                     ← MOTOR · JS vanilla puro
-│   ├── core/                   → math.js · player.js · physics.js · sector.js
-│   │                            → stairs.js · noise.js · terrain.js · validate.js
-│   │                            → triangulate.js
-│   └── three/                  → Renderer3D.js · WorldMesh.js · SectorGeometry.js
-│                                → GeometryMerge.js · StairsMesh.js · SpriteSystem.js
-│                                → textures.js
-│   ├── Engine3D.js             → Orquestador (load, update, render, dispose)
-│   └── index.js                → API público: Engine3D
-├── demo/                       ← CONSUMIDOR MÍNIMO
-│   ├── index.html              → Abrible directo (<script type="module">)
-│   ├── main.js                 → Importa motor, loop WASD+ratón
-│   └── project.js              → Mundo: 2 pisos + montaña + pozos (schema v3)
-├── studio/                     ← STUDIO · TypeScript + Vite
-│   ├── src/
-│   │   ├── main.ts             → Bootstrap AppLayout + herramientas (atajos 1-6)
-│   │   ├── style.css · tokens.css  → Design System (Catppuccin Mocha)
-│   │   ├── editor/             → EditorState (proyecto editable) + tipos
-│   │   ├── tools/              → ToolManager · picking.ts · tools.ts (mutaciones)
-│   │   ├── viewport/           → EditorViewport (3D orbit) · Overlay2D · CameraControls
-│   │   ├── io/                 → Serializer (project.json ↔ EditorState) · FileManager (guardar/exportar)
-│   │   ├── layout/             → AppLayout, Toolbar, StatusBar
-│   │   └── ui/                 → Componentes UI (Button, Tabs, Table, Modal, Toast, ...)
-│   ├── public/textures/        → Texturas SVG (npm run setup:textures)
-│   ├── tests/                  → 57 tests (Vitest)
-│   ├── vite.config.ts · tsconfig.json · index.html
-│   └── package.json
-├── server/                     ← VISIÓN: API + Postgres (tras Hito)
-├── docs/
-│   └── ENGINE_COMPONENTS.md    → Documentación técnica del motor
-├── test/
-│   └── engine/                 → 108 tests motor (Node --test)
-├── ROADMAP.md                  ← Plan maestro: fases F1–F13, Ruta Crítica §15
-├── DESIGN.md                   ← Design System (paleta, tipografía, componentes, layout)
-├── DATABASE.md                 ← Esquema Prisma/PostgreSQL
-├── AGENTS.md                   ← Instrucciones para agentes
-└── package.json
+engine/
+├── index.js                  # API pública: export { Engine3D } — lo único que importan los consumidores
+├── Engine3D.js               # Orquestador: ciclo de vida (constructor, load, update, render, dispose). NO implementa física ni render; delega en core/ y three/
+├── core/                     # Lógica de juego PURA — sin Three.js, testeable aislada
+│   ├── math.js               # Utilidades matemáticas (vectores, distancias, ángulos)
+│   ├── player.js             # Entidad jugador: posición, orientación (yaw/pitch), getters
+│   ├── physics.js            # Física cinemática: movimiento + colisión con sectores + gravedad (v3)
+│   ├── sector.js             # Geometría sectorial: point-in-polygon, alturas piso/techo, índices espaciales (BVH)
+│   ├── stairs.js             # Altura y geometría de escaleras de peldaños (poligonales)
+│   ├── noise.js              # Ruido Simplex 2D + FBM reproducible (semilla)
+│   ├── terrain.js            # Generador procedural de terreno por sectores (heightmap → sectores)
+│   ├── validate.js           # Validador ligero de project.json (schema v3) al cargar
+│   └── triangulate.js        # (sin uso actual) ear-clipping; SectorGeometry usa THREE.ShapeUtils
+└── three/                    # Todo lo que toca Three.js/WebGL
+    ├── Renderer3D.js         # Escena, cámara, luces, render loop (configurable vía project.render)
+    ├── WorldMesh.js          # Construye la escena 3D desde project.json; merge por material, dispose limpio
+    ├── SectorGeometry.js     # Geometría de suelos, techos y paredes poligonales (triangulación)
+    ├── GeometryMerge.js      # Merge de BufferGeometry para reducir draw calls
+    ├── StairsMesh.js         # Geometría 3D de escaleras de peldaños
+    ├── SpriteSystem.js       # Sprites billboard (animación por frames, dirección 8 sentidos)
+    └── textures.js           # Carga de texturas (Promise.all, NearestFilter), cache de colores, materiales
+```
+
+Regla (AGENTS.md): `core/` nunca importa Three.js; `three/` nunca contiene lógica de juego; `Engine3D.js` solo orquesta.
+
+### Demo (`demo/`) — consumidor mínimo
+
+```
+demo/
+├── index.html                # Abrible directo (<script type="module">), sin build
+├── main.js                   # Importa Engine3D, define input (WASD + ratón) y arranca el loop
+├── project.js                # project.json v3 del mundo de ejemplo (2 pisos + montaña + pozos)
+├── textures/                 # Texturas SVG usadas por demo y Studio (setup:textures)
+├── rooms/                    # Variante: mundo de varias salas conectadas (main.js/project.js/index.html)
+├── stairs/                   # Variante: demo centrada en escaleras/peldaños
+└── terrain/                  # Variante: demo de terreno procedural (Simplex + sectores)
+```
+
+### Studio (`studio/`) — TypeScript + Vite + Vitest
+
+```
+studio/
+├── index.html                # Punto de entrada de Vite
+├── package.json · tsconfig.json · vite.config.ts
+├── src/
+│   ├── main.ts               # Bootstrap: AppLayout + toolbar (atajos 1-6) + atajos globales + wiring del editor
+│   ├── style.css             # Design System completo: tokens CSS (Catppuccin Mocha) + componentes
+│   ├── sample-project.ts     # Proyecto de muestra para abrir al iniciar
+│   ├── engine.d.ts           # Declaración de tipos de Engine3D para el Studio (puente motor ↔ Studio)
+│   ├── editor/
+│   │   ├── types.ts          # Tipos del documento editable (sector/wall/sprite/entidad/colisión)
+│   │   └── EditorState.ts    # Estado del proyecto editable (mutaciones, undo-friendly, serialización)
+│   ├── tools/
+│   │   ├── ToolManager.ts    # Enrutador de herramientas (1-6): pointerdown/up/move, wheel, delete. Selector de entidades
+│   │   ├── tools.ts          # Operaciones geométricas puras: vértices, paredes, sectores, alturas, sprites/entidades
+│   │   └── picking.ts        # Hitting test 2D→3D (proyección de cursor sobre vértices/paredes/sectores), límites de altura
+│   ├── viewport/
+│   │   ├── EditorViewport.ts # Viewport 3D: canvas, controles de cámara, pinta Overlay2D + preview de entidades
+│   │   ├── Overlay2D.ts      # Overlay 2D: grid, ejes X/Y/Z, selección, snapping al grid
+│   │   ├── CameraControls.ts # Cámara orbit (clic der, medio pan, WASD+QE, rueda zoom)
+│   │   └── EntityPreviewMesh.ts  # Cubos 3D de preview de entidades (color y caja según catálogo) — solo editor
+│   ├── io/
+│   │   ├── Serializer.ts     # project.json ↔ EditorState (export/import, schema v3)
+│   │   └── FileManager.ts    # Guardar/exportar/importar (localStorage + descarga JSON)
+│   ├── layout/
+│   │   ├── AppLayout.ts      # Layout de paneles (toolbar + viewport + statusbar, colapsables)
+│   │   ├── Toolbar.ts        # Toolbar superior con acciones (icono + label + atajo)
+│   │   └── StatusBar.ts      # Barra de estado (info contextual del cursor/zoom)
+│   ├── ui/
+│   │   ├── Panel.ts          # Panel con header, controles contextuales y colapsar
+│   │   ├── Icon.ts           # Iconos lucide (SVG inline, 16/20px, currentColor)
+│   │   ├── Toast.ts          # Notificaciones (success/warning/error/info, auto-dismiss)
+│   │   └── DungeonBrowser.ts # Modal para generar mazmorras procedurales desde DUNGEONS
+│   ├── dungeons/
+│   │   ├── types.ts          # Tipos del generador: bloques, pasajes, orientaciones, definiciones
+│   │   ├── definitions.ts    # DUNGEONS: plantillas de mazmorra (nombre, tamaño, bloques)
+│   │   ├── blocks.ts         # BLOCKS: bloques prefabricados (salas, pasillos, cruces) con conectores
+│   │   ├── placement.ts      # findSpot(): coloca bloques en el grid evitando solapes
+│   │   └── assemble.ts       # assemble(): arma la mazmorra y mergeDungeon(): la vuelca al EditorState
+│   └── entities/
+│       └── entityCatalog.ts  # Catálogo de entidades colocables (NPCs + bestiario Daggerfall df_* en 6 categorías)
+├── public/textures/          # Texturas SVG copiadas por setup:textures (para el viewport del editor)
+└── tests/                    # 8 archivos · 90 tests (Vitest): tools, toolmanager, serializer, placement,
+                              # picking, entities, dungeons, camera-controls
+```
+
+### Tests del motor (`test/engine/`) — 19 archivos · 108 tests (Node --test)
+
+```
+test/engine/
+├── engine3d.test.js      # Ciclo de vida de Engine3D (load/update/dispose)
+├── public-api.test.js    # index.js expone solo Engine3D
+├── validate.test.js      # Validador de project.json
+├── physics-sector.test.js / physics-vertical.test.js  # Física y gravedad
+├── player.test.js        # Entidad jugador
+├── sector.test.js        # Geometría de sectores (point-in-polygon, alturas)
+├── sector-geometry.test.js / world-mesh.test.js / renderer3d.test.js  # Render y mallas
+├── stairs.test.js / stairs-sprites.test.js  # Escaleras
+├── terrain.test.js / noise.test.js          # Terreno procedural
+├── textures.test.js      # Carga/colores de texturas
+└── triangulate.test.js   # (para el módulo sin uso actual)
+```
+
+### Raíz
+
+```
+ROADMAP.md          # Plan maestro: fases F1–F13, §12 estado, §13 capas, §15 ruta crítica, §16 deuda
+DESIGN.md           # Design System del Studio (paleta Catppuccin, tipografía, componentes, layout)
+DATABASE.md         # Esquema Prisma/PostgreSQL del backend (visión)
+DATABASE_MVP.md     # Esquema mínimo para el Hito (visión parcial)
+AGENTS.md           # Instrucciones para agentes (convenciones, entorno WSL, protocolo)
+docs/ENGINE_COMPONENTS.md  # Documentación técnica del motor (API, componentes, schema v3)
+opencode.json       # Configuración de opencode (plugins, MCP)
+package.json        # Scripts raíz (test:engine, studio:*) + three
 ```
 
 ---
@@ -129,6 +205,8 @@ raycastjs/
   }
 }
 ```
+
+Los sprites de entidad añaden campos opcionales (retrocompatibles): `entityType`, `entityName`, `collisionType` (`npc|human|animal`) y `collisionBox` (`{w,d,h}` en metros). El motor los renderiza como billboard; la colisión por caja es del editor/blueprints.
 
 Ver `ROADMAP.md` §5 para esquema completo y `docs/ENGINE_COMPONENTS.md` para API del motor.
 
