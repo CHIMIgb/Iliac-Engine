@@ -43,24 +43,14 @@ describe('ToolManager.onWheel — herramienta Alturas', () => {
   });
 });
 
-describe('ToolManager.onWheel — sprite (cualquier herramienta)', () => {
-  it('deltaY < 0 baja su altura, sin pasar de 0', () => {
+describe('ToolManager.onWheel — sprite seleccionado ya no cambia altura', () => {
+  it('la rueda con sprite seleccionado no consume → el viewport hace zoom', () => {
     const state = new EditorState();
     const tm = new ToolManager(state);
-    const spId = state.addSprite('sprite_blue', 4, 4, 1).id;
-    tm.select({ kind: 'sprite', id: spId });
-    expect(tm.onWheel(-100, false)).toBe(true);
-    expect(state.world.sprites[0]!.pos.z).toBe(0.75);
-    // No puede bajar del suelo
-    expect(tm.onWheel(-1000, false)).toBe(true);
-    expect(state.world.sprites[0]!.pos.z).toBe(0.5);
-    tm.onWheel(-1000, false);
-    expect(state.world.sprites[0]!.pos.z).toBe(0.25);
-  });
-
-  it('sprite sin seleccionar no consume la rueda', () => {
-    const state = new EditorState();
-    const tm = new ToolManager(state);
+    state.addSprite('sprite_blue', 4, 4, 1);
+    // Seleccionar el sprite (cualquier herramienta) y girar la rueda
+    tm.select({ kind: 'sprite', id: state.world.sprites[0]!.id });
     expect(tm.onWheel(100, false)).toBe(false);
+    expect(state.world.sprites[0]!.pos.z).toBe(1);
   });
 });

@@ -132,8 +132,9 @@ export class ToolManager {
   /**
    * Devuelve true si consumió la rueda (hubo cambio de altura).
    * Herramienta H + sector seleccionado → piso/techo.
-   * Sprite seleccionado (cualquier herramienta) → altura Y del sprite.
    * Rueda abajo baja, rueda arriba sube (signo ajustado al deltaY del entorno).
+   * Cualquier otro caso (incluido sprite seleccionado) devuelve false →
+   * el viewport hace zoom con la rueda.
    */
   onWheel(deltaY: number, shiftKey: boolean): boolean {
     if (this.activeTool === 'height' && this.selection?.kind === 'sector') {
@@ -142,15 +143,6 @@ export class ToolManager {
       const isCeil = !shiftKey;
       changeSectorHeight(this.doc, this.selection.id, step, isCeil);
       return true;
-    }
-    if (this.selection?.kind === 'sprite') {
-      const sel = this.selection;
-      const sp = this.doc.world.sprites.find((s) => s.id === sel.id);
-      if (sp) {
-        const step = deltaY > 0 ? 0.25 : -0.25;
-        this.doc.moveSprite(sp.id, sp.pos.x, sp.pos.y, Math.max(0, sp.pos.z + step));
-        return true;
-      }
     }
     return false;
   }

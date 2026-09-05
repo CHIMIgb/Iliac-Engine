@@ -278,31 +278,7 @@ describe('ToolManager · onPointerDown devuelve si consumió el clic', () => {
   });
 });
 
-describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () => {
-  it('rueda sobre sprite seleccionado cambia pos.z y consume', () => {
-    const state = makeRoom();
-    const id = placeSpriteAt(state, 4, 4);
-    const tm = new ToolManager(state);
-    // Seleccionar el sprite con un clic proyectado
-    tm.onPointerDown({ px: 10, py: 10, world: null, screenVertices: [], screenWalls: [], screenSprites: [{ id, x: 10, y: 10 }] });
-    expect(tm.selection?.kind).toBe('sprite');
-
-    const before = state.world.sprites.find((s) => s.id === id)!.pos.z;
-    expect(before).toBe(0); // nacen en el suelo
-    tm.onWheel(100, false); // deltaY > 0 → sube (y consume)
-    const up = state.world.sprites.find((s) => s.id === id)!.pos.z;
-    expect(up).toBe(0.25);
-    tm.onWheel(-100, false); // deltaY < 0 → baja
-    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
-    tm.onWheel(-100, false); // clamp: sin altura negativa
-    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
-  });
-
-  it('rueda sin selección sprite → false (el viewport hace zoom)', () => {
-    const tm = new ToolManager(makeRoom());
-    expect(tm.onWheel(100, false)).toBe(false);
-  });
-
+describe('ToolManager · onWheel', () => {
   it('rueda con herramienta H y sector seleccionado sube el techo por defecto', () => {
     const state = makeRoom();
     const tm = new ToolManager(state);
