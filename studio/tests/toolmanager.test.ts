@@ -258,4 +258,33 @@ describe('Herramienta Terreno (7)', () => {
     expect(tm2.onPointerDown(ctx(4, 4))).toBe(false);
     expect(normal.world.sectors[0]!.floorH).toBe(0);
   });
+
+  it('arrastre continuo: el ratón hacia arriba eleva y hacia abajo hunde (0,5 m/8 px)', () => {
+    const state = new EditorState();
+    const statuses: string[] = [];
+    const tm = new ToolManager(state, { onStatus: (t) => statuses.push(t) });
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 4;
+    tm.onPointerDown(ctx(0, 0)); // terreno 0..4
+    tm.terrainMode = 'raise';
+
+    // Presionar dentro del terreno: paso fijo +0,5 → 0,5
+    expect(tm.onPointerDown(ctx(2, 2))).toBe(true);
+    expect(state.world.sectors[0]!.floorH).toBe(0.5);
+
+    // Arrastrar 16 px hacia arriba (py decrece) → +1,0 → 1,5
+    tm.onPointerMove({ ...ctx(2, 2), py: -16 });
+    expect(state.world.sectors[0]!.floorH).toBe(1.5);
+
+    // Arrastrar 16 px hacia abajo (vuelve a py 0) → −1,0 → 0,5 (hundimiento)
+    tm.onPointerMove({ ...ctx(2, 2), py: 0 });
+    expect(state.world.sectors[0]!.floorH).toBe(0.5);
+
+    // Soltar: limpia el arrastre y restaura el statusbar
+    tm.onPointerUp();
+    expect(tm['moldearGrab']).toBeNull();
+    expect(statuses.at(-1)).toBe('Terreno: —');
+    // Durante el arrastre se reportó la altura en vivo
+    expect(statuses.some((s) => s === 'Terreno: 1.5 m')).toBe(true);
+  });
 });

@@ -62,6 +62,7 @@ const toolManager = new ToolManager(doc, {
   onNotice: showToolNotice,
   onSelectionChange: showSelection,
   onToolChange: (tool) => layout.statusBar.setItem('tool', `Herramienta: ${tool}`),
+  onStatus: (text) => layout.statusBar.setItem('terrain', text),
 });
 
 // ── Viewport 3D ────────────────────────────────────────────────
@@ -204,6 +205,7 @@ layout.statusBar.addSeparator();
 layout.statusBar.setItem('tool', `Herramienta: ${activeToolId}`);
 layout.statusBar.addSeparator();
 layout.statusBar.setItem('sel', 'Selección: —');
+  layout.statusBar.setItem('terrain', 'Terreno: —');
 
 // ── Coordenadas + modo en tiempo real ──────────────────────────
 viewport.onCoordsChange = (x, y, z) => {

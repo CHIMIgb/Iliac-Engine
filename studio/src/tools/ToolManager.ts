@@ -63,6 +63,8 @@ export interface ToolManagerCallbacks {
   onNotice?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
   onSelectionChange?: (sel: Selection[]) => void;
   onToolChange?: (tool: ToolId) => void;
+  /** Estado en vivo (statusbar): texto libre, p.ej. altura del terreno al moldear. */
+  onStatus?: (text: string) => void;
 }
 
 /** Objeto agarrado durante un arrastre (posiciones originales para traslación rígida). */
@@ -108,6 +110,12 @@ export class ToolManager {
    * 'raise'/'lower' moldean (elevan/hunden) un terreno YA colocado.
    */
   terrainMode: 'place' | 'raise' | 'lower' = 'place';
+  /**
+   * Arrastre de moldeado en curso: el movimiento vertical del ratón sobre un
+   * terreno colocado eleva (arriba) o hunde (abajo) 0,5 m por cada 8 px
+   * acumulados. null = no hay arrastre.
+   */
+  private moldearGrab: { sectorId: string; lastY: number; acc: number } | null = null;
   /** Selector HTML de tamaños abierto (herramienta Terreno). */
   private terrainPicker: HTMLSelectElement | null = null;
   private terrainPickerOpenedAt = 0;
@@ -160,10 +168,28 @@ export class ToolManager {
         else this.doc.moveSprite(o.id, o.x + dx, o.z + dz, o.h);
       }
     }
+    // Moldeado continuo de terreno: el ratón hacia arriba eleva, hacia abajo
+    // hunde. 0,5 m por cada 8 px acumulados de movimiento vertical.
+    if (this.moldearGrab) {
+      const dy = this.moldearGrab.lastY - ctx.py;
+      this.moldearGrab.lastY = ctx.py;
+      this.moldearGrab.acc += dy;
+      const STEP_PX = 8;
+      while (Math.abs(this.moldearGrab.acc) >= STEP_PX) {
+        const dir = this.moldearGrab.acc > 0 ? 1 : -1;
+        changeSectorHeight(this.doc, this.moldearGrab.sectorId, dir * 0.5, false);
+        this.moldearGrab.acc -= dir * STEP_PX;
+      }
+      if (dy !== 0) this._reportTerrainHeight(this.moldearGrab.sectorId);
+    }
   }
 
   onPointerUp(): void {
     this.grab = null;
+    if (this.moldearGrab) {
+      this.moldearGrab = null;
+      this.cb.onStatus?.('Terreno: —');
+    }
   }
 
   /**
@@ -378,13 +404,12 @@ export class ToolManager {
       const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
       if (sector && sector.startsWith('terr_')) {
         const raising = this.terrainMode === 'raise';
-        const ok = changeSectorHeight(this.doc, sector, raising ? 0.5 : -0.5, false);
-        if (ok) {
-          const s = this.doc.getSector(sector);
-          const h = s && typeof s.floorH === 'number' ? s.floorH : 0;
-          this.cb.onNotice?.(`Terreno ${raising ? 'elevado' : 'hundido'} a ${h} m`, 'success');
-        }
-        return ok;
+        // Paso fijo al presionar (un clic sin arrastre = +/−0,5 m)…
+        changeSectorHeight(this.doc, sector, raising ? 0.5 : -0.5, false);
+        // …y desde aquí el arrastre vertical moldea en ambas direcciones.
+        this.moldearGrab = { sectorId: sector, lastY: ctx.py, acc: 0 };
+        this._reportTerrainHeight(sector);
+        return true;
       }
       // No es un terreno: dejar orbitar/desmarcar sin castigar.
       return false;
@@ -400,6 +425,13 @@ export class ToolManager {
       'success',
     );
     return true;
+  }
+
+  /** Statusbar en vivo: altura actual del suelo del terreno que se moldea. */
+  private _reportTerrainHeight(sectorId: string): void {
+    const s = this.doc.getSector(sectorId);
+    const h = s && typeof s.floorH === 'number' ? s.floorH : 0;
+    this.cb.onStatus?.(`Terreno: ${h} m`);
   }
 
   /**
@@ -672,6 +704,8 @@ export class ToolManager {
     this.wallA = null;
     this.polygon = [];
     this.grab = null;
+    this.moldearGrab = null;
+    this.cb.onStatus?.('Terreno: —');
     this._closeEntityPicker();
     this._closeTerrainPicker();
   }
