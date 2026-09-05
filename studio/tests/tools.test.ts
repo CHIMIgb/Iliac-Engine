@@ -173,17 +173,25 @@ describe('tools · alturas', () => {
   it('clampa: el piso nunca alcanza el techo', () => {
     const state = makeRoom();
     const sid = state.world.sectors[0]!.id;
-    // Subir el piso 100 unidades → debe quedar a 2.6 (techo 3 - mínimo 0.4)
+    // Subir el piso 100 unidades → debe quedar a 1 (techo 3 - mínimo 2)
     changeSectorHeight(state, sid, 100, false);
     const s = state.getSector(sid)!;
     expect(s.ceilH).toBe(3);
     expect(s.floorH).toBeLessThan(3);
-    expect((s.ceilH as number) - (s.floorH as number)).toBeCloseTo(0.4, 5);
+    expect((s.ceilH as number) - (s.floorH as number)).toBe(2);
   });
 
   it('changeSectorHeight devuelve false si no existe el sector', () => {
     const state = makeRoom();
     expect(changeSectorHeight(state, 'nope', 1, false)).toBe(false);
+  });
+
+  it('respeta el techo máximo de 60 m', () => {
+    const state = makeRoom();
+    const sid = state.world.sectors[0]!.id;
+    changeSectorHeight(state, sid, 100, true); // isCeil = true
+    expect(state.world.sectors[0]!.ceilH).toBe(60);
+    expect(state.world.sectors[0]!.floorH).toBe(0);
   });
 });
 

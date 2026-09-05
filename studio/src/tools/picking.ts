@@ -28,7 +28,8 @@ export const PICK_VERTEX_TOL = 10; // px
 export const PICK_WALL_TOL = 8;    // px
 export const PICK_SPRITE_TOL = 12; // px
 export const GRID = 0.5;           // unidades del snap por defecto
-export const MIN_ROOM_HEIGHT = 0.4; // altura mínima piso/techo
+export const MIN_ROOM_HEIGHT = 2;   // altura mínima entre piso y techo (metros)
+export const MAX_ROOM_HEIGHT = 60;  // límite superior del techo (metros)
 
 // ── Geometría básica ─────────────────────────────────────────────
 
@@ -113,18 +114,23 @@ export function snap(v: number, grid = GRID): number {
 
 /**
  * Ajusta floor/ceil para que el piso nunca pase del techo, manteniendo un
- * mínimo de altura. `which` indica qué lado se está editando (el otro queda
- * fijo): 'floor' baja el piso si es necesario; 'ceil' sube el techo.
+ * mínimo de altura (2 m) y un límite máximo del techo (60 m).
+ * `which` indica qué lado se está editando (el otro queda fijo):
+ * 'floor' baja el piso si es necesario; 'ceil' sube el techo.
  */
 export function clampFloorCeil(
   floor: number,
   ceil: number,
   which: 'floor' | 'ceil' = 'floor',
 ): { floor: number; ceil: number } {
+  // Límite superior del techo
+  if (ceil > MAX_ROOM_HEIGHT) ceil = MAX_ROOM_HEIGHT;
   if (which === 'ceil') {
-    if (ceil < floor + MIN_ROOM_HEIGHT) ceil = floor + MIN_ROOM_HEIGHT;
+    if (ceil < floor + MIN_ROOM_HEIGHT) ceil = Math.min(MAX_ROOM_HEIGHT, floor + MIN_ROOM_HEIGHT);
   } else {
     if (floor > ceil - MIN_ROOM_HEIGHT) floor = ceil - MIN_ROOM_HEIGHT;
   }
+  // El piso nunca puede superar (MAX - MIN) para que siempre quepa el mínimo
+  if (floor > MAX_ROOM_HEIGHT - MIN_ROOM_HEIGHT) floor = MAX_ROOM_HEIGHT - MIN_ROOM_HEIGHT;
   return { floor, ceil };
 }

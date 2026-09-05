@@ -103,20 +103,37 @@ describe('picking · snap y alturas', () => {
 
   it('clampFloorCeil baja el piso cuando sube demasiado (which=floor)', () => {
     const r = clampFloorCeil(2.95, 3, 'floor'); // piso casi al techo
-    expect(r.floor).toBeCloseTo(2.6, 5);
+    expect(r.floor).toBe(1);       // 3 - 2 = 1
     expect(r.ceil).toBe(3);
-    expect(r.ceil - r.floor).toBeCloseTo(0.4, 5);
+    expect(r.ceil - r.floor).toBe(2);
   });
 
   it('clampFloorCeil sube el techo cuando baja demasiado (which=ceil)', () => {
     const r = clampFloorCeil(0, 0.2, 'ceil'); // techo casi al piso
     expect(r.floor).toBe(0);
-    expect(r.ceil).toBeCloseTo(0.4, 5);
-    expect(r.ceil - r.floor).toBeCloseTo(0.4, 5);
+    expect(r.ceil).toBe(2);        // 0 + 2 = 2
+    expect(r.ceil - r.floor).toBe(2);
   });
 
   it('clampFloorCeil deja intactas alturas válidas', () => {
     const r = clampFloorCeil(0, 3);
     expect(r).toEqual({ floor: 0, ceil: 3 });
+  });
+
+  it('clampFloorCeil recorta el techo a MAX_ROOM_HEIGHT (60)', () => {
+    const r = clampFloorCeil(0, 80, 'ceil');
+    expect(r).toEqual({ floor: 0, ceil: 60 });
+  });
+
+  it('clampFloorCeil no deja que el piso supere MAX - MIN (58)', () => {
+    const r = clampFloorCeil(59, 60, 'floor');
+    expect(r.floor).toBe(58);      // 60 - 2 = 58
+    expect(r.ceil).toBe(60);
+  });
+
+  it('clampFloorCeil al subir techo cerca del max respeta mínimo y máximo', () => {
+    const r = clampFloorCeil(58, 59, 'ceil');
+    expect(r.ceil).toBe(60);       // max 60
+    expect(r.ceil - r.floor).toBe(2);
   });
 });
