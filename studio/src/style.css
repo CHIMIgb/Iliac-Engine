@@ -469,26 +469,68 @@ html, body, #app {
 /* --- Selector de entidades (herramienta Entidades) --- */
 .entity-picker {
   z-index: 1200;
-  width: 220px;
-  padding: var(--space-1) var(--space-2);
+  width: 240px;
+  padding: var(--space-1);
   background: var(--bg-panel);
   color: var(--text-primary);
-  border: 1px solid var(--border-focus);
-  border-radius: var(--radius-sm);
   font-family: var(--font-ui);
-  font-size: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  cursor: pointer;
+  animation: entity-picker-in 150ms ease-out;
 }
 
+.entity-picker:hover,
+.entity-picker:focus {
+  border-color: var(--border-focus);
+}
+
+/* Labels de categoría (NPCs / Enemigos) como headers */
 .entity-picker optgroup {
-  color: var(--text-muted);
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: var(--bg-panel);
 }
 
+/* Opciones individuales */
 .entity-picker option {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-panel);
   color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.entity-picker option:hover {
+  background: var(--bg-hover);
+}
+
+.entity-picker option:checked {
   background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Entrada: fade + desliz sutil desde arriba */
+@keyframes entity-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* --- DungeonBrowser --- */
