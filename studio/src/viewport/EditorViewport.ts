@@ -284,14 +284,11 @@ export class EditorViewport {
     p.rotatePitch(-e.movementY * 0.002);
   };
 
-  // ── Mouse · modo orbit ───────────────────────────────────────
-
   /**
    * Reparto de botones en modo orbit:
-   *  - Izquierdo (0): herramienta activa. Si la herramienta NO consume el clic
-   *    (cayó en vacío) → orbita la cámara.
-   *  - Medio (1): pan (mover el objetivo de la cámara).
-   *  - Derecho (2): orbitar.
+   *  - Izquierdo (0): herramienta activa. Si no consume → pan (desplazamiento X/Y).
+   *  - Medio (1): orbitar (rotar la cámara).
+   *  - Derecho (2): orbitar (rotar la cámara).
    */
   private _onMouseDown = (e: MouseEvent): void => {
     if (this.controls.mode !== 'orbit') return;
@@ -321,7 +318,7 @@ export class EditorViewport {
     this.controlDragButton = button;
     this.lastDragX = clientX;
     this.lastDragY = clientY;
-    this.canvas.style.cursor = 'grabbing';
+    this.canvas.style.cursor = button === 0 ? 'move' : 'grabbing';
     // Escuchar en window: el arrastre no se corta al salir del canvas.
     window.addEventListener('mousemove', this._onControlDragMove);
   }
@@ -339,10 +336,10 @@ export class EditorViewport {
     const dy = e.clientY - this.lastDragY;
     this.lastDragX = e.clientX;
     this.lastDragY = e.clientY;
-    if (this.controlDragButton === 1) {
-      this.controls.onPan(dx, dy);   // botón medio → pan
+    if (this.controlDragButton === 0) {
+      this.controls.onPan(dx, dy);   // botón izquierdo → pan (X/Y)
     } else {
-      this.controls.onDrag(dx, dy);  // botón izq/dcho → órbita
+      this.controls.onDrag(dx, dy);  // botón medio/derecho → órbita
     }
   };
 
