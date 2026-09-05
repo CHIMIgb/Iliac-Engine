@@ -103,6 +103,11 @@ export class ToolManager {
   activeEntity: EntityDef | null = null;
   /** Tamaño activo del terreno (m): null hasta elegirlo en el icono Terreno. */
   activeTerrainSize: number | null = null;
+  /**
+   * Modo de la herramienta Terreno: 'place' coloca un suelo plano nuevo;
+   * 'raise'/'lower' moldean (elevan/hunden) un terreno YA colocado.
+   */
+  terrainMode: 'place' | 'raise' | 'lower' = 'place';
   /** Selector HTML de tamaños abierto (herramienta Terreno). */
   private terrainPicker: HTMLSelectElement | null = null;
   private terrainPickerOpenedAt = 0;
@@ -359,12 +364,32 @@ export class ToolManager {
   }
 
   /**
-   * Herramienta Terreno (7) — cada clic en la cuadrícula coloca un terreno
-   * procedural del tamaño activo (activeTerrainSize), elevado al piso del
-   * sector bajo el clic. El tamaño se elige en el icono Terreno de la toolbar.
+   * Herramienta Terreno (7):
+   * - Modo colocar: cada clic en la cuadrícula coloca un suelo plano del
+   *   tamaño activo (activeTerrainSize), elevado al piso del sector bajo el clic.
+   * - Modo moldear ('raise'/'lower'): cada clic sobre un terreno YA colocado
+   *   (sector con id `terr_...`) lo eleva o hunde +0,5 m. Solo moldea terrenos:
+   *   si el clic cae en otra cosa, no consume y el viewport puede orbitar.
    */
   private toolTerrainDown(ctx: PickContext): boolean {
     if (!ctx.world) return false;
+
+    if (this.terrainMode !== 'place') {
+      const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
+      if (sector && sector.startsWith('terr_')) {
+        const raising = this.terrainMode === 'raise';
+        const ok = changeSectorHeight(this.doc, sector, raising ? 0.5 : -0.5, false);
+        if (ok) {
+          const s = this.doc.getSector(sector);
+          const h = s && typeof s.floorH === 'number' ? s.floorH : 0;
+          this.cb.onNotice?.(`Terreno ${raising ? 'elevado' : 'hundido'} a ${h} m`, 'success');
+        }
+        return ok;
+      }
+      // No es un terreno: dejar orbitar/desmarcar sin castigar.
+      return false;
+    }
+
     if (this.activeTerrainSize === null) {
       this.cb.onNotice?.('Elige el tamaño del terreno en el icono Terreno', 'info');
       return true;
@@ -392,18 +417,37 @@ export class ToolManager {
 
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = '— Selecciona tamaño —';
+    placeholder.textContent = '— Selecciona acción —';
     placeholder.disabled = true;
     placeholder.selected = true;
     select.appendChild(placeholder);
 
+    // Sub-sección Colocar: tamaños del suelo plano nuevo.
+    const placeGroup = document.createElement('optgroup');
+    placeGroup.label = 'Colocar suelo plano';
     for (const size of TERRAIN_SIZES) {
       const opt = document.createElement('option');
       opt.value = String(size);
       opt.textContent = `${size} × ${size} m`;
-      select.appendChild(opt);
+      placeGroup.appendChild(opt);
     }
-    select.size = TERRAIN_SIZES.length + 1;
+    select.appendChild(placeGroup);
+
+    // Sub-sección Moldear: elevar/hundir un terreno ya colocado.
+    const moldGroup = document.createElement('optgroup');
+    moldGroup.label = 'Moldear terreno colocado';
+    const moldOptions: { value: string; text: string }[] = [
+      { value: 'raise', text: '⬆ Elevar (+0,5 m por clic)' },
+      { value: 'lower', text: '⬇ Hundir (−0,5 m por clic)' },
+    ];
+    for (const m of moldOptions) {
+      const opt = document.createElement('option');
+      opt.value = m.value;
+      opt.textContent = m.text;
+      moldGroup.appendChild(opt);
+    }
+    select.appendChild(moldGroup);
+    select.size = 1 + TERRAIN_SIZES.length + moldOptions.length;
 
     select.style.position = 'fixed';
     if (clientX !== undefined && clientY !== undefined) {
@@ -416,10 +460,20 @@ export class ToolManager {
     }
 
     select.addEventListener('change', () => {
-      const size = Number(select.value);
-      if (Number.isInteger(size)) {
-        this.activeTerrainSize = size;
-        this.cb.onNotice?.(`Terreno de ${size}×${size} m — clic en la cuadrícula para colocar`, 'success');
+      const v = select.value;
+      if (v === 'raise' || v === 'lower') {
+        this.terrainMode = v;
+        this.activeTerrainSize = null; // no colocar por accidente
+        this.cb.onNotice?.(
+          v === 'raise'
+            ? 'Modo moldear: eleva un terreno colocado con cada clic (+0,5 m)'
+            : 'Modo moldear: hunde un terreno colocado con cada clic (−0,5 m)',
+          'success',
+        );
+      } else if (Number.isInteger(Number(v))) {
+        this.activeTerrainSize = Number(v);
+        this.terrainMode = 'place';
+        this.cb.onNotice?.(`Terreno de ${v}×${v} m — clic en la cuadrícula para colocar`, 'success');
       }
       this._closeTerrainPicker();
     });

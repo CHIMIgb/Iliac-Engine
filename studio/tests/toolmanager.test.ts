@@ -223,4 +223,39 @@ describe('Herramienta Terreno (7)', () => {
     expect(state.world.sectors).toHaveLength(1);
     expect(state.world.vertices).toHaveLength(4);
   });
+
+  it('modo moldear: eleva el terreno colocado con cada clic (+0,5 m)', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 4;
+    tm.onPointerDown(ctx(0, 0)); // colocar terreno 0..4
+    tm.terrainMode = 'raise';
+    expect(tm.onPointerDown(ctx(2, 2))).toBe(true); // clic dentro del terreno
+    expect(state.world.sectors[0]!.floorH).toBe(0.5);
+  });
+
+  it('modo moldear: hundir baja el terreno (−0,5 m) y no moldea salas normales', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 4;
+    tm.onPointerDown(ctx(0, 0)); // terreno 0..4
+    tm.terrainMode = 'lower';
+    expect(tm.onPointerDown(ctx(1, 1))).toBe(true);
+    expect(state.world.sectors[0]!.floorH).toBe(-0.5);
+
+    // Un sector normal (sin prefijo terr_) no se moldea → no consume el clic
+    const normal = new EditorState();
+    const na = normal.addVertex(2, 2);
+    const nb = normal.addVertex(6, 2);
+    const nc = normal.addVertex(6, 6);
+    const nd = normal.addVertex(2, 6);
+    normal.addSector([na.id, nb.id, nc.id, nd.id], 0, 3);
+    const tm2 = new ToolManager(normal);
+    tm2.setTool('terrain');
+    tm2.terrainMode = 'raise';
+    expect(tm2.onPointerDown(ctx(4, 4))).toBe(false);
+    expect(normal.world.sectors[0]!.floorH).toBe(0);
+  });
 });

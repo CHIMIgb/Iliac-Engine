@@ -255,13 +255,16 @@ export function placeTerrainAt(
   const b = state.addVertex(offX + size, offZ);
   const c = state.addVertex(offX + size, offZ + size);
   const d = state.addVertex(offX, offZ + size);
-  state.addSector(
+  const sector = state.addSector(
     [a.id, b.id, c.id, d.id],
     base, // piso plano
     50,   // techo alto: no estorba (el motor exige ceilH; 50 m = cielo)
     undefined,
     { floorTex },
   );
+  // Marcar el sector como terreno: el modo "moldear" de la herramienta solo
+  // actúa sobre ids con prefijo `terr_` (no sobre salas/mazmorras).
+  sector.id = `terr_${sector.id}`;
 
   return { sectorCount: 1, base };
 }

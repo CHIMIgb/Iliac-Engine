@@ -364,6 +364,8 @@ describe('tools · terreno (placeTerrainAt)', () => {
     expect(state.world.sectors[0]!.floorH).toBe(0);
     expect(state.world.sectors[0]!.ceilH).toBeGreaterThanOrEqual(50);
     expect(state.world.walls).toHaveLength(0);
+    // Identificado como terreno (prefijo terr_) para el modo moldear
+    expect(state.world.sectors[0]!.id).toMatch(/^terr_/);
   });
 
   it('dos terrenos colocados no comparten ids ni se pisan', () => {
