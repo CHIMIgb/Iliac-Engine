@@ -256,6 +256,7 @@ motor-raycast/
 | F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ✅ Realizada |
 | F4 Studio: **Herramientas de edición 3D** (picking, tools, ToolManager, Overlay2D, viewport interactivo) | ✅ Validada |
 | F4+ **Herramienta Mover (tecla 3) + selección múltiple Shift+clic**: traslación rígida de vértice/pared/sector/sprite, drag de grupo y Delete múltiple | ✅ Realizada |
+| F4+ **Herramienta Terreno (tecla 7)**: suelo plano de 8–32 m sobre la cuadrícula (celdas de 4 vértices independientes, sin relieves/paredes), elevado a la base del sector bajo el clic | ✅ Realizada |
 | F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |

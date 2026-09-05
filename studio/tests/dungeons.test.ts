@@ -108,8 +108,13 @@ describe('dungeons · merge', () => {
   it('la cripta exporta el número exacto de sectores (1 por bloque)', () => {
     const dun = assemble(DUNGEONS[0]!);
     expect(dun.sectors).toHaveLength(DUNGEONS[0]!.tiles.length);
-    // Cada sector tiene 4 vértices (las esquinas del bloque)
-    for (const s of dun.sectors) expect(s.vertexIds).toHaveLength(4);
+    // Cada sector abarca TODOS los vértices del borde de su bloque: las esquinas
+    // más los intermedios de los huecos de puerta en los bloques con pasaje.
+    for (const s of dun.sectors) {
+      const prefix = s.id.slice(0, s.id.lastIndexOf('_') + 1);
+      const tileVerts = dun.vertices.filter((v) => v.id.startsWith(prefix)).map((v) => v.id);
+      expect(new Set(s.vertexIds)).toEqual(new Set(tileVerts));
+    }
   });
 
   it('todos los bloques del catálogo son válidos', () => {

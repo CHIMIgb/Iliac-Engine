@@ -83,6 +83,7 @@ const toolActions: { icon: string; label: string; key: string; id: ToolId }[] = 
   { icon: 'layers',         label: 'Paredes',       key: '4', id: 'wall' },
   { icon: 'ruler',          label: 'Alturas',       key: '5', id: 'height' },
   { icon: 'person-standing',label: 'Entidades',    key: '6', id: 'entity' },
+  { icon: 'mountain',       label: 'Terreno',     key: '7', id: 'terrain' },
 ];
 
 let activeToolId: ToolId = 'select';
@@ -106,6 +107,11 @@ toolActions.forEach((action) => {
       if (action.id === 'entity') {
         const r = btn.getBoundingClientRect();
         toolManager.openEntityPicker(r.left, r.bottom);
+      }
+      // El selector de tamaño cuelga del icono Terreno.
+      if (action.id === 'terrain') {
+        const r = btn.getBoundingClientRect();
+        toolManager.openTerrainSizePicker(r.left, r.bottom);
       }
     },
   });
@@ -218,10 +224,11 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
 
-  // Teclas de herramienta (sin ctrl/meta) — números 1,2,3,4,5,6
+  // Teclas de herramienta (sin ctrl/meta) — números 1..7
   const toolMap: Record<string, ToolId> = {
     '1': 'select', '2': 'vertex', '3': 'move',
     '4': 'wall', '5': 'height', '6': 'entity',
+    '7': 'terrain',
   };
   if (toolMap[key] && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();

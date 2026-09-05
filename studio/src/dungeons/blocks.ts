@@ -39,7 +39,7 @@ export const BLOCKS: DungeonBlock[] = [
         { id: 'wn', x: 0, y: 6 },
         { id: 'w2', x: 0, y: 10 },
       ],
-      sectors: [{ id: 's', vertexIds: ['v0', 'v1', 'v2', 'v3'], floorH: 0, ceilH: 3 }],
+      sectors: [{ id: 's', vertexIds: ['v0', 'sn', 's2', 'v1', 'en', 'e2', 'v2', 'n2', 'nn', 'v3', 'wn', 'w2'], floorH: 0, ceilH: 3 }],
       walls: [
         // Perímetro con huecos en el centro de cada lado
         { a: 'v0', b: 'sn', sectorFront: 's', sectorBack: null },

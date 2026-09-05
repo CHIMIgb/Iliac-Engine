@@ -24,12 +24,16 @@ import {
   placeEntityAt,
   findSectorAt,
   collectTranslateTargets,
+  placeTerrainAt,
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
 import { snap } from './picking';
 
-export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity';
+export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity' | 'terrain';
+
+/** Tamaños de terreno disponibles (metros cuadrados, celda = 1 m). */
+export const TERRAIN_SIZES = [8, 16, 24, 32] as const;
 
 export type Selection =
   | { kind: 'vertex'; id: string }
@@ -97,6 +101,11 @@ export class ToolManager {
   private pickerOpenedAt = 0;
   /** Tipo de entidad activo: el clic en la cuadrícula coloca este tipo. */
   activeEntity: EntityDef | null = null;
+  /** Tamaño activo del terreno (m): null hasta elegirlo en el icono Terreno. */
+  activeTerrainSize: number | null = null;
+  /** Selector HTML de tamaños abierto (herramienta Terreno). */
+  private terrainPicker: HTMLSelectElement | null = null;
+  private terrainPickerOpenedAt = 0;
 
   constructor(doc: EditorState, cb: ToolManagerCallbacks = {}) {
     this.doc = doc;
@@ -130,6 +139,7 @@ export class ToolManager {
       case 'wall':     return this.toolWallDown(ctx);
       case 'height':   return this.toolHeightDown(ctx);
       case 'entity':   return this.toolEntityDown(ctx);
+      case 'terrain':  return this.toolTerrainDown(ctx);
       default:         return this.toolSelectDown(ctx);
     }
   }
@@ -348,6 +358,99 @@ export class ToolManager {
     return true;
   }
 
+  /**
+   * Herramienta Terreno (7) — cada clic en la cuadrícula coloca un terreno
+   * procedural del tamaño activo (activeTerrainSize), elevado al piso del
+   * sector bajo el clic. El tamaño se elige en el icono Terreno de la toolbar.
+   */
+  private toolTerrainDown(ctx: PickContext): boolean {
+    if (!ctx.world) return false;
+    if (this.activeTerrainSize === null) {
+      this.cb.onNotice?.('Elige el tamaño del terreno en el icono Terreno', 'info');
+      return true;
+    }
+    const r = placeTerrainAt(this.doc, ctx.world.x, ctx.world.z, this.activeTerrainSize);
+    this.cb.onNotice?.(
+      `Suelo plano de ${r.sectorCount} celdas colocado (base ${r.base} m)`,
+      'success',
+    );
+    return true;
+  }
+
+  /**
+   * Abre el `<select>` de tamaños de terreno bajo el icono Terreno.
+   * Al elegir se fija `activeTerrainSize`; cada clic en la cuadrícula coloca
+   * un terreno de ese tamaño.
+   */
+  openTerrainSizePicker(clientX?: number, clientY?: number): void {
+    this._closeTerrainPicker();
+    // Sin DOM (tests/SSR) no hay selector; el primer clic avisa igualmente.
+    if (typeof document === 'undefined') return;
+    const select = document.createElement('select');
+    select.className = 'entity-picker'; // mismo estilo que el selector de entidades
+    select.title = 'Tamaño del terreno a colocar';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '— Selecciona tamaño —';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+
+    for (const size of TERRAIN_SIZES) {
+      const opt = document.createElement('option');
+      opt.value = String(size);
+      opt.textContent = `${size} × ${size} m`;
+      select.appendChild(opt);
+    }
+    select.size = TERRAIN_SIZES.length + 1;
+
+    select.style.position = 'fixed';
+    if (clientX !== undefined && clientY !== undefined) {
+      select.style.left = `${Math.min(clientX, window.innerWidth - 240)}px`;
+      select.style.top = `${Math.min(clientY + 4, window.innerHeight - 200)}px`;
+    } else {
+      select.style.left = '50%';
+      select.style.top = '50%';
+      select.style.transform = 'translate(-50%, -50%)';
+    }
+
+    select.addEventListener('change', () => {
+      const size = Number(select.value);
+      if (Number.isInteger(size)) {
+        this.activeTerrainSize = size;
+        this.cb.onNotice?.(`Terreno de ${size}×${size} m — clic en la cuadrícula para colocar`, 'success');
+      }
+      this._closeTerrainPicker();
+    });
+    select.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeTerrainPicker();
+    });
+
+    document.body.appendChild(select);
+    this.terrainPicker = select;
+    this.terrainPickerOpenedAt = performance.now();
+    document.addEventListener('click', this._onTerrainDocClick);
+    this.cb.onNotice?.('Elige el tamaño del terreno a colocar', 'info');
+    requestAnimationFrame(() => select.focus());
+  }
+
+  private _closeTerrainPicker(): void {
+    if (this.terrainPicker) {
+      this.terrainPicker.remove();
+      this.terrainPicker = null;
+      document.removeEventListener('click', this._onTerrainDocClick);
+    }
+  }
+
+  /** Cierra el selector de tamaños al hacer clic fuera (mismo patrón entidades). */
+  private _onTerrainDocClick = (e: MouseEvent): void => {
+    const picker = this.terrainPicker;
+    if (!picker) return;
+    if (performance.now() - this.terrainPickerOpenedAt < 300) return;
+    if (!picker.contains(e.target as Node)) this._closeTerrainPicker();
+  };
+
   // ── Selector de entidades (dropdown desde el icono Entidades) ──
 
   /**
@@ -516,5 +619,6 @@ export class ToolManager {
     this.polygon = [];
     this.grab = null;
     this._closeEntityPicker();
+    this._closeTerrainPicker();
   }
 }

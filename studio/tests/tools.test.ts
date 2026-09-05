@@ -13,6 +13,7 @@ import {
   findSectorAt,
   sectorsSharingEdge,
   defaultSpriteTex,
+  placeTerrainAt,
 } from '../src/tools/tools';
 import { getEntityDef } from '../src/entities/entityCatalog';
 
@@ -344,5 +345,48 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
 
     tm.setTool('select');
     expect(tm.polyline).toHaveLength(0);
+  });
+});
+
+describe('tools · terreno (placeTerrainAt)', () => {
+  it('coloca size×size sectores planos (floorH constante) alineados al grid', () => {
+    const state = new EditorState();
+    const r = placeTerrainAt(state, 2, 2, 4);
+    expect(r.sectorCount).toBe(16);
+    expect(state.world.sectors).toHaveLength(16);
+    // Cada celda tiene sus 4 vértices propios → 4 × 16 = 64
+    expect(state.world.vertices).toHaveLength(64);
+    const xs = state.world.vertices.map((v) => v.x);
+    expect(Math.min(...xs)).toBe(2);
+    expect(Math.max(...xs)).toBe(6);
+    // Suelo plano: floorH constante, sin relieves, sin paredes, techo alto
+    for (const s of state.world.sectors) {
+      expect(s.vertexIds).toHaveLength(4);
+      expect(s.floorH).toBe(0);
+      expect(s.ceilH).toBeGreaterThanOrEqual(50);
+    }
+    expect(state.world.walls).toHaveLength(0);
+  });
+
+  it('dos terrenos colocados no comparten ids ni se pisan', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 4);
+    placeTerrainAt(state, 10, 0, 4);
+    expect(state.world.sectors).toHaveLength(32);
+    expect(state.world.vertices).toHaveLength(128);
+    const ids = new Set(state.world.vertices.map((v) => v.id));
+    expect(ids.size).toBe(128);
+  });
+
+  it('sobre un sector con piso 3, el suelo nace elevado a la base', () => {
+    const state = new EditorState();
+    const a = state.addVertex(0, 0);
+    const b = state.addVertex(2, 0);
+    const c = state.addVertex(2, 2);
+    const d = state.addVertex(0, 2);
+    state.addSector([a.id, b.id, c.id, d.id], 3, 8);
+    const r = placeTerrainAt(state, 0, 0, 4);
+    expect(r.base).toBe(3);
+    for (const s of state.world.sectors) expect(s.floorH).toBe(3);
   });
 });

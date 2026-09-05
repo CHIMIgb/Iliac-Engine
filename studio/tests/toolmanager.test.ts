@@ -201,3 +201,26 @@ describe('ToolManager — selección múltiple con Shift', () => {
     expect(tm.selection).toHaveLength(0);
   });
 });
+
+describe('Herramienta Terreno (7)', () => {
+  it('sin tamaño elegido no coloca y avisa', () => {
+    const state = new EditorState();
+    let notice = '';
+    const tm = new ToolManager(state, { onNotice: (m) => { notice = m; } });
+    tm.setTool('terrain');
+    expect(tm.activeTerrainSize).toBeNull();
+    expect(tm.onPointerDown(ctx(2, 2))).toBe(true);
+    expect(state.world.sectors).toHaveLength(0);
+    expect(notice).toContain('Elige el tamaño');
+  });
+
+  it('con tamaño 4, el clic en la cuadrícula coloca 16 sectores', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 4;
+    expect(tm.onPointerDown(ctx(0, 0))).toBe(true);
+    expect(state.world.sectors).toHaveLength(16);
+    expect(state.world.vertices).toHaveLength(64);
+  });
+});

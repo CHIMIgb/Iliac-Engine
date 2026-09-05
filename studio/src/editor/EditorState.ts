@@ -103,15 +103,21 @@ export class EditorState {
   // ─────────────────────────────────────────────────
   // Sectores
   // ─────────────────────────────────────────────────
-  addSector(vertexIds: string[], floorH = 0, ceilH = 3, id?: string): EditableSector {
+  addSector(
+    vertexIds: string[],
+    floorH: number | number[] = 0,
+    ceilH: number | number[] = 3,
+    id?: string,
+    tex?: { floorTex?: string; ceilTex?: string; wallTex?: string },
+  ): EditableSector {
     const sector: EditableSector = {
       id: id ?? genId("s"),
       vertexIds,
       floorH,
       ceilH,
-      floorTex: 'wood',
-      ceilTex: 'ceil',
-      wallTex: 'wall',
+      floorTex: tex?.floorTex ?? 'wood',
+      ceilTex: tex?.ceilTex ?? 'ceil',
+      wallTex: tex?.wallTex ?? 'wall',
     };
     this.world.sectors.push(sector);
     this.notify();
