@@ -285,13 +285,13 @@ describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () =
     expect(tm.onWheel(100, false)).toBe(false);
   });
 
-  it('rueda con herramienta H y sector seleccionado sigue funcionando', () => {
+  it('rueda con herramienta H y sector seleccionado sube el techo por defecto', () => {
     const state = makeRoom();
     const tm = new ToolManager(state);
     tm.setTool('height');
     tm.onPointerDown(ctxAt(4, 4));
     expect(tm.onWheel(100, false)).toBe(true);
-    expect(state.world.sectors[0]!.floorH).toBe(0.25);
+    expect(state.world.sectors[0]!.ceilH).toBe(3.25);
   });
 });
 

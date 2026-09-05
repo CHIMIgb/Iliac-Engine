@@ -16,16 +16,24 @@ function roomWithSector(): { state: EditorState; tm: ToolManager; sectorId: stri
 }
 
 describe('ToolManager.onWheel — herramienta Alturas', () => {
-  it('deltaY > 0 sube el piso 0.25 (y consume)', () => {
+  it('deltaY > 0 sube el TECHO 0.25 sin Shift (piso queda igual)', () => {
     const { state, tm } = roomWithSector();
     expect(tm.onWheel(100, false)).toBe(true);
-    expect(state.world.sectors[0]!.floorH).toBe(0.25);
+    expect(state.world.sectors[0]!.ceilH).toBe(3.25);
+    expect(state.world.sectors[0]!.floorH).toBe(0);
   });
 
-  it('deltaY < 0 baja el piso 0.25 (y consume)', () => {
+  it('deltaY < 0 baja el TECHO 0.25 (y consume)', () => {
     const { state, tm } = roomWithSector();
     expect(tm.onWheel(-100, false)).toBe(true);
-    expect(state.world.sectors[0]!.floorH).toBe(-0.25);
+    expect(state.world.sectors[0]!.ceilH).toBe(2.75);
+  });
+
+  it('con Shift, la rueda mueve el PISO en su lugar', () => {
+    const { state, tm } = roomWithSector();
+    expect(tm.onWheel(100, true)).toBe(true);
+    expect(state.world.sectors[0]!.floorH).toBe(0.25);
+    expect(state.world.sectors[0]!.ceilH).toBe(3);
   });
 
   it('sin sector seleccionado no consume la rueda', () => {

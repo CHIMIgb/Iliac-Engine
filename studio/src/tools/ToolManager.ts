@@ -128,7 +128,9 @@ export class ToolManager {
   onWheel(deltaY: number, shiftKey: boolean): boolean {
     if (this.activeTool === 'height' && this.selection?.kind === 'sector') {
       const step = deltaY > 0 ? 0.25 : -0.25;
-      changeSectorHeight(this.doc, this.selection.id, step, shiftKey);
+      // Sin Shift → techo (la altura opuesta del eje Y); con Shift → piso.
+      const isCeil = !shiftKey;
+      changeSectorHeight(this.doc, this.selection.id, step, isCeil);
       return true;
     }
     if (this.selection?.kind === 'sprite') {
