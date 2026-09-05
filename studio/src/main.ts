@@ -84,7 +84,6 @@ function setActiveTool(id: ToolId): void {
   toolManager.setTool(id);
   layout.statusBar.setItem('tool', `Herramienta: ${id}`);
   toolActions.forEach((action, i) => layout.toolbar.setActive(i, action.id === id));
-  unirBtn.classList.toggle('active', id === 'sector');
 }
 
 toolActions.forEach((action) => {
@@ -97,20 +96,6 @@ toolActions.forEach((action) => {
   });
   toolGroup.appendChild(btn);
 });
-
-// Submenú Nivel: operaciones de edición poligonal avanzada (uniendo vértices ya
-// existentes). La acción "Unir vértices en sala" era la antigua herramienta 3.
-const nivelMenu = layout.toolbar.addDropdown('Nivel', 'grid-3x3');
-const unirBtn = document.createElement('button');
-unirBtn.className = 'dropdown__item';
-unirBtn.textContent = 'Unir vértices en sala';
-unirBtn.addEventListener('click', () => {
-  setActiveTool('sector');
-  const details = unirBtn.closest('details');
-  if (details) details.removeAttribute('open');
-});
-nivelMenu.appendChild(unirBtn);
-toolGroup.appendChild(nivelMenu.closest('details')!);
 
 layout.toolbar.addSeparator();
 

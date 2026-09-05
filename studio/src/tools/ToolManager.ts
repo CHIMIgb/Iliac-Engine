@@ -28,7 +28,7 @@ import {
   findSectorAt,
 } from './tools';
 
-export type ToolId = 'select' | 'vertex' | 'sector' | 'wall' | 'height' | 'entity';
+export type ToolId = 'select' | 'vertex' | 'wall' | 'height' | 'entity';
 
 export type Selection =
   | { kind: 'vertex'; id: string }
@@ -96,7 +96,6 @@ export class ToolManager {
   onPointerDown(ctx: PickContext): boolean {
     switch (this.activeTool) {
       case 'vertex':    return this.toolVertexDown(ctx);
-      case 'sector':    return this.toolSectorDown(ctx);
       case 'wall':      return this.toolWallDown(ctx);
       case 'height':    return this.toolHeightDown(ctx);
       case 'entity':    return this.toolEntityDown(ctx);
@@ -235,38 +234,6 @@ export class ToolManager {
     this.select({ kind: 'vertex', id });
     if (!this.polygon.includes(id)) this.polygon.push(id);
     return true;
-  }
-
-  private toolSectorDown(ctx: PickContext): boolean {
-    if (!ctx.world) return false;
-    const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
-
-    // Cerrar polígono al volver al primer vértice
-    if (vid && this.polygon.length >= 3 && this.polygon[0] === vid) {
-      const r = closeSector(this.doc, this.polygon);
-      if (r.ok) {
-        this.select({ kind: 'sector', id: r.sectorId! });
-        this.cb.onNotice?.('Sector creado', 'success');
-      } else {
-        this.cb.onNotice?.(r.message ?? 'No se pudo crear el sector', 'warning');
-      }
-      this.polygon = [];
-      return true;
-    }
-
-    // Añadir vértice al polígono
-    if (vid) {
-      if (!this.polygon.includes(vid)) this.polygon.push(vid);
-      return true;
-    }
-
-    // Clic en suelo sin vértice: seleccionar el sector existente
-    const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
-    if (sector) {
-      this.select({ kind: 'sector', id: sector });
-      return true;
-    }
-    return false;
   }
 
   private toolWallDown(ctx: PickContext): boolean {

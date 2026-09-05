@@ -44,25 +44,6 @@ export class Toolbar {
     this.el.appendChild(sep);
   }
 
-  /**
-   * Añade un submenú desplegable (details/summary nativo, sin JS de apertura).
-   * Devuelve el contenedor del menú para añadirle items.
-   */
-  addDropdown(label: string, icon?: string): HTMLDivElement {
-    const details = document.createElement('details');
-    details.className = 'toolbar__dropdown';
-    const summary = document.createElement('summary');
-    summary.className = 'btn btn--icon';
-    summary.title = label;
-    if (icon) summary.appendChild(Icon(icon as any, 16));
-    details.appendChild(summary);
-    const menu = document.createElement('div');
-    menu.className = 'dropdown__menu';
-    details.appendChild(menu);
-    this.el.appendChild(details);
-    return menu;
-  }
-
   /** Añade un grupo de botones. */
   addGroup(): HTMLDivElement {
     const group = document.createElement('div');
