@@ -73,6 +73,8 @@ export class ToolManager {
   private drag: { kind: 'vertex' | 'sprite'; id: string } | null = null;
   /** Selector HTML de entidades abierto (herramienta Entidades). */
   private entityPicker: HTMLSelectElement | null = null;
+  /** Momento (performance.now) en que se abrió el selector. */
+  private pickerOpenedAt = 0;
 
   constructor(doc: EditorState, cb: ToolManagerCallbacks = {}) {
     this.doc = doc;
@@ -343,14 +345,16 @@ export class ToolManager {
       }
       this._closeEntityPicker();
     });
-    // Cerrar al perder el foco o con Escape; el clic en el suelo ya lo cierra.
-    select.addEventListener('blur', () => this._closeEntityPicker());
     select.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeEntityPicker();
     });
 
     document.body.appendChild(select);
     this.entityPicker = select;
+    // El clic del canvas roba el foco por tabindex → NO cerrar por blur.
+    // Se cierra con un clic fuera (fuera del select y > 300 ms después de abrir).
+    this.pickerOpenedAt = performance.now();
+    document.addEventListener('click', this._onDocClick);
     this.cb.onNotice?.('Elige el tipo de entidad a colocar', 'info');
     select.focus();
   }
@@ -359,8 +363,20 @@ export class ToolManager {
     if (this.entityPicker) {
       this.entityPicker.remove();
       this.entityPicker = null;
+      document.removeEventListener('click', this._onDocClick);
     }
   }
+
+  /**
+   * Cierra el selector cuando se hace clic fuera de él. Ignora el clic que
+   * acaba de abrirlo (mismo gesto, < 300 ms) para no cerrarlo en el acto.
+   */
+  private _onDocClick = (e: MouseEvent): void => {
+    const picker = this.entityPicker;
+    if (!picker) return;
+    if (performance.now() - this.pickerOpenedAt < 300) return;
+    if (!picker.contains(e.target as Node)) this._closeEntityPicker();
+  };
 
   // ── Internos ──────────────────────────────────────────────────
 
