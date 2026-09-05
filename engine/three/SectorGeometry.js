@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { triangulate } from '../core/triangulate.js';
 
 function sectorVertices(world, sector, vertexMap) {
   const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
@@ -64,7 +63,11 @@ export function createSectorFloorGeometry(world, sector, vertexMap, repeatDef) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(triangulate(vertices).flat());
+  
+  const contour = vertices.map(v => new THREE.Vector2(v.x, v.y));
+  const indices = THREE.ShapeUtils.triangulateShape(contour, []);
+  geo.setIndex(indices.flat());
+  
   if (Array.isArray(sector.floorH)) {
     geo.computeVertexNormals();
   } else {
@@ -90,11 +93,16 @@ export function createSectorCeilingGeometry(world, sector, vertexMap, repeatDef)
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  
+  const contour = vertices.map(v => new THREE.Vector2(v.x, v.y));
+  const tris = THREE.ShapeUtils.triangulateShape(contour, []);
   const indices = [];
-  for (const [a, b, c] of triangulate(vertices)) {
+  // Para el techo, invertimos el orden de los índices para que mire hacia abajo
+  for (const [a, b, c] of tris) {
     indices.push(a, c, b);
   }
   geo.setIndex(indices);
+  
   if (Array.isArray(sector.ceilH)) {
     geo.computeVertexNormals();
   } else {

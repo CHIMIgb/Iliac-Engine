@@ -102,23 +102,9 @@ export function closeSector(
     return { ok: false, message: 'Un sector necesita al menos 3 vértices' };
   }
 
-  // Centroide para ordenar el polígono en sentido antihorario.
-  let cx = 0;
-  let cz = 0;
-  for (const id of unique) {
-    const v = state.getVertex(id);
-    if (v) { cx += v.x; cz += v.y; }
-  }
-  cx /= unique.length;
-  cz /= unique.length;
-
-  const ordered = [...unique].sort((a, b) => {
-    const va = state.getVertex(a);
-    const vb = state.getVertex(b);
-    const aa = Math.atan2((va?.y ?? 0) - cz, (va?.x ?? 0) - cx);
-    const ab = Math.atan2((vb?.y ?? 0) - cz, (vb?.x ?? 0) - cx);
-    return aa - ab;
-  });
+  // Respetar el orden en el que el usuario dibujó los vértices
+  // (es vital para polígonos cóncavos, el ordenamiento por centroide los rompe)
+  const ordered = unique;
 
   const sector = state.addSector(ordered);
   const sectorId = sector.id;
