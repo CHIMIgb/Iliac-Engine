@@ -22,11 +22,11 @@ import {
   tryCreateWall,
   closeSector,
   changeSectorHeight,
-  placeSpriteAt,
+  placeEntityAt,
   moveSpriteTo,
-  defaultSpriteTex,
   findSectorAt,
 } from './tools';
+import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 
 export type ToolId = 'select' | 'vertex' | 'wall' | 'height' | 'entity';
 
@@ -42,6 +42,9 @@ export interface PickContext {
   /** Coordenadas del ratón en el canvas (px). */
   px: number;
   py: number;
+  /** Coordenadas del ratón en la ventana (para posicionar el selector). */
+  clientX?: number;
+  clientY?: number;
   /** Punto en el suelo del mundo bajo el cursor (o null si no se interseca). */
   world: { x: number; z: number } | null;
   /** Proyecciones a pantalla para hit-test. */
@@ -68,6 +71,8 @@ export class ToolManager {
   private wallA: string | null = null; // vértice inicial de la pared en curso
   private polygon: string[] = [];      // vértices acumulados de un sector
   private drag: { kind: 'vertex' | 'sprite'; id: string } | null = null;
+  /** Selector HTML de entidades abierto (herramienta Entidades). */
+  private entityPicker: HTMLSelectElement | null = null;
 
   constructor(doc: EditorState, cb: ToolManagerCallbacks = {}) {
     this.doc = doc;
@@ -277,16 +282,84 @@ export class ToolManager {
     if (!ctx.world) return false;
     const sid = pickSprite(ctx.px, ctx.py, ctx.screenSprites);
     if (sid) {
-      // Agarrar sprite existente para moverlo
+      // Agarrar sprite/entidad existente para moverlo
       this.select({ kind: 'sprite', id: sid });
       this.drag = { kind: 'sprite', id: sid };
+      this._closeEntityPicker();
       return true;
     }
-    // Crear sprite nuevo
-    const id = placeSpriteAt(this.doc, ctx.world.x, ctx.world.z, defaultSpriteTex(this.doc));
-    this.select({ kind: 'sprite', id });
-    this.drag = { kind: 'sprite', id };
+    // Clic en el suelo → abrir el selector de tipos de entidad
+    this._openEntityPicker(ctx.world.x, ctx.world.z, ctx.clientX, ctx.clientY);
     return true;
+  }
+
+  // ── Selector de entidades (dropdown categorizado) ─────────────
+
+  /**
+   * Abre un `<select>` flotante junto al cursor con las entidades del
+   * catálogo agrupadas por categoría (NPC / Enemigo-Humano / Enemigo-Animal).
+   * Al elegir una opción se coloca la entidad en el punto del clic.
+   */
+  private _openEntityPicker(x: number, z: number, clientX?: number, clientY?: number): void {
+    this._closeEntityPicker();
+    // Sin DOM (tests/SSR) no hay selector; el clic ya se consume igualmente.
+    if (typeof document === 'undefined') return;
+    const select = document.createElement('select');
+    select.className = 'entity-picker';
+    select.title = 'Elige el tipo de entidad a colocar';
+
+    for (const cat of ENTITY_CATEGORIES) {
+      const items = ENTITIES.filter((e) => e.category === cat.id);
+      if (items.length === 0) continue;
+      const group = document.createElement('optgroup');
+      group.label = cat.label;
+      for (const def of items) {
+        const opt = document.createElement('option');
+        opt.value = def.id;
+        opt.textContent = def.name;
+        group.appendChild(opt);
+      }
+      select.appendChild(group);
+    }
+
+    // Posicionar junto al cursor (con margen) o centrado si no hay coords.
+    select.style.position = 'fixed';
+    if (clientX !== undefined && clientY !== undefined) {
+      select.style.left = `${Math.min(clientX + 4, window.innerWidth - 220)}px`;
+      select.style.top = `${Math.min(clientY + 4, window.innerHeight - 40)}px`;
+    } else {
+      select.style.left = '50%';
+      select.style.top = '50%';
+      select.style.transform = 'translate(-50%, -50%)';
+    }
+
+    select.addEventListener('change', () => {
+      const def = ENTITIES.find((e) => e.id === select.value);
+      if (def) {
+        const id = placeEntityAt(this.doc, x, z, def);
+        this.select({ kind: 'sprite', id });
+        this.drag = { kind: 'sprite', id };
+        this.cb.onNotice?.(`${def.name} colocada`, 'success');
+      }
+      this._closeEntityPicker();
+    });
+    // Cerrar al perder el foco o con Escape; el clic en el suelo ya lo cierra.
+    select.addEventListener('blur', () => this._closeEntityPicker());
+    select.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeEntityPicker();
+    });
+
+    document.body.appendChild(select);
+    this.entityPicker = select;
+    this.cb.onNotice?.('Elige el tipo de entidad a colocar', 'info');
+    select.focus();
+  }
+
+  private _closeEntityPicker(): void {
+    if (this.entityPicker) {
+      this.entityPicker.remove();
+      this.entityPicker = null;
+    }
   }
 
   // ── Internos ──────────────────────────────────────────────────
@@ -309,5 +382,6 @@ export class ToolManager {
     this.wallA = null;
     this.polygon = [];
     this.drag = null;
+    this._closeEntityPicker();
   }
 }

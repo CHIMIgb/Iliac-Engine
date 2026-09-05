@@ -48,13 +48,31 @@ export interface EditableRamp {
   tex?: string;
 }
 
-/** Sprite billboard. */
+/** Tamaño de la caja de colisión de una entidad (metros: ancho, fondo, alto). */
+export interface EditableCollisionBox {
+  w: number;
+  d: number;
+  h: number;
+}
+
+/** Tipo de colisión de una entidad (humano vs animal → distinta geometría). */
+export type EditableCollisionType = 'npc' | 'human' | 'animal';
+
+/** Sprite billboard. Las entidades son sprites con datos de colisión extra. */
 export interface EditableSprite {
   id: string;
   tex: string;
   pos: { x: number; y: number; z: number };
   scale?: number;
   billboard?: boolean;
+  /** Id del tipo de entidad en el catálogo (si es una entidad colocada). */
+  entityType?: string;
+  /** Nombre legible del tipo de entidad (del catálogo). */
+  entityName?: string;
+  /** Colisión de la entidad: humano vs animal vs npc. */
+  collisionType?: EditableCollisionType;
+  /** Caja de colisión en metros (w × d × h). */
+  collisionBox?: EditableCollisionBox;
 }
 
 /** Texturas disponibles (svg o color hex). */

@@ -20,6 +20,7 @@ import { CameraControls, CameraMode } from './CameraControls';
 import { Overlay2D } from './Overlay2D';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { sampleProject } from '../sample-project';
+import { buildEntityBoxes } from './EntityPreviewMesh';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const MOVE_SPEED = 3.0;
@@ -49,6 +50,8 @@ export class EditorViewport {
   // ── Posición del cursor en canvas (para picking) ─────────────
   private lastCanvasX = 0;
   private lastCanvasY = 0;
+  private lastClientX = 0;
+  private lastClientY = 0;
 
   /** Herramientas de edición. Se asigna desde main.ts antes de init(). */
   toolManager: ToolManager | null = null;
@@ -82,6 +85,7 @@ export class EditorViewport {
     await engine.load(this.canvas);
     this.engine = engine;
     this._addEditorGrid();
+    this._addEntityBoxes();
     this._setupResize();
     this.controls.onModeChange = (mode) => this.onModeChange?.(mode);
     this.last = performance.now();
@@ -95,6 +99,7 @@ export class EditorViewport {
     this.engine?.dispose();
     this.engine = engine;
     this._addEditorGrid();
+    this._addEntityBoxes();
     this.controls.setMode(mode);
     this.last = performance.now();
   }
@@ -237,6 +242,14 @@ export class EditorViewport {
     scene.add(axes);
   }
 
+  /** Añade los cubos de colisión de las entidades (solo editor). */
+  private _addEntityBoxes(): void {
+    if (!this.engine || !this.toolManager) return;
+    const scene = this.engine.renderer.scene;
+    const boxes = buildEntityBoxes(this.toolManager.doc.world.sprites);
+    scene.add(boxes);
+  }
+
   // ── Eventos ──────────────────────────────────────────────────
 
   private _bindEvents(): void {
@@ -295,7 +308,7 @@ export class EditorViewport {
 
     if (e.button === 0) {
       if (this.toolManager && this.engine) {
-        const consumed = this.toolManager.onPointerDown(this._buildPickContext());
+        const consumed = this.toolManager.onPointerDown(this._buildPickContext(e.clientX, e.clientY));
         if (!consumed) this._startControlDrag(e.button, e.clientX, e.clientY);
       }
       return;
@@ -347,6 +360,8 @@ export class EditorViewport {
     const rect = this.canvas.getBoundingClientRect();
     this.lastCanvasX = e.clientX - rect.left;
     this.lastCanvasY = e.clientY - rect.top;
+    this.lastClientX = e.clientX;
+    this.lastClientY = e.clientY;
 
     // Durante órbita/pan el drag se procesa en window; aquí solo hover/cursor.
     if (this.controlDrag) return;
@@ -385,7 +400,7 @@ export class EditorViewport {
 
   // ── Pick context (proyección 3D→2D con Three.js) ─────────────
 
-  private _buildPickContext(): PickContext {
+  private _buildPickContext(clientX?: number, clientY?: number): PickContext {
     const px = this.lastCanvasX;
     const py = this.lastCanvasY;
     const w = this.canvas.clientWidth || 1;
@@ -434,6 +449,12 @@ export class EditorViewport {
       return { id: sp.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
     });
 
-    return { px, py, world, screenVertices, screenWalls, screenSprites };
+    return {
+      px, py,
+      clientX: clientX ?? this.lastClientX,
+      clientY: clientY ?? this.lastClientY,
+      world,
+      screenVertices, screenWalls, screenSprites,
+    };
   }
 }

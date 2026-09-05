@@ -13,6 +13,7 @@
 import type { EditorState } from '../editor/EditorState';
 import { clampFloorCeil, pointInPolygon, snap } from './picking';
 import type { PolygonPoint } from './picking';
+import type { EntityDef } from '../entities/entityCatalog';
 
 // ── Helpers de acceso ───────────────────────────────────────────
 
@@ -151,6 +152,27 @@ export function changeSectorHeight(state: EditorState, sectorId: string, delta: 
 /** Herramienta E — coloca un sprite en (x, z) con snap. */
 export function placeSpriteAt(state: EditorState, x: number, z: number, tex?: string): string {
   return state.addSprite(tex ?? defaultSpriteTex(state), snap(x), snap(z), 0).id;
+}
+
+/**
+ * Herramienta E (Entidades) — coloca una entidad del catálogo en (x, z).
+ * Usa la textura del catálogo si existe en el proyecto; si no, cae a la
+ * textura de sprite por defecto (el cubo de preview del editor es lo que
+ * representa la entidad hasta que se importe su sprite).
+ */
+export function placeEntityAt(
+  state: EditorState,
+  x: number,
+  z: number,
+  def: EntityDef,
+): string {
+  const tex = state.world.textures[def.tex] ? def.tex : defaultSpriteTex(state);
+  return state.addSprite(tex, snap(x), snap(z), 0, undefined, {
+    entityType: def.id,
+    entityName: def.name,
+    collisionType: def.collisionType,
+    collisionBox: { ...def.collisionBox },
+  }).id;
 }
 
 /** Herramienta Q/E — mueve un sprite con snap (mantiene su altura actual). */

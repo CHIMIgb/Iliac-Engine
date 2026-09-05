@@ -182,13 +182,29 @@ export class EditorState {
   // ─────────────────────────────────────────────────
   // Sprites
   // ─────────────────────────────────────────────────
-  addSprite(tex: string, x: number, y: number, z = 0, id?: string): EditableSprite {
+  addSprite(
+    tex: string,
+    x: number,
+    y: number,
+    z = 0,
+    id?: string,
+    entity?: {
+      entityType?: string;
+      entityName?: string;
+      collisionType?: EditableSprite['collisionType'];
+      collisionBox?: EditableSprite['collisionBox'];
+    },
+  ): EditableSprite {
     const sprite: EditableSprite = {
       id: id ?? genId("sp"),
       tex,
       pos: { x, y, z },
       scale: 1,
       billboard: true,
+      ...(entity?.entityType ? { entityType: entity.entityType } : {}),
+      ...(entity?.entityName ? { entityName: entity.entityName } : {}),
+      ...(entity?.collisionType ? { collisionType: entity.collisionType } : {}),
+      ...(entity?.collisionBox ? { collisionBox: entity.collisionBox } : {}),
     };
     this.world.sprites.push(sprite);
     this.notify();

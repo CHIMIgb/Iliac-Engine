@@ -45,7 +45,17 @@ export function toProjectJson(state: EditorState): ProjectJson {
         portal: w.portal,
       })),
       ramps: state.world.ramps.map((r) => ({ ...r })),
-      sprites: state.world.sprites.map((s) => ({ id: s.id, tex: s.tex, pos: { ...s.pos }, scale: s.scale, billboard: s.billboard })),
+      sprites: state.world.sprites.map((s) => ({
+        id: s.id,
+        tex: s.tex,
+        pos: { ...s.pos },
+        scale: s.scale,
+        billboard: s.billboard,
+        ...(s.entityType ? { entityType: s.entityType } : {}),
+        ...(s.entityName ? { entityName: s.entityName } : {}),
+        ...(s.collisionType ? { collisionType: s.collisionType } : {}),
+        ...(s.collisionBox ? { collisionBox: s.collisionBox } : {}),
+      })),
       textures: { ...state.world.textures },
     },
   };

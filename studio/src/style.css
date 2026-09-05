@@ -466,6 +466,31 @@ html, body, #app {
   border-top: 1px solid var(--border-divider);
 }
 
+/* --- Selector de entidades (herramienta Entidades) --- */
+.entity-picker {
+  z-index: 1200;
+  width: 220px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.entity-picker optgroup {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.entity-picker option {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
 /* --- DungeonBrowser --- */
 .dungeon-browser__modal {
   width: 720px;

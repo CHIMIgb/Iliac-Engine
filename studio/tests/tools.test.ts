@@ -253,12 +253,13 @@ describe('ToolManager · onPointerDown devuelve si consumió el clic', () => {
     expect(tm.selection?.kind).toBe('sector');
   });
 
-  it('entity: clic en suelo sin sprite → crea sprite y consume (true)', () => {
+  it('entity: clic en suelo sin sprite → abre el selector (consume true, aún no coloca)', () => {
     const tm = new ToolManager(makeRoom());
     tm.setTool('entity');
+    // En el navegador este clic abre el dropdown de tipos; el sprite se coloca
+    // al elegir una entidad. Sin DOM, el clic se consume sin crear nada.
     expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
-    expect(tm.selection?.kind).toBe('sprite');
-    expect(tm.doc.world.sprites).toHaveLength(1);
+    expect(tm.doc.world.sprites).toHaveLength(0);
   });
 
   it('height: clic fuera de todo sector → false', () => {
