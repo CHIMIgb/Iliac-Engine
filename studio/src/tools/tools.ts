@@ -227,8 +227,8 @@ export function collectTranslateTargets(
  * (celda = 1 m, alineado a la cuadrícula del editor) con la esquina inferior-
  * izquierda en (x, z). Sin relieves, sin paredes y con techo alto (50 m, luz
  * de cielo): solo el piso, elevado al piso del sector bajo el clic.
- * Cada celda tiene sus 4 vértices propios, así la herramienta Mover puede
- * trasladar cada sector por separado sin arrastrar a los vecinos.
+ * Todo el terreno es UN ÚNICO sector cuadrado de 4 vértices: así la
+ * herramienta Mover lo traslada completo como una pieza.
  *
  * @returns Conteo de sectores y base de elevación.
  */
@@ -250,22 +250,18 @@ export function placeTerrainAt(
     base = typeof fh === 'number' ? fh : (Array.isArray(fh) ? fh[0] : 0) ?? 0;
   }
 
-  // size×size celdas: cada una un cuadrado independiente de 4 vértices.
-  for (let gy = 0; gy < size; gy++) {
-    for (let gx = 0; gx < size; gx++) {
-      const a = state.addVertex(offX + gx, offZ + gy);
-      const b = state.addVertex(offX + gx + 1, offZ + gy);
-      const c = state.addVertex(offX + gx + 1, offZ + gy + 1);
-      const d = state.addVertex(offX + gx, offZ + gy + 1);
-      state.addSector(
-        [a.id, b.id, c.id, d.id],
-        base, // piso plano
-        50,   // techo alto: no estorba (el motor exige ceilH; 50 m = cielo)
-        undefined,
-        { floorTex },
-      );
-    }
-  }
+  // Un único sector cuadrado con sus 4 esquinas, de size×size metros.
+  const a = state.addVertex(offX, offZ);
+  const b = state.addVertex(offX + size, offZ);
+  const c = state.addVertex(offX + size, offZ + size);
+  const d = state.addVertex(offX, offZ + size);
+  state.addSector(
+    [a.id, b.id, c.id, d.id],
+    base, // piso plano
+    50,   // techo alto: no estorba (el motor exige ceilH; 50 m = cielo)
+    undefined,
+    { floorTex },
+  );
 
-  return { sectorCount: size * size, base };
+  return { sectorCount: 1, base };
 }

@@ -349,22 +349,20 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
 });
 
 describe('tools · terreno (placeTerrainAt)', () => {
-  it('coloca size×size sectores planos (floorH constante) alineados al grid', () => {
+  it('coloca UN único sector cuadrado de 4 vértices, plano y alineado al grid', () => {
     const state = new EditorState();
     const r = placeTerrainAt(state, 2, 2, 4);
-    expect(r.sectorCount).toBe(16);
-    expect(state.world.sectors).toHaveLength(16);
-    // Cada celda tiene sus 4 vértices propios → 4 × 16 = 64
-    expect(state.world.vertices).toHaveLength(64);
+    expect(r.sectorCount).toBe(1);
+    expect(state.world.sectors).toHaveLength(1);
+    // Un único sector con sus 4 esquinas → el terreno mueve entero con Mover
+    expect(state.world.vertices).toHaveLength(4);
+    expect(state.world.sectors[0]!.vertexIds).toHaveLength(4);
     const xs = state.world.vertices.map((v) => v.x);
     expect(Math.min(...xs)).toBe(2);
     expect(Math.max(...xs)).toBe(6);
     // Suelo plano: floorH constante, sin relieves, sin paredes, techo alto
-    for (const s of state.world.sectors) {
-      expect(s.vertexIds).toHaveLength(4);
-      expect(s.floorH).toBe(0);
-      expect(s.ceilH).toBeGreaterThanOrEqual(50);
-    }
+    expect(state.world.sectors[0]!.floorH).toBe(0);
+    expect(state.world.sectors[0]!.ceilH).toBeGreaterThanOrEqual(50);
     expect(state.world.walls).toHaveLength(0);
   });
 
@@ -372,10 +370,10 @@ describe('tools · terreno (placeTerrainAt)', () => {
     const state = new EditorState();
     placeTerrainAt(state, 0, 0, 4);
     placeTerrainAt(state, 10, 0, 4);
-    expect(state.world.sectors).toHaveLength(32);
-    expect(state.world.vertices).toHaveLength(128);
+    expect(state.world.sectors).toHaveLength(2);
+    expect(state.world.vertices).toHaveLength(8);
     const ids = new Set(state.world.vertices.map((v) => v.id));
-    expect(ids.size).toBe(128);
+    expect(ids.size).toBe(8);
   });
 
   it('sobre un sector con piso 3, el suelo nace elevado a la base', () => {

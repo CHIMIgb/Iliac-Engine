@@ -214,13 +214,13 @@ describe('Herramienta Terreno (7)', () => {
     expect(notice).toContain('Elige el tamaño');
   });
 
-  it('con tamaño 4, el clic en la cuadrícula coloca 16 sectores', () => {
+  it('con tamaño 4, el clic en la cuadrícula coloca un sector de 4 vértices', () => {
     const state = new EditorState();
     const tm = new ToolManager(state);
     tm.setTool('terrain');
     tm.activeTerrainSize = 4;
     expect(tm.onPointerDown(ctx(0, 0))).toBe(true);
-    expect(state.world.sectors).toHaveLength(16);
-    expect(state.world.vertices).toHaveLength(64);
+    expect(state.world.sectors).toHaveLength(1);
+    expect(state.world.vertices).toHaveLength(4);
   });
 });
