@@ -13,6 +13,7 @@ import { ToolManager, type ToolId, type Selection } from './tools/ToolManager';
 import { DungeonBrowser } from './ui/DungeonBrowser';
 import { DUNGEONS } from './dungeons/definitions';
 import { assemble, mergeDungeon } from './dungeons/assemble';
+import { findSpot } from './dungeons/placement';
 import { sampleProject } from './sample-project';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { saveToLocal, loadFromLocal, exportJson, importJson, clearLocal } from './io/FileManager';
@@ -155,9 +156,13 @@ miscGroup.appendChild(layout.toolbar.addAction({
   icon: 'map', label: 'Mazmorras',
   onClick: () => dungeonBrowser.open(DUNGEONS, (def) => {
     const dun = assemble(def);
-    const spot = freeSpot(doc);
+    const spot = findSpot(doc, dun);
+    if (!spot) {
+      showToast('No hay espacio libre en la cuadrícula para la mazmorra', 'warning');
+      return;
+    }
     mergeDungeon(doc, dun, spot.x, spot.y);
-    showToast(`Mazmorra "${def.name}" añadida al proyecto`, 'success');
+    showToast(`Mazmorra "${def.name}" añadida en (${spot.x}, ${spot.y})`, 'success');
   }),
 }));
 
@@ -267,10 +272,4 @@ doc.onChange(() => {
 // ── Helpers ────────────────────────────────────────────────────
 function toRawProject(d: EditorState): Record<string, unknown> {
   return JSON.parse(JSON.stringify(d)) as Record<string, unknown>;
-}
-
-/** Punto libre para colocar una mazmorra: a la derecha del mundo actual. */
-function freeSpot(d: EditorState): { x: number; y: number } {
-  const maxX = Math.max(0, ...d.world.vertices.map((v) => v.x));
-  return { x: maxX + 40, y: 0 };
 }
