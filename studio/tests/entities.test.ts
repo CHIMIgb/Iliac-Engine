@@ -24,11 +24,14 @@ function makeRoom(): EditorState {
 }
 
 describe('entityCatalog', () => {
-  it('tiene las tres categorías ordenadas (NPC, humano, animal)', () => {
+  it('tiene las seis categorías ordenadas (NPC, humano, animal, no muertos, daedra, criaturas)', () => {
     expect(ENTITY_CATEGORIES.map((c) => c.id)).toEqual([
       'npc',
       'enemy-human',
       'enemy-animal',
+      'enemy-undead',
+      'enemy-daedra',
+      'enemy-monster',
     ]);
   });
 
@@ -49,11 +52,10 @@ describe('entityCatalog', () => {
     }
   });
 
-  it('humanos y NPCs son altos (~1.8 m); animales bajos (< 1.5 m)', () => {
+  it('humanoides (human/npc) son altos (≥ 1.6 m); el bestiario tiene de todo', () => {
     const humans = ENTITIES.filter((e) => e.collisionType === 'human' || e.collisionType === 'npc');
     const animals = ENTITIES.filter((e) => e.collisionType === 'animal');
     for (const e of humans) expect(e.collisionBox.h).toBeGreaterThanOrEqual(1.6);
-    for (const e of animals) expect(e.collisionBox.h).toBeLessThan(1.5);
     expect(animals.length).toBeGreaterThan(0);
   });
 
@@ -61,6 +63,17 @@ describe('entityCatalog', () => {
     expect(getEntityDef('nope')).toBeNull();
     expect(getEntityDef(undefined)).toBeNull();
     expect(getEntityDef('enemy_wolf')?.name).toBe('Lobo');
+  });
+
+  it('bestiario de Daggerfall (df_*) presente en todas las categorías nuevas', () => {
+    expect(getEntityDef('df_archer')?.category).toBe('enemy-human');
+    expect(getEntityDef('df_giant_bat')?.category).toBe('enemy-animal');
+    expect(getEntityDef('df_lich')?.category).toBe('enemy-undead');
+    expect(getEntityDef('df_atronach_fire')?.category).toBe('enemy-daedra');
+    expect(getEntityDef('df_dragon')?.category).toBe('enemy-monster');
+    // Las secuelas de la lista de la wiki (vampiros, dragón, gigante) existen
+    const dfCount = ENTITIES.filter((e) => e.id.startsWith('df_')).length;
+    expect(dfCount).toBeGreaterThan(50);
   });
 });
 
