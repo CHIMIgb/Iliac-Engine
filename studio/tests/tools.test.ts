@@ -271,12 +271,12 @@ describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () =
 
     const before = state.world.sprites.find((s) => s.id === id)!.pos.z;
     expect(before).toBe(0); // nacen en el suelo
-    tm.onWheel(-100, false); // rueda arriba → sube (y consume)
+    tm.onWheel(100, false); // deltaY > 0 → sube (y consume)
     const up = state.world.sprites.find((s) => s.id === id)!.pos.z;
     expect(up).toBe(0.25);
-    tm.onWheel(100, false); // rueda abajo → baja
+    tm.onWheel(-100, false); // deltaY < 0 → baja
     expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
-    tm.onWheel(100, false); // clamp: sin altura negativa
+    tm.onWheel(-100, false); // clamp: sin altura negativa
     expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
   });
 
@@ -290,7 +290,7 @@ describe('ToolManager · onWheel con sprite seleccionado ajusta la altura', () =
     const tm = new ToolManager(state);
     tm.setTool('height');
     tm.onPointerDown(ctxAt(4, 4));
-    expect(tm.onWheel(-100, false)).toBe(true);
+    expect(tm.onWheel(100, false)).toBe(true);
     expect(state.world.sectors[0]!.floorH).toBe(0.25);
   });
 });
