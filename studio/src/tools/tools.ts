@@ -106,6 +106,13 @@ export function closeSector(
   // (es vital para polígonos cóncavos, el ordenamiento por centroide los rompe)
   const ordered = unique;
 
+  // Rechazar un sector que ya existe (mismo conjunto de vértices)
+  const keyOf = (ids: string[]) => [...ids].sort().join('|');
+  const newKey = keyOf(ordered);
+  if (state.world.sectors.some((s) => keyOf(s.vertexIds) === newKey)) {
+    return { ok: false, message: 'Esa habitación ya existe' };
+  }
+
   const sector = state.addSector(ordered);
   const sectorId = sector.id;
 

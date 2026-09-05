@@ -139,6 +139,17 @@ describe('tools · cerrar sector', () => {
     const r = closeSector(state, [a.id, b.id]);
     expect(r.ok).toBe(false);
   });
+
+  it('rechaza crear un sector con los mismos vértices que uno existente', () => {
+    const state = makeRoom(); // ya tiene una habitación con los 4 vértices
+    const ids = state.world.vertices.map((v) => v.id);
+    expect(state.world.sectors).toHaveLength(1);
+
+    const r = closeSector(state, ids);
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain('ya existe');
+    expect(state.world.sectors).toHaveLength(1);
+  });
 });
 
 describe('tools · alturas', () => {

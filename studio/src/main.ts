@@ -72,7 +72,6 @@ const toolGroup = layout.toolbar.addGroup();
 const toolActions: { icon: string; label: string; key: string; id: ToolId }[] = [
   { icon: 'cursor',         label: 'Seleccionar',  key: '1', id: 'select' },
   { icon: 'box',            label: 'Vértices',     key: '2', id: 'vertex' },
-  { icon: 'grid-3x3',       label: 'Sectores',     key: '3', id: 'sector' },
   { icon: 'layers',         label: 'Paredes',       key: '4', id: 'wall' },
   { icon: 'ruler',          label: 'Alturas',       key: '5', id: 'height' },
   { icon: 'person-standing',label: 'Entidades',    key: '6', id: 'entity' },
@@ -85,6 +84,7 @@ function setActiveTool(id: ToolId): void {
   toolManager.setTool(id);
   layout.statusBar.setItem('tool', `Herramienta: ${id}`);
   toolActions.forEach((action, i) => layout.toolbar.setActive(i, action.id === id));
+  unirBtn.classList.toggle('active', id === 'sector');
 }
 
 toolActions.forEach((action) => {
@@ -97,6 +97,20 @@ toolActions.forEach((action) => {
   });
   toolGroup.appendChild(btn);
 });
+
+// Submenú Nivel: operaciones de edición poligonal avanzada (uniendo vértices ya
+// existentes). La acción "Unir vértices en sala" era la antigua herramienta 3.
+const nivelMenu = layout.toolbar.addDropdown('Nivel', 'grid-3x3');
+const unirBtn = document.createElement('button');
+unirBtn.className = 'dropdown__item';
+unirBtn.textContent = 'Unir vértices en sala';
+unirBtn.addEventListener('click', () => {
+  setActiveTool('sector');
+  const details = unirBtn.closest('details');
+  if (details) details.removeAttribute('open');
+});
+nivelMenu.appendChild(unirBtn);
+toolGroup.appendChild(nivelMenu.closest('details')!);
 
 layout.toolbar.addSeparator();
 
@@ -186,9 +200,10 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
 
-  // Teclas de herramienta (sin ctrl/meta) — números 1-6
+  // Teclas de herramienta (sin ctrl/meta) — números 1,2,4,5,6 (el 3 quedó
+// libre: la antigua herramienta Sectores vive ahora en el submenú Nivel)
   const toolMap: Record<string, ToolId> = {
-    '1': 'select', '2': 'vertex', '3': 'sector',
+    '1': 'select', '2': 'vertex',
     '4': 'wall', '5': 'height', '6': 'entity',
   };
   if (toolMap[key] && !e.ctrlKey && !e.metaKey) {
