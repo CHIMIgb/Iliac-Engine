@@ -228,12 +228,24 @@ export class EditorViewport {
 
   // ── Grid de referencia ──────────────────────────────────────
 
-  /** Añade una grilla de referencia al escenario 3D para orientación espacial. */
+  /**
+   * Añade una grilla de referencia al escenario 3D para orientación espacial.
+   *
+   * La malla es de 500×500 m con celdas de 1 m (el límite práctico lo marca
+   * el `far` de la cámara del proyecto, 500 m, y la precisión float32 del
+   * GPU ~1e4 m).
+   *
+   * El Distance Fog lo pone el MOTOR leyendo `render.fog` del proyecto:
+   * la malla (y el mundo) heredan `scene.fog` porque los materiales de
+   * Three.js traen fog activo por defecto. Nada que configurar aquí.
+   */
   private _addEditorGrid(): void {
     if (!this.engine) return;
     const scene = this.engine.renderer.scene;
-    // Grilla 100×100 con divisiones de 1 unidad
-    const grid = new THREE.GridHelper(100, 100, 0x444466, 0x333355);
+
+    // Grilla 500×500 con divisiones de 1 unidad (el zoom máximo 280 alcanza
+    // a verla entera; el far de la cámara del proyecto recorta más allá).
+    const grid = new THREE.GridHelper(500, 500, 0x444466, 0x333355);
     grid.name = '__editor_grid__';
     scene.add(grid);
     // Ejes de color (rojo=X, verde=Y/up, azul=Z)
@@ -308,7 +320,7 @@ export class EditorViewport {
 
     if (e.button === 0) {
       if (this.toolManager && this.engine) {
-        const consumed = this.toolManager.onPointerDown(this._buildPickContext(e.clientX, e.clientY));
+        const consumed = this.toolManager.onPointerDown(this._buildPickContext(e.clientX, e.clientY, e.shiftKey));
         if (!consumed) this._startControlDrag(e.button, e.clientX, e.clientY);
       }
       return;
@@ -400,7 +412,7 @@ export class EditorViewport {
 
   // ── Pick context (proyección 3D→2D con Three.js) ─────────────
 
-  private _buildPickContext(clientX?: number, clientY?: number): PickContext {
+  private _buildPickContext(clientX?: number, clientY?: number, shiftKey = false): PickContext {
     const px = this.lastCanvasX;
     const py = this.lastCanvasY;
     const w = this.canvas.clientWidth || 1;
@@ -408,7 +420,7 @@ export class EditorViewport {
 
     // Si no hay motor, devolver ctx vacío
     if (!this.engine || !this.toolManager) {
-      return { px, py, world: null, screenVertices: [], screenWalls: [], screenSprites: [] };
+      return { px, py, world: null, screenVertices: [], screenWalls: [], screenSprites: [], shiftKey };
     }
 
     const camera = this.engine.renderer.camera;
@@ -455,6 +467,7 @@ export class EditorViewport {
       clientY: clientY ?? this.lastClientY,
       world,
       screenVertices, screenWalls, screenSprites,
+      shiftKey,
     };
   }
 }

@@ -33,13 +33,13 @@ export class Overlay2D {
   /**
    * Dibuja el estado actual de la edición.
    * @param camera Cámara del renderer (Three.js) para proyectar.
-   * @param selection Objeto seleccionado (para resaltar).
+   * @param selection Conjunto de objetos seleccionados (para resaltar).
    * @param hover Objeto bajo el cursor (para resaltar).
    */
   draw(
     doc: EditorState,
     camera: THREE.PerspectiveCamera | THREE.OrthographicCamera,
-    selection: { kind: string; id: string } | null,
+    selection: ReadonlyArray<{ kind: string; id: string }>,
     hover: { kind: string; id: string } | null,
     polygonIds: string[] | null = null,
   ): void {
@@ -72,55 +72,55 @@ export class Overlay2D {
       ctx.stroke();
     }
 
-    // Sector seleccionado: relleno translúcido + borde
-    if (selection?.kind === 'sector') {
-      const sector = doc.getSector(selection.id);
-      if (sector) {
-        const pts = sector.vertexIds
-          .map((vid) => doc.getVertex(vid))
-          .filter((v) => v !== undefined)
-          .map((v) => project(v!.x, v!.y));
-        const allVisible = pts.every((p) => p.visible);
-        if (allVisible && pts.length >= 3) {
+    // Sector(es) seleccionado(s): relleno translúcido + borde
+    const drawSector = (sectorId: string): void => {
+      const sector = doc.getSector(sectorId);
+      if (!sector) return;
+      const pts = sector.vertexIds
+        .map((vid) => doc.getVertex(vid))
+        .filter((v) => v !== undefined)
+        .map((v) => project(v!.x, v!.y));
+      const allVisible = pts.every((p) => p.visible);
+      if (allVisible && pts.length >= 3) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0]!.x, pts[0]!.y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]!.x, pts[i]!.y);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(137,180,250,0.18)';
+        ctx.fill();
+        ctx.strokeStyle = '#89b4fa';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    };
+    for (const sel of selection) if (sel.kind === 'sector') drawSector(sel.id);
+
+    // Pared(es) seleccionada(s)
+    const drawWall = (wallId: string): void => {
+      const wall = doc.world.walls.find((ww) => ww.id === wallId);
+      if (!wall) return;
+      const va = doc.getVertex(wall.a);
+      const vb = doc.getVertex(wall.b);
+      if (va && vb) {
+        const pa = project(va.x, va.y);
+        const pb = project(vb.x, vb.y);
+        if (pa.visible && pb.visible) {
           ctx.beginPath();
-          ctx.moveTo(pts[0]!.x, pts[0]!.y);
-          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]!.x, pts[i]!.y);
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(137,180,250,0.18)';
-          ctx.fill();
-          ctx.strokeStyle = '#89b4fa';
-          ctx.lineWidth = 2;
+          ctx.moveTo(pa.x, pa.y);
+          ctx.lineTo(pb.x, pb.y);
+          ctx.strokeStyle = '#f9e2af';
+          ctx.lineWidth = 3;
           ctx.stroke();
         }
       }
-    }
-
-    // Pared seleccionada
-    if (selection?.kind === 'wall') {
-      const wall = doc.world.walls.find((ww) => ww.id === selection.id);
-      if (wall) {
-        const va = doc.getVertex(wall.a);
-        const vb = doc.getVertex(wall.b);
-        if (va && vb) {
-          const pa = project(va.x, va.y);
-          const pb = project(vb.x, vb.y);
-          if (pa.visible && pb.visible) {
-            ctx.beginPath();
-            ctx.moveTo(pa.x, pa.y);
-            ctx.lineTo(pb.x, pb.y);
-            ctx.strokeStyle = '#f9e2af';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-          }
-        }
-      }
-    }
+    };
+    for (const sel of selection) if (sel.kind === 'wall') drawWall(sel.id);
 
     // Sprites (marcadores)
     for (const sp of doc.world.sprites) {
       const p = project(sp.pos.x, sp.pos.y, sp.pos.z);
       if (!p.visible) continue;
-      const isSel = selection?.kind === 'sprite' && selection.id === sp.id;
+      const isSel = selection.some((s) => s.kind === 'sprite' && s.id === sp.id);
       const isHover = hover?.kind === 'sprite' && hover.id === sp.id;
       ctx.fillStyle = isSel || isHover ? '#f38ba8' : 'rgba(205,214,244,0.6)';
       ctx.beginPath();
@@ -132,7 +132,7 @@ export class Overlay2D {
     for (const v of doc.world.vertices) {
       const p = project(v.x, v.y);
       if (!p.visible) continue;
-      const isSel = selection?.kind === 'vertex' && selection.id === v.id;
+      const isSel = selection.some((s) => s.kind === 'vertex' && s.id === v.id);
       const isHover = hover?.kind === 'vertex' && hover.id === v.id;
       ctx.fillStyle = isSel ? '#a6e3a1' : isHover ? '#f9e2af' : 'rgba(137,180,250,0.85)';
       const size = isSel || isHover ? 5 : 4;

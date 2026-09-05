@@ -97,6 +97,7 @@ export interface EditableRender {
   backgroundColor?: number;
   ambientLight?: { color?: number; intensity?: number };
   directionalLight?: { color?: number; intensity?: number; position?: number[] };
+  fog?: { color?: number; density?: number };
 }
 
 /** Meta del proyecto. */

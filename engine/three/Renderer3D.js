@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createFog } from './fog.js';
 
 export class Renderer3D {
   constructor(canvas, renderSettings = {}) {
@@ -7,6 +8,9 @@ export class Renderer3D {
     this.createRenderer = renderSettings.createRenderer || this._defaultCreateRenderer;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(renderSettings.backgroundColor ?? 0x202020);
+
+    // Niebla atmosférica opcional: la lee de project.json (render.fog).
+    this.scene.fog = createFog(renderSettings.fog, renderSettings.backgroundColor ?? 0x202020);
 
     this.camera = new THREE.PerspectiveCamera(
       renderSettings.fov ?? 75,

@@ -17,6 +17,21 @@ function makeRoom(): EditorState {
 }
 
 describe('dungeons · assemble', () => {
+  it('las plantas nuevas (3+) solo sellan bocas del perímetro (coherencia entre salas)', () => {
+    for (let i = 2; i < DUNGEONS.length; i++) {
+      const dun = assemble(DUNGEONS[i]!);
+      const gw = dun.width / 16;
+      const gh = dun.height / 16;
+      for (const p of dun.passages.filter((pp) => !pp.open)) {
+        const interior = p.tx > 0 && p.ty > 0 && p.tx < gw - 1 && p.ty < gh - 1;
+        expect(
+          interior,
+          `${dun.name} deja una boca sellada en el interior (${p.tx},${p.ty},${p.side})`,
+        ).toBe(false);
+      }
+    }
+  });
+
   it('todas las definiciones producen ids únicos y un world válido', () => {
     for (const def of DUNGEONS) {
       const dun = assemble(def);

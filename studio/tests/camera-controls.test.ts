@@ -31,12 +31,14 @@ describe('CameraControls', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('el zoom limita el radio entre 2 y 60', () => {
+  it('el zoom limita el radio entre 2 y 280 (ver la malla 500×500)', () => {
     const controls = new CameraControls();
     controls.onWheel(-100000); // scroll hacia arriba => acerca al mínimo
     expect(controls.orbit.radius).toBeGreaterThanOrEqual(2);
     controls.onWheel(-100000);
     expect(controls.orbit.radius).toBeGreaterThanOrEqual(2);
+    controls.onWheel(100000); // scroll hacia abajo => aleja al máximo
+    expect(controls.orbit.radius).toBeLessThanOrEqual(280);
   });
 
   it('el drag orbita y limita la elevación', () => {

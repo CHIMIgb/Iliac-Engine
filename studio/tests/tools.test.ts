@@ -245,13 +245,13 @@ describe('ToolManager · onPointerDown devuelve si consumió el clic', () => {
   it('select: clic en vacío → false (el viewport puede orbitar)', () => {
     const tm = new ToolManager(makeRoom());
     expect(tm.onPointerDown(ctxAt(20, 20))).toBe(false);
-    expect(tm.selection).toBeNull();
+    expect(tm.selection).toHaveLength(0);
   });
 
   it('select: clic dentro de un sector → true y selecciona', () => {
     const tm = new ToolManager(makeRoom());
     expect(tm.onPointerDown(ctxAt(4, 4))).toBe(true);
-    expect(tm.selection?.kind).toBe('sector');
+    expect(tm.selection[0]).toMatchObject({ kind: 'sector' });
   });
 
   it('entity: clic en suelo sin sprite ni tipo activo → consume true, aún no coloca', () => {
@@ -319,7 +319,7 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
     const sectorId = state.world.sectors[0]!.id;
     expect(state.world.walls.filter((w) => w.sectorFront === sectorId)).toHaveLength(3);
     expect(tm.polyline).toHaveLength(0);
-    expect(tm.selection?.kind).toBe('sector');
+    expect(tm.selection[0]).toMatchObject({ kind: 'sector' });
   });
 
   it('clic sobre un vértice existente lo añade al polígono sin duplicar', () => {

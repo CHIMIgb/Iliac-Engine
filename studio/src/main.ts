@@ -50,8 +50,11 @@ function showToolNotice(msg: string, type: 'info' | 'warning' | 'error' | 'succe
   showToast(msg, type);
 }
 
-function showSelection(sel: Selection): void {
-  const label = sel ? `${sel.kind} ${sel.id}` : '—';
+function showSelection(sel: Selection[]): void {
+  const label =
+    sel.length === 0 ? '—' :
+    sel.length === 1 ? `${sel[0]!.kind} ${sel[0]!.id}` :
+    `${sel.length} objetos`;
   layout.statusBar.setItem('sel', `Selección: ${label}`);
 }
 
@@ -76,6 +79,7 @@ const toolGroup = layout.toolbar.addGroup();
 const toolActions: { icon: string; label: string; key: string; id: ToolId }[] = [
   { icon: 'cursor',         label: 'Seleccionar',  key: '1', id: 'select' },
   { icon: 'box',            label: 'Vértices',     key: '2', id: 'vertex' },
+  { icon: 'move',           label: 'Mover',        key: '3', id: 'move' },
   { icon: 'layers',         label: 'Paredes',       key: '4', id: 'wall' },
   { icon: 'ruler',          label: 'Alturas',       key: '5', id: 'height' },
   { icon: 'person-standing',label: 'Entidades',    key: '6', id: 'entity' },
@@ -107,6 +111,23 @@ toolActions.forEach((action) => {
   });
   toolGroup.appendChild(btn);
 });
+
+// ── Toolbar: mazmorras (junto a Entidades) ─────────────────────
+const dungeonGroup = layout.toolbar.addGroup();
+const dungeonBrowser = new DungeonBrowser();
+dungeonGroup.appendChild(layout.toolbar.addAction({
+  icon: 'map', label: 'Mazmorras',
+  onClick: () => dungeonBrowser.open(DUNGEONS, (def) => {
+    const dun = assemble(def);
+    const spot = findSpot(doc, dun);
+    if (!spot) {
+      showToast('No hay espacio libre en la cuadrícula para la mazmorra', 'warning');
+      return;
+    }
+    mergeDungeon(doc, dun, spot.x, spot.y);
+    showToast(`${def.name} añadida en (${spot.x}, ${spot.y})`, 'success');
+  }),
+}));
 
 layout.toolbar.addSeparator();
 
@@ -155,23 +176,8 @@ layout.toolbar.addSpacer();
 layout.toolbar.addLabel(doc.meta.name);
 layout.toolbar.addSpacer();
 
-// ── Toolbar: panel / mazmorras / playtest ─────────────────────
+// ── Toolbar: panel / playtest ──────────────────────────────────
 const miscGroup = layout.toolbar.addGroup();
-
-const dungeonBrowser = new DungeonBrowser();
-miscGroup.appendChild(layout.toolbar.addAction({
-  icon: 'map', label: 'Mazmorras',
-  onClick: () => dungeonBrowser.open(DUNGEONS, (def) => {
-    const dun = assemble(def);
-    const spot = findSpot(doc, dun);
-    if (!spot) {
-      showToast('No hay espacio libre en la cuadrícula para la mazmorra', 'warning');
-      return;
-    }
-    mergeDungeon(doc, dun, spot.x, spot.y);
-    showToast(`Mazmorra "${def.name}" añadida en (${spot.x}, ${spot.y})`, 'success');
-  }),
-}));
 
 miscGroup.appendChild(layout.toolbar.addAction({
   icon: 'panel-right', label: 'Panel derecho',
@@ -212,9 +218,9 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
 
-  // Teclas de herramienta (sin ctrl/meta) — números 1,2,4,5,6 (el 3 quedó libre)
+  // Teclas de herramienta (sin ctrl/meta) — números 1,2,3,4,5,6
   const toolMap: Record<string, ToolId> = {
-    '1': 'select', '2': 'vertex',
+    '1': 'select', '2': 'vertex', '3': 'move',
     '4': 'wall', '5': 'height', '6': 'entity',
   };
   if (toolMap[key] && !e.ctrlKey && !e.metaKey) {

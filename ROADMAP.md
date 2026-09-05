@@ -251,9 +251,11 @@ motor-raycast/
 | F2 Verticalidad / 3D (sector system) sobre el motor F1 | ✅ Migración completada |
 | F2.5 Motor de sectores poligonales: rampas/escaleras + sprites billboard + física | ✅ Validada |
 | F2.6 Terreno procedural: Simplex noise + generador de grilla + texturas por pendiente | ✅ Realizada |
+| F2.6+ Niebla atmosférica (**Distance Fog** vía `render.fog` en project.json, consumida también por la malla del Studio) | ✅ Realizada |
 | F3 Studio MVP: Base + Design System (Vite+TS) | ✅ Validada |
 | F3 Studio MVP: **Level Editor Mínimo** (Vite+TS) | ✅ Realizada |
 | F4 Studio: **Herramientas de edición 3D** (picking, tools, ToolManager, Overlay2D, viewport interactivo) | ✅ Validada |
+| F4+ **Herramienta Mover (tecla 3) + selección múltiple Shift+clic**: traslación rígida de vértice/pared/sector/sprite, drag de grupo y Delete múltiple | ✅ Realizada |
 | F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |

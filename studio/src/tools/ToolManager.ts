@@ -18,25 +18,24 @@ import {
 import type { ScreenVertex, ScreenWall, ScreenSprite } from './picking';
 import {
   createVertexAt,
-  moveVertexTo,
   tryCreateWall,
   closeSector,
   changeSectorHeight,
   placeEntityAt,
-  moveSpriteTo,
   findSectorAt,
+  collectTranslateTargets,
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
+import { snap } from './picking';
 
-export type ToolId = 'select' | 'vertex' | 'wall' | 'height' | 'entity';
+export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity';
 
 export type Selection =
   | { kind: 'vertex'; id: string }
   | { kind: 'wall'; id: string }
   | { kind: 'sector'; id: string }
-  | { kind: 'sprite'; id: string }
-  | null;
+  | { kind: 'sprite'; id: string };
 
 /** Información que el viewport calcula por evento (con la cámara del renderer). */
 export interface PickContext {
@@ -52,17 +51,28 @@ export interface PickContext {
   screenVertices: ScreenVertex[];
   screenWalls: ScreenWall[];
   screenSprites: ScreenSprite[];
+  /** Shift pulsado (selección múltiple / toggle). */
+  shiftKey?: boolean;
 }
 
 export interface ToolManagerCallbacks {
   onNotice?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
-  onSelectionChange?: (sel: Selection) => void;
+  onSelectionChange?: (sel: Selection[]) => void;
   onToolChange?: (tool: ToolId) => void;
+}
+
+/** Objeto agarrado durante un arrastre (posiciones originales para traslación rígida). */
+interface GrabTarget {
+  kind: 'vertex' | 'sprite';
+  id: string;
+  x: number;
+  z: number;
+  h: number;
 }
 
 export class ToolManager {
   activeTool: ToolId = 'select';
-  selection: Selection = null;
+  selection: Selection[] = [];
   doc: EditorState;
 
   /** id del objeto bajo el cursor durante hover (para el overlay). */
@@ -71,7 +81,16 @@ export class ToolManager {
   private cb: ToolManagerCallbacks;
   private wallA: string | null = null; // vértice inicial de la pared en curso
   private polygon: string[] = [];      // vértices acumulados de un sector
-  private drag: { kind: 'vertex' | 'sprite'; id: string } | null = null;
+  /**
+   * Arrastre en curso: punto inicial del cursor + posiciones originales de
+   * los targets (grupo si hay selección múltiple). El delta aplicado sobre
+   * las originales produce traslación rígida sin deformación ni error acumulado.
+   */
+  private grab: {
+    cursorStartX: number;
+    cursorStartZ: number;
+    originals: GrabTarget[];
+  } | null = null;
   /** Selector HTML de entidades abierto (herramienta Entidades). */
   private entityPicker: HTMLSelectElement | null = null;
   /** Momento (performance.now) en que se abrió el selector. */
@@ -93,9 +112,10 @@ export class ToolManager {
     this.cb.onToolChange?.(tool);
   }
 
-  select(sel: Selection): void {
-    this.selection = sel;
-    this.cb.onSelectionChange?.(sel);
+  /** Selecciona un objeto, un conjunto, o vacío (null) — normaliza a array. */
+  select(sel: Selection | Selection[] | null): void {
+    this.selection = sel ? (Array.isArray(sel) ? sel : [sel]) : [];
+    this.cb.onSelectionChange?.(this.selection);
   }
 
   /**
@@ -105,28 +125,30 @@ export class ToolManager {
    */
   onPointerDown(ctx: PickContext): boolean {
     switch (this.activeTool) {
-      case 'vertex':    return this.toolVertexDown(ctx);
-      case 'wall':      return this.toolWallDown(ctx);
-      case 'height':    return this.toolHeightDown(ctx);
-      case 'entity':    return this.toolEntityDown(ctx);
-      default:          return this.toolSelectDown(ctx);
+      case 'move':     return this.toolMoveDown(ctx);
+      case 'vertex':   return this.toolVertexDown(ctx);
+      case 'wall':     return this.toolWallDown(ctx);
+      case 'height':   return this.toolHeightDown(ctx);
+      case 'entity':   return this.toolEntityDown(ctx);
+      default:         return this.toolSelectDown(ctx);
     }
   }
 
   onPointerMove(ctx: PickContext): void {
     this.hoverId = this._computeHover(ctx);
-    // Arrastre en curso: mover el objeto agarrado
-    if (this.drag && ctx.world) {
-      if (this.drag.kind === 'vertex') {
-        moveVertexTo(this.doc, this.drag.id, ctx.world.x, ctx.world.z);
-      } else {
-        moveSpriteTo(this.doc, this.drag.id, ctx.world.x, ctx.world.z);
+    // Arrastre en curso: aplicar el delta (snap al grid) a las originales.
+    if (this.grab && ctx.world) {
+      const dx = snap(ctx.world.x - this.grab.cursorStartX);
+      const dz = snap(ctx.world.z - this.grab.cursorStartZ);
+      for (const o of this.grab.originals) {
+        if (o.kind === 'vertex') this.doc.moveVertex(o.id, o.x + dx, o.z + dz);
+        else this.doc.moveSprite(o.id, o.x + dx, o.z + dz, o.h);
       }
     }
   }
 
   onPointerUp(): void {
-    this.drag = null;
+    this.grab = null;
   }
 
   /**
@@ -137,27 +159,39 @@ export class ToolManager {
    * el viewport hace zoom con la rueda.
    */
   onWheel(deltaY: number, shiftKey: boolean): boolean {
-    if (this.activeTool === 'height' && this.selection?.kind === 'sector') {
-      const step = deltaY > 0 ? 0.25 : -0.25;
-      // Sin Shift → techo (la altura opuesta del eje Y); con Shift → piso.
-      const isCeil = !shiftKey;
-      changeSectorHeight(this.doc, this.selection.id, step, isCeil);
-      return true;
+    if (this.activeTool === 'height') {
+      // La rueda afecta al primer sector de la selección (la multi-selección
+      // de alturas no forma parte de esta feature).
+      const sectorSel = this.selection.find((s) => s.kind === 'sector');
+      if (sectorSel) {
+        const step = deltaY > 0 ? 0.25 : -0.25;
+        // Sin Shift → techo (la altura opuesta del eje Y); con Shift → piso.
+        const isCeil = !shiftKey;
+        changeSectorHeight(this.doc, sectorSel.id, step, isCeil);
+        return true;
+      }
     }
     return false;
   }
 
-  /** Elimina el objeto seleccionado. Devuelve true si eliminó algo. */
+  /** Elimina todos los objetos seleccionados. Devuelve true si eliminó algo. */
   onDelete(): boolean {
-    if (!this.selection) return false;
-    const { kind, id } = this.selection;
-    const ok =
-      kind === 'vertex' ? this.doc.removeVertex(id) :
-      kind === 'wall' ? this.doc.removeWall(id) :
-      kind === 'sector' ? this.doc.removeSector(id) :
-      this.doc.removeSprite(id);
-    if (ok) this.select(null);
-    return ok;
+    if (this.selection.length === 0) return false;
+    let anyOk = false;
+    // Orden: sprites → paredes → sectores → vértices (evita huérfanos).
+    for (const kind of ['sprite', 'wall', 'sector', 'vertex'] as const) {
+      for (const s of this.selection) {
+        if (s.kind !== kind) continue;
+        const ok =
+          kind === 'vertex' ? this.doc.removeVertex(s.id) :
+          kind === 'wall' ? this.doc.removeWall(s.id) :
+          kind === 'sector' ? this.doc.removeSector(s.id) :
+          this.doc.removeSprite(s.id);
+        anyOk = anyOk || ok;
+      }
+    }
+    if (anyOk) this.select(null);
+    return anyOk;
   }
 
   /** Información para el overlay (hover + selección). */
@@ -173,33 +207,50 @@ export class ToolManager {
   // ── Gestos por herramienta ────────────────────────────────────
 
   private toolSelectDown(ctx: PickContext): boolean {
-    const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
-    if (vid) {
-      this.select({ kind: 'vertex', id: vid });
-      this.drag = { kind: 'vertex', id: vid };
-      return true;
-    }
-    const wid = pickWall(ctx.px, ctx.py, ctx.screenWalls);
-    if (wid) {
-      this.select({ kind: 'wall', id: wid });
-      return true;
-    }
-    const sid = pickSprite(ctx.px, ctx.py, ctx.screenSprites);
-    if (sid) {
-      this.select({ kind: 'sprite', id: sid });
-      this.drag = { kind: 'sprite', id: sid };
+    const clicked = this._pickAny(ctx);
+    if (clicked) {
+      this._selectWithShift(clicked, ctx.shiftKey ?? false);
+      // Arrastre: solo vértices y sprites (como antes); con multi, mueve el grupo.
+      if (clicked.kind === 'vertex' || clicked.kind === 'sprite') {
+        this._beginGrab(this.selection, ctx);
+      }
       return true;
     }
     // Clic en un sector (por el punto del suelo)
     if (ctx.world) {
       const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
       if (sector) {
-        this.select({ kind: 'sector', id: sector });
+        this._selectWithShift({ kind: 'sector', id: sector }, ctx.shiftKey ?? false);
         return true;
       }
     }
-    this.select(null);
-    return false; // vacío → el viewport orbita
+    // Vacío: sin Shift se limpia la selección; con Shift se conserva (multi).
+    if (!(ctx.shiftKey ?? false)) this.select(null);
+    return false; // vacío → el viewport orbita/pan
+  }
+
+  /**
+   * Herramienta Mover (3) — traslada CUALQUIER cosa de forma rígida:
+   * vértice, pared (sus 2 extremos), sector (todo el polígono) o sprite.
+   * Con Shift la selección es múltiple y el arrastre mueve todo el grupo.
+   */
+  private toolMoveDown(ctx: PickContext): boolean {
+    const clicked = this._pickAny(ctx);
+    if (clicked) {
+      this._selectWithShift(clicked, ctx.shiftKey ?? false);
+      this._beginGrab(this.selection, ctx);
+      return true;
+    }
+    if (ctx.world) {
+      const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
+      if (sector) {
+        this._selectWithShift({ kind: 'sector', id: sector }, ctx.shiftKey ?? false);
+        this._beginGrab(this.selection, ctx);
+        return true;
+      }
+    }
+    if (!(ctx.shiftKey ?? false)) this.select(null);
+    return false; // vacío → el viewport orbita/pan
   }
 
   /**
@@ -281,7 +332,7 @@ export class ToolManager {
     if (sid) {
       // Agarrar sprite/entidad existente para moverlo
       this.select({ kind: 'sprite', id: sid });
-      this.drag = { kind: 'sprite', id: sid };
+      this._beginGrab([{ kind: 'sprite', id: sid }], ctx);
       this._closeEntityPicker();
       return true;
     }
@@ -293,7 +344,7 @@ export class ToolManager {
     // Colocar la entidad del tipo activo en el punto de la cuadrícula.
     const id = placeEntityAt(this.doc, ctx.world.x, ctx.world.z, this.activeEntity);
     this.select({ kind: 'sprite', id });
-    this.drag = { kind: 'sprite', id };
+    this._beginGrab([{ kind: 'sprite', id }], ctx);
     return true;
   }
 
@@ -396,6 +447,56 @@ export class ToolManager {
 
   // ── Internos ──────────────────────────────────────────────────
 
+  /** Picking de objetos con prioridad: vértice → pared → sprite. */
+  private _pickAny(ctx: PickContext): Selection | null {
+    const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
+    if (vid) return { kind: 'vertex', id: vid };
+    const wid = pickWall(ctx.px, ctx.py, ctx.screenWalls);
+    if (wid) return { kind: 'wall', id: wid };
+    const sid = pickSprite(ctx.px, ctx.py, ctx.screenSprites);
+    if (sid) return { kind: 'sprite', id: sid };
+    return null;
+  }
+
+  /**
+   * Selección con semántica de editores: sin Shift reemplaza con el objeto;
+   * con Shift lo AÑADE al conjunto (si ya está, no lo duplica). Para quitar
+   * objetos se hace clic en vacío sin Shift (limpia todo) o se deselecciona
+   * con Ctrl/Shit+clic en blanco. Este comportamiento permite arrastrar un
+   * miembro del grupo sin perder el resto.
+   */
+  private _selectWithShift(obj: Selection, shift: boolean): void {
+    if (shift) {
+      if (!this.selection.some((s) => s.kind === obj.kind && s.id === obj.id)) {
+        this.selection = [...this.selection, obj];
+      }
+    } else {
+      this.selection = [obj];
+    }
+    this.cb.onSelectionChange?.(this.selection);
+  }
+
+  /**
+   * Inicia un arrastre de traslación rígida para el conjunto dado: guarda el
+   * punto inicial del cursor y las posiciones originales de todos los targets
+   * (vértice→él, pared→sus 2 extremos, sector→sus vértices, sprite→su
+   * posición). El delta se aplica sobre las originales → sin deformación.
+   */
+  private _beginGrab(objects: Selection[], ctx: PickContext): void {
+    if (!ctx.world) return;
+    const { vertexIds, spriteIds } = collectTranslateTargets(this.doc, objects);
+    const originals: GrabTarget[] = [];
+    for (const id of vertexIds) {
+      const v = this.doc.getVertex(id);
+      if (v) originals.push({ kind: 'vertex', id, x: v.x, z: v.y, h: 0 });
+    }
+    for (const id of spriteIds) {
+      const sp = this.doc.world.sprites.find((s) => s.id === id);
+      if (sp) originals.push({ kind: 'sprite', id, x: sp.pos.x, z: sp.pos.y, h: sp.pos.z });
+    }
+    this.grab = { cursorStartX: ctx.world.x, cursorStartZ: ctx.world.z, originals };
+  }
+
   private _computeHover(ctx: PickContext): { kind: 'vertex' | 'wall' | 'sector' | 'sprite'; id: string } | null {
     const vid = pickVertex(ctx.px, ctx.py, ctx.screenVertices);
     if (vid) return { kind: 'vertex', id: vid };
@@ -413,7 +514,7 @@ export class ToolManager {
   private cancelGesture(): void {
     this.wallA = null;
     this.polygon = [];
-    this.drag = null;
+    this.grab = null;
     this._closeEntityPicker();
   }
 }

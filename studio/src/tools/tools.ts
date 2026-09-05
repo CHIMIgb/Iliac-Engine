@@ -181,3 +181,41 @@ export function moveSpriteTo(state: EditorState, id: string, x: number, z: numbe
   if (!sp) return false;
   return state.moveSprite(id, snap(x), snap(z), sp.pos.z);
 }
+
+// ── Traslación (herramienta Mover) ─────────────────────────────
+
+/** Objeto seleccionable para la herramienta Mover. */
+export interface TranslateTarget {
+  kind: 'vertex' | 'wall' | 'sector' | 'sprite';
+  id: string;
+}
+
+/**
+ * Mover — traduce el conjunto de objetos a los vértices/sprites que hay que
+ * trasladar para desplazarlos rígidamente: vértice→él mismo, pared→sus 2
+ * extremos, sector→todos sus vértices; el sprite se traslada por su propia
+ * posición en el plano.
+ */
+export function collectTranslateTargets(
+  state: EditorState,
+  objects: readonly TranslateTarget[],
+): { vertexIds: string[]; spriteIds: string[] } {
+  const vertexIds = new Set<string>();
+  const spriteIds = new Set<string>();
+  for (const o of objects) {
+    if (o.kind === 'vertex') vertexIds.add(o.id);
+    if (o.kind === 'wall') {
+      const w = state.world.walls.find((ww) => ww.id === o.id);
+      if (w) {
+        vertexIds.add(w.a);
+        vertexIds.add(w.b);
+      }
+    }
+    if (o.kind === 'sector') {
+      const s = state.getSector(o.id);
+      if (s) for (const vid of s.vertexIds) vertexIds.add(vid);
+    }
+    if (o.kind === 'sprite') spriteIds.add(o.id);
+  }
+  return { vertexIds: [...vertexIds], spriteIds: [...spriteIds] };
+}

@@ -45,7 +45,7 @@ export class CameraControls {
   /** Procesa la rueda del ratón (zoom en modo orbit). */
   onWheel(deltaY: number): void {
     if (this.mode !== 'orbit') return;
-    this.orbit.radius = Math.max(2, Math.min(60, this.orbit.radius + deltaY * 0.01));
+    this.orbit.radius = Math.max(2, Math.min(280, this.orbit.radius + deltaY * 0.01));
   }
 
   /** Procesa arrastre (orbitar en modo orbit). */

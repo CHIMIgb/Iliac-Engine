@@ -43,6 +43,7 @@ export class EditorState {
       fov: 80, near: 0.1, far: 500, backgroundColor: 0x1a1a2e,
       ambientLight: { color: 0xffffff, intensity: 0.5 },
       directionalLight: { color: 0xffffee, intensity: 0.8, position: [20, 30, 20] },
+      fog: { color: 0x1a1a2e, density: 0.005 },
     };
     this.world = initial?.world ?? { vertices: [], sectors: [], walls: [], ramps: [], sprites: [], textures: {} };
   }
