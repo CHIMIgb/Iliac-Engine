@@ -10,6 +10,9 @@ import { showToast } from './ui/Toast';
 import { EditorViewport } from './viewport/EditorViewport';
 import { EditorState } from './editor/EditorState';
 import { ToolManager, type ToolId, type Selection } from './tools/ToolManager';
+import { DungeonBrowser } from './ui/DungeonBrowser';
+import { DUNGEONS } from './dungeons/definitions';
+import { assemble, mergeDungeon } from './dungeons/assemble';
 import { sampleProject } from './sample-project';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { saveToLocal, loadFromLocal, exportJson, importJson, clearLocal } from './io/FileManager';
@@ -144,8 +147,20 @@ layout.toolbar.addSpacer();
 layout.toolbar.addLabel(doc.meta.name);
 layout.toolbar.addSpacer();
 
-// ── Toolbar: panel / playtest ──────────────────────────────────
+// ── Toolbar: panel / mazmorras / playtest ─────────────────────
 const miscGroup = layout.toolbar.addGroup();
+
+const dungeonBrowser = new DungeonBrowser();
+miscGroup.appendChild(layout.toolbar.addAction({
+  icon: 'map', label: 'Mazmorras',
+  onClick: () => dungeonBrowser.open(DUNGEONS, (def) => {
+    const dun = assemble(def);
+    const spot = freeSpot(doc);
+    mergeDungeon(doc, dun, spot.x, spot.y);
+    showToast(`Mazmorra "${def.name}" añadida al proyecto`, 'success');
+  }),
+}));
+
 miscGroup.appendChild(layout.toolbar.addAction({
   icon: 'panel-right', label: 'Panel derecho',
   onClick: () => layout.togglePanelRight(),
@@ -185,8 +200,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
 
-  // Teclas de herramienta (sin ctrl/meta) — números 1,2,4,5,6 (el 3 quedó
-// libre: la antigua herramienta Sectores vive ahora en el submenú Nivel)
+  // Teclas de herramienta (sin ctrl/meta) — números 1,2,4,5,6 (el 3 quedó libre)
   const toolMap: Record<string, ToolId> = {
     '1': 'select', '2': 'vertex',
     '4': 'wall', '5': 'height', '6': 'entity',
@@ -253,4 +267,10 @@ doc.onChange(() => {
 // ── Helpers ────────────────────────────────────────────────────
 function toRawProject(d: EditorState): Record<string, unknown> {
   return JSON.parse(JSON.stringify(d)) as Record<string, unknown>;
+}
+
+/** Punto libre para colocar una mazmorra: a la derecha del mundo actual. */
+function freeSpot(d: EditorState): { x: number; y: number } {
+  const maxX = Math.max(0, ...d.world.vertices.map((v) => v.x));
+  return { x: maxX + 40, y: 0 };
 }

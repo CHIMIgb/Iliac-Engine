@@ -129,6 +129,7 @@ El editor contiene únicamente las herramientas necesarias para crear el mundo d
 | 6.4 | **Entity Builder** básico (posicionar NPCs) | 🆕 | Elegir sprite → tipo → stats básicos → posición en el mapa |
 | 6.5 | **Sprite Pipeline** simplificado (Slicer + Animator) | 🆕 | Cortar hojas de sprites en frames, definir animaciones |
 | 6.6 | **Design System** / Componentes UI reutilizables | ✅ F0.7 | Paleta, tipografía, espaciado, componentes |
+| 6.7 | **Dungeon Browser** (mazmorras pre-hechas) | 🆕 | Bloque 16×16 recurrible, retícula estilo Daggerfall, preview 2D, insertar al proyecto |
 
 ### 6.1 Level Editor — Primer Hito (✅ implementado)
 - **Objetivo:** editar el mundo: sectores poligonales con altura de piso/techo, rampas, portales, zonas de trigger y colocación de entidades.
@@ -158,6 +159,13 @@ El editor contiene únicamente las herramientas necesarias para crear el mundo d
 
 ### 6.6 Design System — ✅ (ya implementado)
 - **Objetivo:** paleta de colores (tokens CSS), tipografía, espaciado, componentes UI reutilizables.
+
+### 6.7 Dungeon Browser — 🆕 (mazmorras pre-hechas)
+- **Objetivo:** mazmorras curadas listas para insertar al proyecto y seguir editando.
+- **Autoría:** bloques 16×16 (celda base) con pasajes centrados de 4 u; retícula normalizada con rotación 0/90/180/270 (estilo bloques Daggerfall, UESP).
+- **Ensamblaje:** `assemble()` rota bloques, fusiona sus mundos y sella con pared sólida las bocas sin vecino con pasaje recíproco.
+- **UI:** botón en la barra (Mazmorras) → modal con listado + preview 2D → "Añadir al proyecto" (fusión vía API pública del EditorState, offset libre a la derecha del mundo).
+- **Estado:** Fase A (bloques, definiciones, ensamblador + tests) y Fase B (modal, preview 2D, integración barra) ✅ realizadas.
 
 ---
 
