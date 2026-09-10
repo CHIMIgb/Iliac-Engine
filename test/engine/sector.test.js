@@ -168,3 +168,44 @@ test('getSectorAtOrNearest con lastSector ignora sectores no conectados', () => 
   // nunca un sector sin conexión directa como s3.
   assert.equal(getSectorAtOrNearest(world, -1000, 0, undefined, world.sectors[0]).id, 's1');
 });
+
+test('buildSectorIndex escala lineal con los sectores (no reconstruye el vertexMap por sector)', () => {
+  // Grillas tipo terreno: N×N celdas con vértices compartidos.
+  const grid = (n) => {
+    const vertices = [];
+    for (let r = 0; r <= n; r++) {
+      for (let c = 0; c <= n; c++) vertices.push({ id: `v${c}_${r}`, x: c, y: r });
+    }
+    const sectors = [];
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        sectors.push({
+          id: `s${c}_${r}`,
+          vertexIds: [`v${c}_${r}`, `v${c + 1}_${r}`, `v${c + 1}_${r + 1}`, `v${c}_${r + 1}`],
+          floorH: [0, 0, 0, 0],
+          ceilH: 50,
+          floorTex: 'grass',
+          ceilTex: 'sky',
+          wallTex: 'rock',
+        });
+      }
+    }
+    return { vertices, sectors, walls: [], textures: {} };
+  };
+  const time = (world) => {
+    const t0 = performance.now();
+    buildSectorIndex(world);
+    return performance.now() - t0;
+  };
+  const small = grid(32);   // 1024 sectores
+  const big = grid(64);     // 4096 sectores (4x sectores, 4.1x vertices)
+  time(small); // warmup
+  // Regresión: antes el vertexMap se reconstruía POR SECTOR → O(S×V), ratio
+  // ~16 en la práctica. Ahora O(S+V) para las AABB; el ratio restante (≤8) es
+  // el coste propio del BVH (sort + slice en cada nivel), no del índice.
+  const tBig = time(big);
+  const ratio = tBig / Math.max(time(small), 0.05);
+  assert.ok(ratio < 10, `ratio 4x sectores = ${ratio.toFixed(1)} (cuadrático daría >16)`);
+  // Cota absoluta: una pasada del pincel no puede tomar segundos.
+  assert.ok(tBig < 250, `4096 sectores en ${tBig.toFixed(0)} ms`);
+});

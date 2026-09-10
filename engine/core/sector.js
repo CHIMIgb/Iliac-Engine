@@ -15,7 +15,7 @@ export function buildSectorIndex(world) {
   }
 
   const solidWalls = (world.walls || []).filter((w) => !(w.sectorBack && w.portal));
-  const bvh = buildBVH(world);
+  const bvh = buildBVH(world, vertexMap);
 
   return { vertexMap, wallsBySector, solidWalls, bvh };
 }
@@ -53,8 +53,7 @@ function aabbIntersects(aabb, x, y) {
   return x >= aabb.minX && x <= aabb.maxX && y >= aabb.minY && y <= aabb.maxY;
 }
 
-function sectorAABB(world, sector) {
-  const map = new Map(world.vertices.map((v) => [v.id, v]));
+function sectorAABB(map, sector) {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -70,9 +69,13 @@ function sectorAABB(world, sector) {
   return { minX, minY, maxX, maxY };
 }
 
-function buildBVH(world) {
+function buildBVH(world, vertexMap) {
+  // El vertexMap se construye UNA vez y se comparte: reconstruirlo por sector
+  // hacía el índice O(sectores × vértices) → un terreno de 32 m tardaba ~4 s
+  // por pasada de pincel (16x16+ dejaba de verse en tiempo real).
+  const map = vertexMap || new Map(world.vertices.map((v) => [v.id, v]));
   const leaves = world.sectors.map((sector) => {
-    return { sector, aabb: sectorAABB(world, sector), isLeaf: true };
+    return { sector, aabb: sectorAABB(map, sector), isLeaf: true };
   });
   return buildBVHRecursive(leaves);
 }
