@@ -10,6 +10,7 @@ Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 - **Studio (`studio/`) = TypeScript + Vite (visión futura).** Herramientas de creación / interfaz para construir juegos sin escribir código (arrastrar y unir). Otro consumidor del motor: escribe `project.json` y se lo pasa al motor.
 - **Contrato = `project.json`**: las herramientas escriben datos, los motores leen datos. Nunca duplicar esa lógica en ambas capas.
 - **UI/Design System**: `DESIGN.md` define la paleta, tipografía, espaciado y componentes reutilizables del Studio. **Leer `DESIGN.md` antes de crear cualquier componente UI.** Los componentes son framework-agnostic (vanilla JS → migrable a Lit/Svelte).
+- **Herramientas del editor**: `TOOLS.md` documenta cómo funciona cada herramienta (teclas 1–7, popover de Terreno, pincel de esculpido, arquitectura del reload en vivo). Mantenerla al día al tocar `studio/src/tools/`.
 
 ## Estado actual
 
