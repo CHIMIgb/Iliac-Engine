@@ -15,6 +15,7 @@ import {
   defaultSpriteTex,
   placeTerrainAt,
   sculptTerrainAt,
+  hiddenTerrainVertices,
   collectTranslateTargets,
 } from '../src/tools/tools';
 import { getEntityDef } from '../src/entities/entityCatalog';
@@ -353,11 +354,11 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
 describe('tools · terreno (placeTerrainAt)', () => {
   it('coloca una grilla de celdas que comparten vértices, plana y alineada', () => {
     const state = new EditorState();
-    // 4 m / celda 2 m → 2×2 = 4 sectores, 3×3 = 9 vértices compartidos
+    // 4 m / celda 1 m → 4×4 = 16 sectores, 5×5 = 25 vértices compartidos
     const r = placeTerrainAt(state, 2, 2, 4);
-    expect(r.sectorCount).toBe(4);
-    expect(state.world.sectors).toHaveLength(4);
-    expect(state.world.vertices).toHaveLength(9);
+    expect(r.sectorCount).toBe(16);
+    expect(state.world.sectors).toHaveLength(16);
+    expect(state.world.vertices).toHaveLength(25);
     const xs = state.world.vertices.map((v) => v.x);
     expect(Math.min(...xs)).toBe(2);
     expect(Math.max(...xs)).toBe(6);
@@ -374,10 +375,10 @@ describe('tools · terreno (placeTerrainAt)', () => {
     const state = new EditorState();
     placeTerrainAt(state, 0, 0, 4); // 4 sectores, 9 vértices
     placeTerrainAt(state, 10, 0, 4);
-    expect(state.world.sectors).toHaveLength(8);
-    expect(state.world.vertices).toHaveLength(18);
+    expect(state.world.sectors).toHaveLength(32);
+    expect(state.world.vertices).toHaveLength(50);
     const ids = new Set(state.world.vertices.map((v) => v.id));
-    expect(ids.size).toBe(18);
+    expect(ids.size).toBe(50);
   });
 
   it('sobre un sector con piso 3, la grilla nace elevada a la base', () => {
@@ -450,8 +451,8 @@ describe('tools · pincel de esculpido (sculptTerrainAt)', () => {
     placeTerrainAt(state, 0, 0, 4); // 9 vértices compartidos
     const v = state.world.vertices.find((v) => v.x === 2 && v.y === 2)!;
     const cell = state.world.sectors.find((s) => s.id.startsWith('terr_'))!;
-    expect(collectTranslateTargets(state, [{ kind: 'vertex', id: v.id }]).vertexIds).toHaveLength(9);
-    expect(collectTranslateTargets(state, [{ kind: 'sector', id: cell.id }]).vertexIds).toHaveLength(9);
+    expect(collectTranslateTargets(state, [{ kind: 'vertex', id: v.id }]).vertexIds).toHaveLength(25);
+    expect(collectTranslateTargets(state, [{ kind: 'sector', id: cell.id }]).vertexIds).toHaveLength(25);
     // Una sala normal sigue moviéndose solo por sus vértices (4)
     const room = makeRoom();
     expect(

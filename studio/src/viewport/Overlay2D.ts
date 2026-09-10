@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import type { EditorState } from '../editor/EditorState';
+import { hiddenTerrainVertices } from '../tools/tools';
 
 export class Overlay2D {
   readonly canvas: HTMLCanvasElement;
@@ -128,8 +129,12 @@ export class Overlay2D {
       ctx.fill();
     }
 
-    // Vértices (puntos) — después de las paredes para que queden encima
+    // Vértices (puntos) — después de las paredes para que queden encima.
+    // Ocultos: los interiores de la grilla de terreno (solo se pintan las 4
+    // esquinas de cada colocación; el resto lo moldea el pincel sin marcar).
+    const hidden = hiddenTerrainVertices(doc);
     for (const v of doc.world.vertices) {
+      if (hidden.has(v.id)) continue;
       const p = project(v.x, v.y);
       if (!p.visible) continue;
       const isSel = selection.some((s) => s.kind === 'vertex' && s.id === v.id);

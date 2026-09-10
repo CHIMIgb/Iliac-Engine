@@ -235,10 +235,42 @@ export function collectTranslateTargets(
 
 // ── Terreno (herramienta Terreno) ──────────────────────────────
 
-/** Tamaño de celda del terreno en metros (la grilla del motor usa 2 m). */
-export const TERRAIN_CELL = 2;
+/** Tamaño de celda del terreno en metros (1 m: grilla densa = Relief más suave). */
+export const TERRAIN_CELL = 1;
 /** Radio del pincel de esculpido (m). */
 export const TERRAIN_BRUSH_RADIUS = 3;
+
+/**
+ * Vértices INTERIORES de la grilla de terreno (todos menos las 4 esquinas de
+ * cada colocación). El editor los oculta en dibujo y picking para que la
+ * grilla se vea limpia; siguen existiendo en los datos para el pincel.
+ */
+export function hiddenTerrainVertices(state: EditorState): Set<string> {
+  const placements = new Map<string, { ids: string[]; maxC: number; maxR: number }>();
+  for (const v of state.world.vertices) {
+    const m = /^(terr_.+?)_v(\d+)_(\d+)$/.exec(v.id);
+    if (!m) continue;
+    const pfx = m[1]!;
+    const c = Number(m[2]);
+    const r = Number(m[3]);
+    let e = placements.get(pfx);
+    if (!e) { e = { ids: [], maxC: 0, maxR: 0 }; placements.set(pfx, e); }
+    e.ids.push(v.id);
+    e.maxC = Math.max(e.maxC, c);
+    e.maxR = Math.max(e.maxR, r);
+  }
+  const hidden = new Set<string>();
+  for (const [pfx, e] of placements) {
+    for (const id of e.ids) {
+      const m = new RegExp(`^${pfx}_v(\\d+)_(\\d+)$`).exec(id)!;
+      const c = Number(m[1]);
+      const r = Number(m[2]);
+      const corner = (c === 0 || c === e.maxC) && (r === 0 || r === e.maxR);
+      if (!corner) hidden.add(id);
+    }
+  }
+  return hidden;
+}
 
 /** Altura de piso de un sector (número o array por vértice) en el índice dado. */
 function floorAt(s: { floorH: number | number[] }, i: number): number {

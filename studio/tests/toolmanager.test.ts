@@ -220,9 +220,9 @@ describe('Herramienta Terreno (7)', () => {
     tm.setTool('terrain');
     tm.activeTerrainSize = 4;
     expect(tm.onPointerDown(ctx(0, 0))).toBe(true);
-    // Grilla de celdas de 2 m: 2×2 sectores, 3×3 vértices compartidos
-    expect(state.world.sectors).toHaveLength(4);
-    expect(state.world.vertices).toHaveLength(9);
+    // Grilla de celdas de 1 m: 4×4 sectores, 5×5 vértices compartidos
+    expect(state.world.sectors).toHaveLength(16);
+    expect(state.world.vertices).toHaveLength(25);
   });
 
   /** Altura asignada al vértice de terreno de la coordenada dada (0 si no existe). */

@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { CameraControls, CameraMode } from './CameraControls';
 import { Overlay2D } from './Overlay2D';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
+import { hiddenTerrainVertices } from '../tools/tools';
 import { sampleProject } from '../sample-project';
 import { buildEntityBoxes } from './EntityPreviewMesh';
 
@@ -436,11 +437,16 @@ export class EditorViewport {
     const world = intersect ? { x: _target.x, z: _target.z } : null;
 
     // Proyectar vértices del mundo (suelo y=0) a pantalla.
-    const screenVertices = doc.world.vertices.map((v) => {
-      _v3.set(v.x, 0, v.y);
-      const p = _v3.clone().project(camera);
-      return { id: v.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
-    });
+    // Ocultos: los interiores de la grilla de terreno (se sculptan con el
+    // pincel, pero no se pintan ni se capturan: solo las 4 esquinas).
+    const hidden = hiddenTerrainVertices(doc);
+    const screenVertices = doc.world.vertices
+      .filter((v) => !hidden.has(v.id))
+      .map((v) => {
+        _v3.set(v.x, 0, v.y);
+        const p = _v3.clone().project(camera);
+        return { id: v.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
+      });
 
     // Proyectar paredes (segmentos a y b) a pantalla.
     const screenWalls = doc.world.walls.map((wa) => {
