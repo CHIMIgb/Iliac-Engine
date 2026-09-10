@@ -126,7 +126,6 @@ export class EditorViewport {
     window.removeEventListener('mouseup', this._onMouseUp);
     window.removeEventListener('mousemove', this._onControlDragMove);
     this.canvas.removeEventListener('wheel', this._onWheel);
-    this.canvas.removeEventListener('dblclick', this._onDblClick);
     this._ro?.disconnect();
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
     this.engine?.dispose();
@@ -143,6 +142,9 @@ export class EditorViewport {
     if (wasGame && this.canvas.ownerDocument.pointerLockElement === this.canvas) {
       this.canvas.ownerDocument.exitPointerLock();
     }
+    // Al entrar en juego (▶ Playtest / F5) la cámara pasa a primera persona
+    // con el ratón capturado; Esc libera el puntero y ▶ vuelve al editor.
+    if (mode === 'game') this.canvas.requestPointerLock();
   }
 
   toggleMode(): void {
@@ -292,7 +294,6 @@ export class EditorViewport {
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mouseup', this._onMouseUp);
     this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
-    this.canvas.addEventListener('dblclick', this._onDblClick);
   }
 
   // ── Keyboard ─────────────────────────────────────────────────
@@ -418,13 +419,6 @@ export class EditorViewport {
     if (this.toolManager?.onWheel(e.deltaY, e.shiftKey)) return;
     // Si no consumió → zoom órbita
     this.controls.onWheel(e.deltaY);
-  };
-
-  private _onDblClick = (): void => {
-    if (this.controls.mode === 'orbit') {
-      this.setMode('game');
-      this.canvas.requestPointerLock();
-    }
   };
 
   // ── Pick context (proyección 3D→2D con Three.js) ─────────────

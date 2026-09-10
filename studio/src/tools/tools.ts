@@ -14,6 +14,7 @@ import type { EditorState } from '../editor/EditorState';
 import { clampFloorCeil, pointInPolygon, snap } from './picking';
 import type { PolygonPoint } from './picking';
 import type { EntityDef } from '../entities/entityCatalog';
+import { createNoise, fbm2 } from '@engine/core/noise.js';
 
 // ── Helpers de acceso ───────────────────────────────────────────
 
@@ -472,4 +473,36 @@ export function sculptTerrainAt(
     if (arr.some((h, i) => h !== cur[i])) { state.setFloorHeight(s.id, arr); touched++; }
   }
   return touched;
+}
+
+/**
+ * Relieve "realista" determinista sobre un terreno ya colocado: elevaciones
+ * y hundimientos con el mismo ruido FBM del motor (engine/core/noise.js).
+ * La altura se calcula POR VÉRTICE y se escribe en todas sus celdas → malla
+ * estanca. Semilla fija ⇒ mismo paisaje en cada arranque.
+ */
+export function applyTerrainRelief(
+  state: EditorState,
+  opts: { seed?: number; scale?: number; amplitude?: number } = {},
+): number {
+  const { seed = 1337, scale = 0.045, amplitude = 7 } = opts;
+  const noise = createNoise(seed);
+  const cells = state.world.sectors.filter((s) => s.id.startsWith('terr_'));
+  if (cells.length === 0) return 0;
+  const h = new Map<string, number>();
+  for (const s of cells) {
+    for (const vid of s.vertexIds) {
+      if (h.has(vid)) continue;
+      const v = state.getVertex(vid);
+      if (!v) continue;
+      const n = fbm2(noise, v.x * scale, v.y * scale, { octaves: 4, lacunarity: 2, gain: 0.5 });
+      const cur = floorAt(s, s.vertexIds.indexOf(vid));
+      h.set(vid, Math.round((cur + n * amplitude) * 100) / 100);
+    }
+  }
+  for (const s of cells) {
+    const arr = s.vertexIds.map((vid) => h.get(vid) ?? 0);
+    if (arr.some((v, i) => v !== floorAt(s, i))) state.setFloorHeight(s.id, arr);
+  }
+  return h.size;
 }

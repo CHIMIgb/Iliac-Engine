@@ -1,44 +1,22 @@
 /**
  * sample-project.ts — Proyecto inicial del Studio.
  *
- * Arranca VACÍO: el usuario crea su propio nivel desde cero.
- * Solo define la configuración base (render, cámara) y un mundo sin geometría.
+ * Arranca con un escenario de demostración listo para el playtest:
+ * terreno de 64×64 m (celdas de 2 m) con relieve realista determinista
+ * (elevaciones y hundimientos por ruido FBM del motor) y horizonte
+ * Daggerfall SKY15. Sin guardar nada: `npm run dev` y ▶ directamente.
  */
+import { EditorState } from './editor/EditorState';
+import { placeTerrainAt, applyTerrainRelief } from './tools/tools';
+import { toProjectJson } from './io/Serializer';
 
-/**
- * Proyecto inicial del editor: mundo vacío listo para crear.
- */
-export const sampleProject = {
-  meta: {
-    name: 'Proyecto nuevo',
-    schemaVersion: 3,
-    renderMode: '3d',
-  },
-  render: {
-    fov: 80,
-    near: 0.1,
-    far: 500,
-    backgroundColor: 0x1a1a2e,
-    ambientLight: { color: 0xffffff, intensity: 0.5 },
-    directionalLight: { color: 0xffffee, intensity: 0.8, position: [20, 30, 20] },
-    fog: { color: 0x1a1a2e, density: 0.02 },
-  },
-  camera: {
-    posX: 0,
-    posY: 0,
-    posZ: 0.6,
-    yaw: -Math.PI / 2,
-    pitch: 0,
-  },
-  world: {
-    vertices: [] as { id: string; x: number; y: number }[],
-    sectors: [] as { id: string; vertexIds: string[]; floorH: number; ceilH: number; floorTex: string; ceilTex: string; wallTex: string }[],
-    walls: [] as { id: string; a: string; b: string; sectorFront: string | null; sectorBack: string | null; tex: string; portal?: boolean }[],
-    ramps: [] as unknown[],
-    sprites: [] as { id: string; tex: string; pos: { x: number; y: number; z: number }; scale: number; billboard: boolean }[],
-    textures: {} as Record<string, string>,
-  },
-};
+function buildDefaultDoc(): EditorState {
+  const doc = new EditorState();
+  doc.camera = { posX: 32, posY: 32, posZ: 6, yaw: 0, pitch: 0 }; // en el centro del terreno
+  placeTerrainAt(doc, 0, 0, 64, 'grass', 2); // 32×32 = 1024 sectores
+  applyTerrainRelief(doc, { seed: 1337, scale: 0.045, amplitude: 7 });
+  doc.setSky({ set: 15 }); // horizonte Daggerfall (requiere npm run setup:sky)
+  return doc;
+}
 
-export type Project = typeof sampleProject;
-
+export const sampleProject = toProjectJson(buildDefaultDoc());

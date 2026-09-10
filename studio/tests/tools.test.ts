@@ -16,6 +16,7 @@ import {
   placeTerrainAt,
   sculptTerrainAt,
   resolveTerrainPlacement,
+  applyTerrainRelief,
   terrainFootprints,
   hiddenTerrainVertices,
   collectTranslateTargets,
@@ -534,5 +535,36 @@ describe('tools · terreno adyacente sin solapar (idea 4)', () => {
     expect(r).not.toBeNull();
     expect(r.x).toBe(4); // hueco libre entre ambos (4..8)
     expect(r.adjacent).toBe(true);
+  });
+});
+
+describe('tools · relieve inicial (applyTerrainRelief)', () => {
+  it('es determinista, crea subidas y bajadas y sella vértices compartidos', () => {
+    const a = new EditorState();
+    placeTerrainAt(a, 0, 0, 16, 'grass', 2); // 8×8 celdas → 9×9 = 81 vértices
+    const n = applyTerrainRelief(a, { seed: 1337, scale: 0.045, amplitude: 7 });
+    expect(n).toBe(81);
+    const heights = (a.world.sectors as { floorH: number[] }[]).flatMap((s) => s.floorH);
+    expect(Math.max(...heights)).toBeGreaterThan(1); // elevaciones
+    expect(Math.min(...heights)).toBeLessThan(-1);   // hundimientos
+    // estanqueidad: un vértice compartido tiene la MISMA altura en todas sus celdas
+    const seen = new Map<string, number>();
+    for (const s of a.world.sectors) {
+      s.vertexIds.forEach((vid, i) => {
+        const h = (s.floorH as number[])[i]!;
+        if (seen.has(vid)) expect(seen.get(vid)).toBe(h);
+        else seen.set(vid, h);
+      });
+    }
+    // determinismo: misma semilla, mismo relieve (los ids difieren, las alturas no)
+    const b = new EditorState();
+    placeTerrainAt(b, 0, 0, 16, 'grass', 2);
+    applyTerrainRelief(b, { seed: 1337, scale: 0.045, amplitude: 7 });
+    expect(b.world.sectors.map((s) => s.floorH)).toEqual(a.world.sectors.map((s) => s.floorH));
+  });
+
+  it('sin terrenos no hace nada', () => {
+    const state = makeRoom();
+    expect(applyTerrainRelief(state)).toBe(0);
   });
 });

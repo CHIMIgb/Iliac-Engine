@@ -11,6 +11,16 @@ declare module '@engine/core/validate.js' {
   };
 }
 
+declare module '@engine/core/noise.js' {
+  export function createNoise(seed?: number): unknown;
+  export function fbm2(
+    noise: unknown,
+    x: number,
+    y: number,
+    opts?: { octaves?: number; lacunarity?: number; gain?: number },
+  ): number;
+}
+
 declare module '@engine/index.js' {
   export class Engine3D {
     constructor(project: unknown);

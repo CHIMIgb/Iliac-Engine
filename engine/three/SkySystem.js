@@ -28,8 +28,9 @@ const H_FAR = 72;
 const H_NEAR = 36;
 const BASE_FAR = -1;
 const BASE_NEAR = -2.4;
-const DRIFT_FAR = 0.004;   // rad/s: nubes arrastrándose despacio
-const PARALLAX_FAR = 0.6;  // la capa lejana gira al 60 % de la velocidad
+// 0.5 (no 0.6): con 32 frames, 32·0.5=16 entero → tras una vuelta completa de
+// 360° la capa lejana vuelve AL MISMO fotograma (sin salto al cerrar el giro).
+const PARALLAX_FAR = 0.5;  // la capa lejana gira al 50 % de la velocidad
 
 /** Índice de fotograma [0,frames) para un yaw (rad), envolvente y para negativos. */
 export function skyFrameIndex(yaw, frames = SKY_FRAMES) {
@@ -108,15 +109,16 @@ export class SkySystem {
     const d = new THREE.Vector3();
     camera.getWorldDirection(d);
     const yaw = Math.atan2(d.z, d.x); // convención Engine3D: (cos yaw, sin yaw) en XZ
-    const t = performance.now() / 1000;
     const n = Math.floor(SKY_FRAMES / this.stride);
     for (const mesh of this.meshes) {
       const l = mesh.userData.layer;
       const near = l === 1;
       mesh.position.set(camera.position.x, camera.position.y - mesh.userData.base, camera.position.z);
-      // El arco está centrado en +Z local; girarlo hacia el frente de cámara.
-      mesh.rotation.y = Math.PI / 2 - (near ? yaw : yaw * PARALLAX_FAR + t * DRIFT_FAR);
-      const f = skyFrameIndex(near ? yaw : yaw * PARALLAX_FAR + t * DRIFT_FAR, n);
+      // El arco SIEMPRE mira al frente de la cámara (la ventana es fija);
+      // el paralaje vive solo en la ELECCIÓN del fotograma. (Rotar el arco
+      // con el ángulo del paralaje duplicaba el horizonte en el playtest.)
+      mesh.rotation.y = Math.PI / 2 - yaw;
+      const f = skyFrameIndex(near ? yaw : yaw * PARALLAX_FAR, n);
       const tex = this.textures[`${l}:${f}`];
       if (tex && mesh.material.map !== tex) {
         mesh.material.map = tex;

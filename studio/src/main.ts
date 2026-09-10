@@ -202,7 +202,7 @@ miscGroup.appendChild(layout.toolbar.addAction({
 }));
 miscGroup.appendChild(layout.toolbar.addAction({
   icon: 'play', label: 'Playtest', shortcut: 'F5',
-  onClick: () => showToast('Playtest — pendiente F6', 'info'),
+  onClick: () => viewport.setMode(viewport.mode === 'game' ? 'orbit' : 'game'),
 }));
 
 // ── Status bar ─────────────────────────────────────────────────
@@ -226,7 +226,7 @@ viewport.onModeChange = (mode) => {
   showToast(
     mode === 'game'
       ? 'Modo juego — WASD + ratón. Tab para volver.'
-      : 'Modo editor — clic izq edita (y orbita en vacío), clic der orbita, medio pan, WASD+QE pan, rueda zoom. Doble clic para jugar.',
+      : 'Modo editor — clic izq edita (y orbita en vacío), clic der orbita, medio pan, WASD+QE pan, rueda zoom. ▶ o F5 para jugar.',
     'info', 2500,
   );
 };
@@ -235,6 +235,13 @@ viewport.onModeChange = (mode) => {
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const key = e.key.toUpperCase();
+
+  // F5 → playtest (evita el recarga del navegador)
+  if (key === 'F5' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    viewport.setMode(viewport.mode === 'game' ? 'orbit' : 'game');
+    return;
+  }
 
   // Teclas de herramienta (sin ctrl/meta) — números 1..7
   const toolMap: Record<string, ToolId> = {
