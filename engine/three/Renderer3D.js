@@ -3,10 +3,7 @@ import { createFog } from './fog.js';
 
 /**
  * Renderer3D — canvas WebGL + escena + cámara + luces.
- *
- * project.render.resolution permite fijar un buffer interno pequeño
- * (p. ej. [320,200], la resolución nativa de Daggerfall) que el navegador
- * estira con píxel duro: look retro y render más barato.
+ * Render a resolución nativa: el canvas ocupa el viewport y resize() lo sigue.
  */
 export class Renderer3D {
   constructor(canvas, renderSettings = {}) {
@@ -26,11 +23,6 @@ export class Renderer3D {
       renderSettings.far ?? 200,
     );
 
-    // Resolución interna de render [ancho, alto] (p. ej. [320,200]); null = nativa.
-    this.fixedRes = Array.isArray(renderSettings.resolution) && renderSettings.resolution.length === 2
-      ? [Math.round(renderSettings.resolution[0]), Math.round(renderSettings.resolution[1])]
-      : null;
-
     this._createRenderer();
     this._addLights(renderSettings);
     this._bindContextLost();
@@ -43,18 +35,7 @@ export class Renderer3D {
 
   _createRenderer() {
     this.renderer = this.createRenderer(this.canvas);
-    if (this.fixedRes) {
-      // Buffer fijo bajo: el navegador estira el canvas al CSS con píxeles
-      // duros = look retro. El aspect de cámara sigue al buffer, no a la ventana.
-      this.renderer.setSize(this.fixedRes[0], this.fixedRes[1], false);
-      this.canvas.style.width = '100%';
-      this.canvas.style.height = '100%';
-      this.canvas.style.imageRendering = 'pixelated';
-      this.camera.aspect = this.fixedRes[0] / this.fixedRes[1];
-    } else {
-      this.renderer.setSize(this.canvas.width, this.canvas.height, false);
-    }
-    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.canvas.width, this.canvas.height, false);
   }
 
   _addLights(settings = {}) {
@@ -107,7 +88,6 @@ export class Renderer3D {
 
   resize(width, height) {
     if (this.contextLost) return;
-    if (this.fixedRes) return; // buffer fijo del playtest: la ventana no lo cambia
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();

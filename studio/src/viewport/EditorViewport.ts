@@ -95,9 +95,9 @@ export class EditorViewport {
 
   async reload(project: unknown): Promise<void> {
     const next = project as { render?: unknown };
-    // La resolución interna vive en el constructor del Renderer3D: si cambia
-    // el bloque render, hay que recrear el motor completo (no vale el
-    // setWorld barato).
+    // Cambios en el bloque `render` (fov, fondo, niebla…) viven en el
+    // constructor del Renderer3D: si cambian, hay que recrear el motor
+    // completo (no vale el setWorld barato).
     const prevRender = (this.engine?.project as { render?: unknown } | null)?.render;
     const renderChanged = !!this.engine &&
       JSON.stringify(next.render ?? null) !== JSON.stringify(prevRender ?? null);

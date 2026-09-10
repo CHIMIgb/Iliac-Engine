@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** y **tecla 9 = popover de Pantalla** (no son herramientas de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** (no es herramienta de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -110,16 +110,7 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 **UI:** tecla 8 o botón Cielo (icono cloud de lucide) → «— Sin cielo — / SKY00…SKY30» + slider + auto-avance; se ve al instante (el reload en vivo intercambia el SkySystem).
 
----
-
-## 9 · Pantalla — resolución del playtest (tecla 9)
-
-En `project.render`: `resolution: [ancho, alto] | null` (el CRT se retiró del proyecto por decisión del usuario; la resolución se queda).
-
-- **Resolución**: buffer interno fijo (Nativa / 640×400 / 480×300 / 320×200 —la del Daggerfall— / 256×160). El navegador estira el canvas con `image-rendering: pixelated`: píxel duro retro y render más barato. Afecta a editor y juego (aspecto del mundo); los gizmos del overlay son un canvas CSS aparte y se mantienen nítidos; el picking no se resiente (mismo NDC).
-- Cambiar la resolución recrea el renderer (vive en el constructor de `Renderer3D`; el viewport detecta el cambio de `render` y salta el reload barato).
-
-**UI:** tecla 9 o el botón de pantalla de la toolbar → select de resolución. El proyecto inicial arranca con **320×200**.
+> **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa.
 
 ---
 

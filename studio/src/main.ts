@@ -129,16 +129,6 @@ const skyBtn = layout.toolbar.addAction({
 });
 toolGroup.appendChild(skyBtn);
 
-// ── Toolbar: pantalla (resolución del playtest) ─────────────────
-const screenBtn = layout.toolbar.addAction({
-  icon: 'tv', label: 'Pantalla', shortcut: '9',
-  onClick: () => {
-    const r = screenBtn.getBoundingClientRect();
-    toolManager.openScreenPicker(r.left, r.bottom);
-  },
-});
-toolGroup.appendChild(screenBtn);
-
 // ── Toolbar: mazmorras (junto a Entidades) ─────────────────────
 const dungeonGroup = layout.toolbar.addGroup();
 const dungeonBrowser = new DungeonBrowser();
@@ -269,13 +259,6 @@ document.addEventListener('keydown', (e) => {
   if (key === '8' && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     toolManager.openSkyPicker();
-    return;
-  }
-
-  // Tecla 9: popover de pantalla (resolución del playtest)
-  if (key === '9' && !e.ctrlKey && !e.metaKey) {
-    e.preventDefault();
-    toolManager.openScreenPicker();
     return;
   }
 

@@ -120,18 +120,3 @@ describe('Serializer', () => {
     expect((s.world as any).unknown).toBeUndefined();
   });
 });
-
-describe('render · resolución del playtest', () => {
-  it('conserva resolution en el round-trip', () => {
-    const s = new EditorState();
-    s.setRender({ resolution: [320, 200] });
-    const json = toProjectJson(s);
-    const back = fromProjectJson(json as unknown as Record<string, unknown>);
-    expect(back.render.resolution).toEqual([320, 200]);
-  });
-
-  it('el sampleProject arranca con buffer 320x200', () => {
-    const r = (sampleProject as unknown as { render: { resolution?: number[] } }).render;
-    expect(r.resolution).toEqual([320, 200]);
-  });
-});

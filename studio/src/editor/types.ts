@@ -98,8 +98,6 @@ export interface EditableRender {
   ambientLight?: { color?: number; intensity?: number };
   directionalLight?: { color?: number; intensity?: number; position?: number[] };
   fog?: { color?: number; density?: number };
-  /** Resolución interna de render [ancho, alto] (p. ej. [320,200]); null = nativa. */
-  resolution?: number[] | null;
 }
 
 /** Meta del proyecto. */
