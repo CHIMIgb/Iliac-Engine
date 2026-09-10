@@ -636,6 +636,8 @@ export class ToolManager {
 
   private skyPicker: HTMLElement | null = null;
   private skyPickerOpenedAt = 0;
+  /** Timer de «avanzar el tiempo solo» (SKYnn cada 4 s); sigue corriendo si cierras el popover. */
+  private _skyTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
    * Abre el popover de Cielo (tecla 8): un solo `<select>` con «Sin cielo» y
@@ -684,14 +686,63 @@ export class ToolManager {
       select.appendChild(o);
     }
     select.value = this.doc.world.sky ? String(this.doc.world.sky.set) : '';
+
+    // Herramienta de TIEMPO: el set 0–30 ES la hora del día. Slider para
+    // recorrerlo a mano + «avanzar solo» (un paso cada 4 s) para ver atardecer
+    // y noche pasar; al cruzar de set, el motor recarga el telón sin parpadeo.
+    const timeRow = document.createElement('label');
+    timeRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px';
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '30';
+    slider.step = '1';
+    slider.value = select.value || '0';
+    slider.style.cssText = 'flex:1;accent-color:#89b4fa';
+    const hourLabel = document.createElement('span');
+    hourLabel.style.cssText = 'min-width:52px;font:11px monospace';
+    const autoRow = document.createElement('label');
+    autoRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer';
+    const autoBox = document.createElement('input');
+    autoBox.type = 'checkbox';
+    autoBox.checked = this._skyTimer !== null;
+    const syncTimeLabel = (): void => {
+      hourLabel.textContent = select.value === '' ? '—' : `SKY${select.value.padStart(2, '0')}`;
+    };
+    syncTimeLabel();
+    const applySet = (n: number): void => {
+      this.doc.setSky({ set: n });
+      select.value = String(n);
+      slider.value = String(n);
+      syncTimeLabel();
+    };
     select.addEventListener('change', () => {
-      this.doc.setSky(select.value === '' ? null : { set: Number(select.value) });
-      this.cb.onNotice?.(
-        select.value === '' ? 'Cielo retirado' : `Cielo SKY${select.value.padStart(2, '0')} aplicado`,
-        'success',
-      );
+      if (select.value === '') {
+        this.doc.setSky(null);
+        syncTimeLabel();
+        this.cb.onNotice?.('Cielo retirado', 'success');
+      } else {
+        applySet(Number(select.value));
+      }
     });
-    panel.appendChild(select);
+    slider.addEventListener('input', () => applySet(Number(slider.value)));
+    autoRow.appendChild(autoBox);
+    autoRow.appendChild(document.createTextNode('⏩ Avanzar el tiempo solo (1 hora / 4 s)'));
+    autoBox.addEventListener('change', () => {
+      if (autoBox.checked) {
+        this._skyTimer = window.setInterval(() => {
+          const cur = this.doc.world.sky?.set ?? -1;
+          applySet((cur + 1) % 31);
+        }, 4000);
+      } else if (this._skyTimer !== null) {
+        clearInterval(this._skyTimer);
+        this._skyTimer = null;
+      }
+    });
+    timeRow.appendChild(slider);
+    timeRow.appendChild(hourLabel);
+    panel.appendChild(timeRow);
+    panel.appendChild(autoRow);
 
     panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeSkyPicker();
@@ -717,6 +768,112 @@ export class ToolManager {
     if (!picker) return;
     if (performance.now() - this.skyPickerOpenedAt < 300) return;
     if (!picker.contains(e.target as Node)) this._closeSkyPicker();
+  };
+
+  // ── Pantalla: resolución del playtest + efecto CRT (tecla 9) ──
+
+  private screenPicker: HTMLElement | null = null;
+  private screenPickerOpenedAt = 0;
+
+  /**
+   * Popover «Pantalla»: resolución interna de render (buffer fijo que el
+   * navegador estira con píxel duro = look retro) y CRT (curvatura +
+   * scanlines + viñeta — shader en Renderer3D, solo three puro). Escribe en
+   * `project.render`; el viewport recrea el renderer al cambiar (render no
+   * vive en el reload barato).
+   */
+  openScreenPicker(clientX?: number, clientY?: number): void {
+    this._closeScreenPicker();
+    if (typeof document === 'undefined') return;
+
+    const panel = document.createElement('div');
+    panel.tabIndex = 0;
+    panel.className = 'terrain-popover';
+    panel.style.cssText =
+      'position:fixed;z-index:60;min-width:230px;display:flex;flex-direction:column;gap:8px;' +
+      'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
+      'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
+      'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
+    if (clientX !== undefined && clientY !== undefined) {
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 250)}px`;
+      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 200)}px`;
+    } else {
+      panel.style.left = '50%';
+      panel.style.top = '50%';
+    }
+
+    const title = document.createElement('div');
+    title.textContent = 'Pantalla del playtest';
+    title.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
+    panel.appendChild(title);
+
+    const resSel = document.createElement('select');
+    resSel.style.cssText =
+      'padding:5px 8px;border-radius:4px;font:12px "JetBrains Mono",monospace;' +
+      'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
+      'color:var(--text-primary,#cdd6f4)';
+    const opts: [string, string][] = [
+      ['', 'Nativa (nítida)'],
+      ['640x400', '640 × 400'],
+      ['480x300', '480 × 300'],
+      ['320x200', '320 × 200 (Daggerfall)'],
+      ['256x160', '256 × 160 (brutal)'],
+    ];
+    for (const [v, t] of opts) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = t;
+      resSel.appendChild(o);
+    }
+    const cur = this.doc.render.resolution;
+    resSel.value = Array.isArray(cur) && cur.length === 2 ? `${cur[0]}x${cur[1]}` : '';
+    resSel.addEventListener('change', () => {
+      this.doc.setRender({
+        resolution: resSel.value === '' ? null : resSel.value.split('x').map(Number),
+      });
+      this.cb.onNotice?.(
+        resSel.value === '' ? 'Resolución nativa' : `Resolución interna ${resSel.value} px`,
+        'success',
+      );
+    });
+    panel.appendChild(resSel);
+
+    const crtRow = document.createElement('label');
+    crtRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer';
+    const crtBox = document.createElement('input');
+    crtBox.type = 'checkbox';
+    crtBox.checked = !!this.doc.render.crt;
+    crtRow.appendChild(crtBox);
+    crtRow.appendChild(document.createTextNode('📺 Efecto CRT (curvatura + scanlines + viñeta)'));
+    crtBox.addEventListener('change', () => {
+      this.doc.setRender({ crt: crtBox.checked });
+      this.cb.onNotice?.(crtBox.checked ? 'CRT activado' : 'CRT desactivado', 'success');
+    });
+    panel.appendChild(crtRow);
+
+    panel.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeScreenPicker();
+    });
+    document.body.appendChild(panel);
+    this.screenPicker = panel;
+    this.screenPickerOpenedAt = performance.now();
+    document.addEventListener('click', this._onScreenDocClick);
+    requestAnimationFrame(() => panel.focus());
+  }
+
+  private _closeScreenPicker(): void {
+    if (this.screenPicker) {
+      this.screenPicker.remove();
+      this.screenPicker = null;
+      if (typeof document !== 'undefined') document.removeEventListener('click', this._onScreenDocClick);
+    }
+  }
+
+  private _onScreenDocClick = (e: MouseEvent): void => {
+    const picker = this.screenPicker;
+    if (!picker) return;
+    if (performance.now() - this.screenPickerOpenedAt < 300) return;
+    if (!picker.contains(e.target as Node)) this._closeScreenPicker();
   };
 
   // ── Selector de entidades (dropdown desde el icono Entidades) ──

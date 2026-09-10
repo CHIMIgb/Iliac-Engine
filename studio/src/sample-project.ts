@@ -13,6 +13,8 @@ import { toProjectJson } from './io/Serializer';
 function buildDefaultDoc(): EditorState {
   const doc = new EditorState();
   doc.camera = { posX: 32, posY: 32, posZ: 6, yaw: 0, pitch: 0 }; // en el centro del terreno
+  // Look retro del playtest: buffer Daggerfall 320×200 + CRT (tecla 9 cambia).
+  doc.render = { ...doc.render, crt: true, resolution: [320, 200] };
   placeTerrainAt(doc, 0, 0, 64, 'grass', 2); // 32×32 = 1024 sectores
   applyTerrainRelief(doc, { seed: 1337, scale: 0.045, amplitude: 7 });
   doc.setSky({ set: 15 }); // horizonte Daggerfall (requiere npm run setup:sky)

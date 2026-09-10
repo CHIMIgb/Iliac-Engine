@@ -44,23 +44,24 @@ export class Engine3D {
    * Carga el horizonte lejano (world.sky = { set: 0–30, stride?, base? }).
    * Sin sky: limpia el anterior y deja el fondo de color actual (comportamiento
    * histórico). Se dispara async desde setWorld al cambiar la firma del cielo.
+   * Carga el nuevo ANTES de tirar del viejo: cambiar de hora no deja parpadeo.
    */
   async _loadSky() {
     const cfg = this.world.sky;
     this._skySig = skySignature(cfg);
-    if (this.sky) {
-      this.sky.dispose();
-      this.sky = null;
-      if (this.renderer) this.renderer.sky = null;
+    const old = this.sky;
+    this.sky = null;
+    if (this.renderer) this.renderer.sky = null;
+    if (cfg && Number.isInteger(cfg.set) && this.renderer) {
+      const sky = new SkySystem(cfg);
+      await sky.load();
+      // El mundo pudo cambiar mientras se cargaban las texturas: descartar.
+      if (skySignature(this.world.sky) !== this._skySig) { sky.dispose(); return; }
+      sky.addTo(this.renderer.scene);
+      this.sky = sky;
+      this.renderer.sky = sky;
     }
-    if (!cfg || !Number.isInteger(cfg.set) || !this.renderer) return;
-    const sky = new SkySystem(cfg);
-    await sky.load();
-    // El mundo pudo cambiar mientras se cargaban las texturas: descartar.
-    if (skySignature(this.world.sky) !== this._skySig) { sky.dispose(); return; }
-    sky.addTo(this.renderer.scene);
-    this.sky = sky;
-    this.renderer.sky = sky;
+    old?.dispose();
   }
 
   /**

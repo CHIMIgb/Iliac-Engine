@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** (no es herramienta de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** y **tecla 9 = popover de Pantalla** (no son herramientas de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -100,13 +100,27 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 **Cómo funciona (engine/three/SkySystem.js) — telón 2D, NO skybox 3D** (igual que el Daggerfall de 1996):
 - DOS imágenes planas (billboards) siempre de frente a la cámara, ancladas a la horizontal del mundo: al girar, **scrolleo horizontal UV continuo** sobre los 32 fotogramas-ventana (tiling + offset sub-paso = giro fluido, sin costuras); al cambiar el pitch, la banda se desliza en pantalla lo justo para mantener el horizonte pegado al terreno ("Y-shearing" gratis por el anclaje).
-- La capa lejana avanza al 50 % del yaw (paralaje; 32·0.5 = 16 entero → la vuelta de 360° cierra sin salto); la cercana 1:1.
-- **Z-buffer**: el telón se dibuja con `depthTest:true` + `depthWrite:false` a profundidad fija (150/160): cualquier geometría más cercana lo tapa (el horizonte vive "en el fondo", como en el original) y él no tapa nunca el mapa; cubre hasta 55° sobre el horizonte (más arriba, color de fondo, el límite de visión del clásico).
-- `Engine3D._loadSky` reacciona a cambios de `skySignature` en `setWorld`: cambiar de cielo no recrea el motor entero.
+- Las dos capas scrollean **1:1 con el yaw**: tras 360° exactos todo vuelve a su sitio (un paralaje de velocidad las hacía "adelantar el tiempo" al girar — eliminado). La profundidad la dan las bandas: **complementarias, no superpuestas** — lejana (montañas/nubes) cuelga de 8° a 68° sobre el horizonte; cercana (silueta del bosque) de −2° a 13°.
+- **Z-buffer**: el telón se dibuja con `depthTest:true` + `depthWrite:false` a profundidad fija (150/160): cualquier geometría más cercana lo tapa (el horizonte vive "en el fondo", como en el original) y él no tapa nunca el mapa.
+- `Engine3D._loadSky` reacciona a cambios de `skySignature` en `setWorld`: cambiar de cielo no recrea el motor entero, y carga el nuevo **antes** de retirar el viejo (no parpadea al cambiar de hora).
 
 **Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
 
-**UI:** tecla 8 o botón ☁ de la toolbar → «— Sin cielo — / SKY00…SKY30»; se ve al instante (el reload en vivo monta/desmonta el SkySystem).
+**Herramienta de TIEMPO (en el popover del Cielo):** el set 0–30 ES la hora del día. Slider 0–30 para recorrerlo a mano y «⏩ Avanzar el tiempo solo» (un paso cada 4 s; sigue corriendo si cierras el popover).
+
+**UI:** tecla 8 o botón ☁ → «— Sin cielo — / SKY00…SKY30» + slider + auto-avance; se ve al instante (el reload en vivo intercambia el SkySystem).
+
+---
+
+## 9 · Pantalla — resolución del playtest y CRT (tecla 9)
+
+En `project.render`: `resolution: [ancho, alto] | null` y `crt: boolean`.
+
+- **Resolución**: buffer interno fijo (Nativa / 640×400 / 480×300 / 320×200 —la del Daggerfall— / 256×160). El navegador estira el canvas con `image-rendering: pixelated`: píxel duro retro y render más barato. Afecta a editor y juego (aspecto del mundo); los gizmos del overlay son un canvas CSS aparte y se mantienen nítidos; el picking no se resiente (mismo NDC).
+- **CRT** (`Renderer3D`, shader en GLSL propio, sin dependencias — solo three puro, para que el demo sin build también lo use): pase de post-proceso escena→`WebGLRenderTarget`→quad a pantalla completa con **curvatura barrel + scanlines por fila + viñeta**. Autoapagado en modo editor: `setMode` enciende el CRT solo en juego si `render.crt` está activo (el editor se queda nítido).
+- Cambiar cualquiera de los dos recrea el renderer (el viewport detecta el cambio de `render` y salta el reload barato).
+
+**UI:** tecla 9 o botón 📺 → select de resolución + checkbox «📺 Efecto CRT». El proyecto inicial arranca con **CRT + 320×200**.
 
 ---
 

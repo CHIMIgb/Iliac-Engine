@@ -10,9 +10,10 @@
  *  - "Y-shearing" gratis: el telón se ancla a la horizontal del mundo, así
  *    que al mirar arriba/abajo la banda se desliza en pantalla solo lo justo
  *    para mantener el horizonte pegado al terreno (como en Doom/Duke).
- *  - Dos capas: 0 = lejana (montañas/nubes, gira al 50 % del yaw → paralaje;
- *    32·0.5 = 16 entero, la vuelta de 360° cierra sin salto), 1 = cercana
- *    (silueta de bosque, anclada 1:1 al yaw).
+ *  - Dos capas en BANDAS complementarias que no se solapan: 0 = lejana (sus
+ *    montañas/nubes cuelgan SOBRE la línea de árboles), 1 = cercana (silueta
+ *    del bosque pegada al horizonte). Ambas scrollean 1:1 con el yaw: tras
+ *    360° todo vuelve a su sitio (nada de "avanza el tiempo al girar").
  * Render: el telón se dibuja con z-buffer a profundidad fija (D=150/160) y
  * `depthWrite:false`: todo lo más cercano del mundo lo tapa (el horizonte
  * queda "enviado al fondo", como en el original), y él nunca tapa el mapa.
@@ -25,13 +26,20 @@ export const SKY_FRAMES = 32;
 
 const DEG = Math.PI / 180;
 const ARC = (110 * DEG);      // arco horizontal que ocupa cada fotograma-ventana
-const D_NEAR = 150;          // distancias arbitrarias: no escriben profundidad
+const D_NEAR = 150;          // distancias arbitrarias: el z-buffer las ordena
 const D_FAR = 160;
-// Banda vertical de cada telón, en grados sobre la horizontal del mundo.
-// ponytail: calibrar en playtest si el horizonte se ve "pegado" o muy alto.
-const TOP_FAR = 55 * DEG;    // como el original: prohibido mirar más allá (cubre ±45°)
-const TOP_NEAR = 24 * DEG;   // la silueta del bosque vive abajo: banda corta
-const BOTTOM = -2 * DEG;     // un dedo por debajo del horizonte, tapado por el suelo
+// Bandas VERTICALES complementarias, NO superpuestas (los PNG de cada capa
+// contienen cielo+silueta completos; apilar dos columnas era lo que duplicaba
+// e "achataba" el horizonte). La lejana cuelga SOBRE la cercana: las dos
+// comparten un par de grados de solape (se oculta con renderOrder/depth).
+// ponytail: TOP/BOTTOM a ojo en playtest.
+const TOP_FAR = 68 * DEG;    // nubes/cielo del telón lejano, hasta casi el cénit
+const BOTTOM_FAR = 8 * DEG;  // sus montañas arrancan sobre la línea de árboles
+const TOP_NEAR = 13 * DEG;   // banda corta: la silueta del bosque
+const BOTTOM_NEAR = -2 * DEG;
+// Las dos capas scrollean 1:1 con el yaw: tras 360° exactos TODO vuelve al
+// mismo fotograma. (Un 0,5× de "paralaje" hacía que media vuelta corriera el
+// cielo y pareciera que "avanza el tiempo" al girar — eliminado.)
 
 /** Índice de fotograma [0,frames) para un yaw (rad), envolvente y para negativos. */
 export function skyFrameIndex(yaw, frames = SKY_FRAMES) {
@@ -107,6 +115,7 @@ export class SkySystem {
       mesh.userData.layer = l;
       mesh.userData.dist = near ? D_NEAR : D_FAR;
       mesh.userData.top = near ? TOP_NEAR : TOP_FAR;
+      mesh.userData.bottom = near ? BOTTOM_NEAR : BOTTOM_FAR;
       this.meshes.push(mesh);
       scene.add(mesh);
     }
@@ -130,17 +139,18 @@ export class SkySystem {
     for (const mesh of this.meshes) {
       const near = mesh.userData.layer === 1;
       const D = mesh.userData.dist;
-      const angle = near ? yaw : yaw * 0.5;  // la capa lejana gira al 50 % (paralaje)
-      const norm = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      const f = skyFrameIndex(angle, n);
+      const topRad = mesh.userData.top;
+      const botRad = mesh.userData.bottom;
+      const norm = ((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const f = skyFrameIndex(yaw, n);
 
       // Geometría del telón: el ancho cubre el FOV con la imagen REPETIDA
       // horizontalmente (tiling, como en el original: "imágenes planas que se
       // repiten"), manteniendo la escala angular exacta de la ventana ARC.
       const planeArc = Math.max(fovH * 1.3, ARC);
       const w = 2 * D * Math.tan(planeArc / 2);
-      const topY = D * Math.tan(mesh.userData.top);
-      const botY = D * Math.tan(BOTTOM);
+      const topY = D * Math.tan(topRad);
+      const botY = D * Math.tan(botRad);
       mesh.scale.set(w, topY - botY, 1);
 
       // Centrado a media altura de la banda, a D en la horizontal de cámara.
@@ -158,7 +168,7 @@ export class SkySystem {
         // Tiling + scroll sub-paso: la imagen llena la ventana ARC y se repite
         // para cubrir el FOV; el offset UV desliza de forma CONTINUA el tramo
         // recorrido dentro de la ventana (scrolleo 2D del original, sin saltos
-        // al cambiar de fotograma). Signo calibrado en playtest.
+        // al cambiar de fotograma).
         tex.repeat.x = planeArc / ARC;
         tex.offset.x = -(norm - f * step) / ARC;
       }

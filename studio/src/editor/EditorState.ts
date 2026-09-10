@@ -157,6 +157,12 @@ export class EditorState {
     this.notify();
   }
 
+  /** Fusiona opciones de render (crt, resolution, fov, fog…) y avisa. */
+  setRender(patch: Partial<EditableRender>): void {
+    this.render = { ...this.render, ...patch };
+    this.notify();
+  }
+
   setSectorTex(id: string, part: 'floor' | 'ceil' | 'wall', tex: string): boolean {
     const s = this.world.sectors.find((s) => s.id === id);
     if (!s) return false;

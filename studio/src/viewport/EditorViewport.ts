@@ -94,10 +94,16 @@ export class EditorViewport {
   }
 
   async reload(project: unknown): Promise<void> {
+    const next = project as { render?: unknown };
+    // La resolución/CRT viven en el constructor del Renderer3D: si cambian,
+    // hay que recrear el motor completo (no vale el setWorld barato).
+    const prevRender = (this.engine?.project as { render?: unknown } | null)?.render;
+    const renderChanged = !!this.engine &&
+      JSON.stringify(next.render ?? null) !== JSON.stringify(prevRender ?? null);
     // Camino barato (edición en vivo): si el motor ya está cargado, SOLO se
     // cambia el mundo. Recrear el Engine3D en cada pasada del pincel (renderer
     // + texturas + GPU) era lo que trababa los terrenos > 8 m.
-    if (this.engine?.loaded && this.engine.setWorld(project as never)) {
+    if (!renderChanged && this.engine?.loaded && this.engine.setWorld(project as never)) {
       this._addEditorGrid();
       this._addEntityBoxes();
       this.last = performance.now();
@@ -145,6 +151,11 @@ export class EditorViewport {
     // Al entrar en juego (▶ Playtest / F5) la cámara pasa a primera persona
     // con el ratón capturado; Esc libera el puntero y ▶ vuelve al editor.
     if (mode === 'game') this.canvas.requestPointerLock();
+    // El CRT solo se luce en el playtest: el editor queda nítido (la
+    // resolución interna del buffer sí es compartida por ambos modos).
+    if (this.engine) {
+      this.engine.renderer.crt = mode === 'game' && !!this.toolManager?.doc.render.crt;
+    }
   }
 
   toggleMode(): void {
