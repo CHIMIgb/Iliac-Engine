@@ -25,6 +25,7 @@ import {
   findSectorAt,
   collectTranslateTargets,
   placeTerrainAt,
+  sculptTerrainAt,
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
@@ -184,18 +185,21 @@ export class ToolManager {
 
   /**
    * Pulso de tiempo para la herramienta Terreno (llamado cada frame por el
-   * viewport). Con el clic presionado sobre un terreno, esculpe de forma
-   * continua y frame-independent: `velocidad * dt` metros por segundo, con la
-   * dirección SIEMPRE la de la herramienta ('raise' eleva, 'lower' hunde),
+   * viewport). Con el clic presionado, el PINCEL esculpe de forma continua y
+   * frame-independent solo la zona bajo el cursor: `velocidad * dt` metros por
+   * segundo en el centro, con decaimiento suave hacia el borde del pincel. La
+   * dirección es SIEMPRE la de la herramienta ('raise' eleva, 'lower' hunde),
    * aunque el ratón se mueva en otra dirección.
    */
   update(dt: number, ctx: PickContext): void {
     if (!this.moldearGrab || !ctx.world) return;
-    const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
-    if (!sector || !sector.startsWith('terr_')) return; // fuera del terreno: pausa
-    const delta = this.moldearGrab.direction * SCULPT_SPEED * dt;
-    changeSectorHeight(this.doc, sector, delta, false);
-    this._reportTerrainHeight(sector);
+    const touched = sculptTerrainAt(
+      this.doc,
+      ctx.world.x,
+      ctx.world.z,
+      this.moldearGrab.direction * SCULPT_SPEED * dt,
+    );
+    if (touched > 0) this._reportTerrainHeight(ctx.world.x, ctx.world.z);
   }
 
   /**
@@ -400,19 +404,20 @@ export class ToolManager {
    * - Modo colocar: cada clic en la cuadrícula coloca un suelo plano del
    *   tamaño activo (activeTerrainSize), elevado al piso del sector bajo el clic.
    * - Modo moldear ('raise'/'lower'): cada clic sobre un terreno YA colocado
-   *   (sector con id `terr_...`) lo eleva o hunde +0,5 m. Solo moldea terrenos:
-   *   si el clic cae en otra cosa, no consume y el viewport puede orbitar.
-   */
-  private toolTerrainDown(ctx: PickContext): boolean {
+    *   (celda con id `terr_...`) inicia el PINCEL: update(dt) esculpe solo la
+    *   zona bajo el cursor mientras el clic esté presionado. Solo moldea
+    *   terrenos: si el clic cae en otra cosa, no consume y el viewport orbita.
+    */
+   private toolTerrainDown(ctx: PickContext): boolean {
     if (!ctx.world) return false;
 
     if (this.terrainMode !== 'place') {
       const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
       if (sector && sector.startsWith('terr_')) {
-        // Sin salto fijo: el esculpido lo hace update(dt) cada frame mientras
+        // Sin salto fijo: el pincel lo aplica update(dt) cada frame mientras
         // el clic está presionado (dirección fija según la herramienta).
         this.moldearGrab = { direction: this.terrainMode === 'raise' ? 1 : -1 };
-        this._reportTerrainHeight(sector);
+        this._reportTerrainHeight(ctx.world.x, ctx.world.z);
         return true;
       }
       // No es un terreno: dejar orbitar/desmarcar sin castigar.
@@ -431,11 +436,25 @@ export class ToolManager {
     return true;
   }
 
-  /** Statusbar en vivo: altura actual del suelo del terreno que se moldea. */
-  private _reportTerrainHeight(sectorId: string): void {
-    const s = this.doc.getSector(sectorId);
-    const h = s && typeof s.floorH === 'number' ? s.floorH : 0;
-    this.cb.onStatus?.(`Terreno: ${h} m`);
+  /** Statusbar en vivo: altura del vértice de terreno más cercano al cursor. */
+  private _reportTerrainHeight(x: number, z: number): void {
+    let bestD = Infinity;
+    let bestH = 0;
+    let found = false;
+    for (const s of this.doc.world.sectors) {
+      if (!s.id.startsWith('terr_')) continue;
+      s.vertexIds.forEach((vid, i) => {
+        const v = this.doc.getVertex(vid);
+        if (!v) return;
+        const d = Math.hypot(v.x - x, v.y - z);
+        if (d >= bestD) return;
+        const fh = s.floorH;
+        bestD = d;
+        bestH = Array.isArray(fh) ? fh[i] ?? 0 : typeof fh === 'number' ? fh : 0;
+        found = true;
+      });
+    }
+    this.cb.onStatus?.(found ? `Terreno: ${Math.round(bestH * 100) / 100} m` : 'Terreno: —');
   }
 
   /**

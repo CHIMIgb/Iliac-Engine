@@ -217,20 +217,51 @@ export function collectTranslateTargets(
     }
     if (o.kind === 'sprite') spriteIds.add(o.id);
   }
+  // Terreno: capturar cualquier pieza de una colocación (vértice o celda)
+  // traslada TODOS sus vértices — el terreno se mueve completo como una pieza
+  // aunque sea una grilla de celdas con vértices compartidos.
+  const placements = new Set<string>();
+  for (const o of objects) {
+    const m = /^(terr_.+?)_[vs]\d+_\d+$/.exec(o.id);
+    if (m) placements.add(`${m[1]}_`);
+  }
+  if (placements.size > 0) {
+    for (const v of state.world.vertices) {
+      for (const p of placements) if (v.id.startsWith(p)) vertexIds.add(v.id);
+    }
+  }
   return { vertexIds: [...vertexIds], spriteIds: [...spriteIds] };
 }
 
 // ── Terreno (herramienta Terreno) ──────────────────────────────
 
+/** Tamaño de celda del terreno en metros (la grilla del motor usa 2 m). */
+export const TERRAIN_CELL = 2;
+/** Radio del pincel de esculpido (m). */
+export const TERRAIN_BRUSH_RADIUS = 3;
+
+/** Altura de piso de un sector (número o array por vértice) en el índice dado. */
+function floorAt(s: { floorH: number | number[] }, i: number): number {
+  if (Array.isArray(s.floorH)) return s.floorH[i] ?? 0;
+  return typeof s.floorH === 'number' ? s.floorH : 0;
+}
+
 /**
- * Herramienta Terreno (7) — coloca un suelo plano de size×size metros
- * (celda = 1 m, alineado a la cuadrícula del editor) con la esquina inferior-
- * izquierda en (x, z). Sin relieves, sin paredes y con techo alto (50 m, luz
- * de cielo): solo el piso, elevado al piso del sector bajo el clic.
- * Todo el terreno es UN ÚNICO sector cuadrado de 4 vértices: así la
- * herramienta Mover lo traslada completo como una pieza.
+ * Herramienta Terreno (7) — coloca un suelo plano de size×size metros como
+ * GRILLA de celdas de TERRAIN_CELL m que comparten vértices (el mismo formato
+ * que engine/core/terrain.js, con floorH por vértice), alineada a la
+ * cuadrícula y elevada a la base del sector bajo el clic. Sin relieves
+ * iniciales, sin paredes y con techo alto (50 m).
  *
- * @returns Conteo de sectores y base de elevación.
+ * La grilla es lo que permite el pincel de esculpido (sculptTerrainAt): sin
+ * vértices intermedios no se puede elevar una zona local. La herramienta
+ * Mover compensa moviendo la colocación completa como una pieza (ver
+ * collectTranslateTargets).
+ *
+ * Ids con namespace por colocación: vértices `terr_<gen>_v{c}_{r}`, celdas
+ * `terr_<gen>_s{c}_{r}`.
+ *
+ * @returns Conteo de celdas (sectores) y base de elevación.
  */
 export function placeTerrainAt(
   state: EditorState,
@@ -250,21 +281,85 @@ export function placeTerrainAt(
     base = typeof fh === 'number' ? fh : (Array.isArray(fh) ? fh[0] : 0) ?? 0;
   }
 
-  // Un único sector cuadrado con sus 4 esquinas, de size×size metros.
-  const a = state.addVertex(offX, offZ);
-  const b = state.addVertex(offX + size, offZ);
-  const c = state.addVertex(offX + size, offZ + size);
-  const d = state.addVertex(offX, offZ + size);
-  const sector = state.addSector(
-    [a.id, b.id, c.id, d.id],
-    base, // piso plano
-    50,   // techo alto: no estorba (el motor exige ceilH; 50 m = cielo)
-    undefined,
-    { floorTex },
-  );
-  // Marcar el sector como terreno: el modo "moldear" de la herramienta solo
-  // actúa sobre ids con prefijo `terr_` (no sobre salas/mazmorras).
-  sector.id = `terr_${sector.id}`;
+  const cells = Math.max(1, Math.round(size / TERRAIN_CELL));
+  const step = size / cells;
 
-  return { sectorCount: 1, base };
+  // El id del primer vértice generado da un namespace único por colocación.
+  const v00 = state.addVertex(offX, offZ);
+  const pfx = `terr_${v00.id}`;
+  v00.id = `${pfx}_v0_0`;
+
+  // Grilla de vértices compartidos: (cells+1)×(cells+1)
+  const grid: string[][] = [];
+  for (let r = 0; r <= cells; r++) {
+    const row: string[] = [];
+    for (let c = 0; c <= cells; c++) {
+      if (r === 0 && c === 0) { row[c] = v00.id; continue; }
+      const v = state.addVertex(offX + c * step, offZ + r * step);
+      v.id = `${pfx}_v${c}_${r}`;
+      row[c] = v.id;
+    }
+    grid.push(row);
+  }
+
+  // Una celda = un sector, mismo orden de vértices que el motor (SW,SE,NE,NW)
+  for (let r = 0; r < cells; r++) {
+    for (let c = 0; c < cells; c++) {
+      state.addSector(
+        [grid[r]![c]!, grid[r]![c + 1]!, grid[r + 1]![c + 1]!, grid[r + 1]![c]!],
+        [base, base, base, base],
+        50,
+        `${pfx}_s${c}_${r}`,
+        { floorTex },
+      );
+    }
+  }
+
+  return { sectorCount: cells * cells, base };
+}
+
+/**
+ * Pincel de esculpido del terreno (herramienta Terreno, modo moldear):
+ * eleva (delta > 0) o hunde (delta < 0) SOLO los vértices de terreno a
+ * `radius` metros del punto (x, z), con decaimiento cosenoidal suave (1 en
+ * el centro del pincel → 0 en el borde). Cada vértice compartido se escribe
+ * con la misma altura en TODAS las celdas que lo referencian, manteniendo la
+ * malla estanca (sin grietas entre celdas).
+ *
+ * @returns Número de celdas modificadas (0 si el pincel no tocó terreno).
+ */
+export function sculptTerrainAt(
+  state: EditorState,
+  x: number,
+  z: number,
+  delta: number,
+  radius = TERRAIN_BRUSH_RADIUS,
+): number {
+  const cells = state.world.sectors.filter((s) => s.id.startsWith('terr_'));
+  if (cells.length === 0) return 0;
+
+  // Nueva altura por vértice (se lee de su primera celda: están coherentes).
+  const next = new Map<string, number>();
+  for (const s of cells) {
+    s.vertexIds.forEach((vid, i) => {
+      if (next.has(vid)) return;
+      const v = state.getVertex(vid);
+      if (!v) return;
+      const cur = floorAt(s, i);
+      const d = Math.hypot(v.x - x, v.y - z);
+      if (d >= radius) { next.set(vid, cur); return; } // fuera del pincel: intacto
+      const fall = 0.5 + 0.5 * Math.cos((Math.PI * d) / radius);
+      const ceil = typeof s.ceilH === 'number' ? s.ceilH : 50;
+      next.set(vid, clampFloorCeil(cur + delta * fall, ceil, 'floor').floor);
+    });
+  }
+
+  let touched = 0;
+  for (const s of cells) {
+    const cur = s.vertexIds.map((_, i) => floorAt(s, i));
+    const arr = s.vertexIds.map((vid) => next.get(vid) ?? 0);
+    // ponytail: un notify por celda tocada (~9/frame); batching si el viewport va lento.
+    if (arr.some((h, i) => h !== cur[i])) { state.setFloorHeight(s.id, arr); touched++; }
+  }
+  return touched;
 }

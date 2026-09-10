@@ -14,6 +14,8 @@ import {
   sectorsSharingEdge,
   defaultSpriteTex,
   placeTerrainAt,
+  sculptTerrainAt,
+  collectTranslateTargets,
 } from '../src/tools/tools';
 import { getEntityDef } from '../src/entities/entityCatalog';
 
@@ -349,36 +351,36 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
 });
 
 describe('tools · terreno (placeTerrainAt)', () => {
-  it('coloca UN único sector cuadrado de 4 vértices, plano y alineado al grid', () => {
+  it('coloca una grilla de celdas que comparten vértices, plana y alineada', () => {
     const state = new EditorState();
+    // 4 m / celda 2 m → 2×2 = 4 sectores, 3×3 = 9 vértices compartidos
     const r = placeTerrainAt(state, 2, 2, 4);
-    expect(r.sectorCount).toBe(1);
-    expect(state.world.sectors).toHaveLength(1);
-    // Un único sector con sus 4 esquinas → el terreno mueve entero con Mover
-    expect(state.world.vertices).toHaveLength(4);
-    expect(state.world.sectors[0]!.vertexIds).toHaveLength(4);
+    expect(r.sectorCount).toBe(4);
+    expect(state.world.sectors).toHaveLength(4);
+    expect(state.world.vertices).toHaveLength(9);
     const xs = state.world.vertices.map((v) => v.x);
     expect(Math.min(...xs)).toBe(2);
     expect(Math.max(...xs)).toBe(6);
-    // Suelo plano: floorH constante, sin relieves, sin paredes, techo alto
-    expect(state.world.sectors[0]!.floorH).toBe(0);
-    expect(state.world.sectors[0]!.ceilH).toBeGreaterThanOrEqual(50);
+    // Suelo plano (floorH array por vértice), sin paredes, techo alto, marcado terr_
+    for (const s of state.world.sectors) {
+      expect(s.floorH).toEqual([0, 0, 0, 0]);
+      expect(s.ceilH).toBeGreaterThanOrEqual(50);
+      expect(s.id).toMatch(/^terr_/);
+    }
     expect(state.world.walls).toHaveLength(0);
-    // Identificado como terreno (prefijo terr_) para el modo moldear
-    expect(state.world.sectors[0]!.id).toMatch(/^terr_/);
   });
 
   it('dos terrenos colocados no comparten ids ni se pisan', () => {
     const state = new EditorState();
-    placeTerrainAt(state, 0, 0, 4);
+    placeTerrainAt(state, 0, 0, 4); // 4 sectores, 9 vértices
     placeTerrainAt(state, 10, 0, 4);
-    expect(state.world.sectors).toHaveLength(2);
-    expect(state.world.vertices).toHaveLength(8);
+    expect(state.world.sectors).toHaveLength(8);
+    expect(state.world.vertices).toHaveLength(18);
     const ids = new Set(state.world.vertices.map((v) => v.id));
-    expect(ids.size).toBe(8);
+    expect(ids.size).toBe(18);
   });
 
-  it('sobre un sector con piso 3, el suelo nace elevado a la base', () => {
+  it('sobre un sector con piso 3, la grilla nace elevada a la base', () => {
     const state = new EditorState();
     const a = state.addVertex(0, 0);
     const b = state.addVertex(2, 0);
@@ -387,6 +389,73 @@ describe('tools · terreno (placeTerrainAt)', () => {
     state.addSector([a.id, b.id, c.id, d.id], 3, 8);
     const r = placeTerrainAt(state, 0, 0, 4);
     expect(r.base).toBe(3);
-    for (const s of state.world.sectors) expect(s.floorH).toBe(3);
+    for (const s of state.world.sectors.filter((s) => s.id.startsWith('terr_'))) {
+      expect(s.floorH).toEqual([3, 3, 3, 3]);
+    }
+  });
+});
+
+describe('tools · pincel de esculpido (sculptTerrainAt)', () => {
+  /** Id del vértice de terreno (o sector) situado en la coordenada dada. */
+  const vertexAt = (state: EditorState, x: number, z: number) =>
+    state.world.vertices.find((v) => v.x === x && v.y === z)!;
+  /** Altura que las celdas que comparten un vértice le asignan (deben coincidir). */
+  const heightsOfVertex = (state: EditorState, vid: string): number[] => {
+    const out: number[] = [];
+    for (const s of state.world.sectors) {
+      const i = s.vertexIds.indexOf(vid);
+      if (i >= 0 && s.id.startsWith('terr_')) {
+        out.push((Array.isArray(s.floorH) ? s.floorH[i] : s.floorH) as number);
+      }
+    }
+    return out;
+  };
+
+  it('eleva solo la zona del pincel: centro al máximo, decaimiento y esquinas intactas', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 8); // vértices en 0,2,4,6,8
+    const touched = sculptTerrainAt(state, 4, 4, 1, 3); // radio 3 alrededor del centro
+
+    // El vértice bajo el cursor sube completo (decaimiento 1 en el centro)
+    expect(heightsOfVertex(state, vertexAt(state, 4, 4).id)).toEqual([1, 1, 1, 1]);
+    // REGRESIÓN del bug: las esquinas lejanas (dist > radio) NO se elevan
+    for (const [x, z] of [[0, 0], [8, 0], [8, 8], [0, 8]] as const) {
+      expect(heightsOfVertex(state, vertexAt(state, x, z).id)).toEqual([0]);
+    }
+    // Decaimiento suave: un vértice a 2 m del cursor sube, pero menos de 1
+    const mid = (heightsOfVertex(state, vertexAt(state, 4, 6).id)[0])!;
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
+    // Coherencia: las 4 celdas que comparten el vértice central coinciden
+    expect(new Set(heightsOfVertex(state, vertexAt(state, 4, 4).id)).size).toBe(1);
+    expect(touched).toBeGreaterThan(0);
+  });
+
+  it('hundir baja solo la zona tocada y el terreno plano queda intacto fuera', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 8);
+    sculptTerrainAt(state, 4, 4, -0.5, 3);
+    expect(heightsOfVertex(state, vertexAt(state, 4, 4).id)).toEqual([-0.5, -0.5, -0.5, -0.5]);
+    expect(heightsOfVertex(state, vertexAt(state, 0, 0).id)).toEqual([0]);
+  });
+
+  it('no toca sectores normales (solo terrenos terr_)', () => {
+    const state = makeRoom(); // habitación 8×8 con floorH 0 (sin prefijo terr_)
+    expect(sculptTerrainAt(state, 4, 4, 1)).toBe(0);
+    expect(state.world.sectors[0]!.floorH).toBe(0);
+  });
+
+  it('Mover captura el terreno entero: un vértice o una celda arrastran la grilla', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 4); // 9 vértices compartidos
+    const v = state.world.vertices.find((v) => v.x === 2 && v.y === 2)!;
+    const cell = state.world.sectors.find((s) => s.id.startsWith('terr_'))!;
+    expect(collectTranslateTargets(state, [{ kind: 'vertex', id: v.id }]).vertexIds).toHaveLength(9);
+    expect(collectTranslateTargets(state, [{ kind: 'sector', id: cell.id }]).vertexIds).toHaveLength(9);
+    // Una sala normal sigue moviéndose solo por sus vértices (4)
+    const room = makeRoom();
+    expect(
+      collectTranslateTargets(room, [{ kind: 'sector', id: room.world.sectors[0]!.id }]).vertexIds,
+    ).toHaveLength(4);
   });
 });
