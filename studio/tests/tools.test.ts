@@ -354,11 +354,11 @@ describe('ToolManager · herramienta vértices dibuja salas', () => {
 describe('tools · terreno (placeTerrainAt)', () => {
   it('coloca una grilla de celdas que comparten vértices, plana y alineada', () => {
     const state = new EditorState();
-    // 4 m / celda 1 m → 4×4 = 16 sectores, 5×5 = 25 vértices compartidos
+    // 4 m / celda 0,5 m → 8×8 = 64 sectores, 9×9 = 81 vértices compartidos
     const r = placeTerrainAt(state, 2, 2, 4);
-    expect(r.sectorCount).toBe(16);
-    expect(state.world.sectors).toHaveLength(16);
-    expect(state.world.vertices).toHaveLength(25);
+    expect(r.sectorCount).toBe(64);
+    expect(state.world.sectors).toHaveLength(64);
+    expect(state.world.vertices).toHaveLength(81);
     const xs = state.world.vertices.map((v) => v.x);
     expect(Math.min(...xs)).toBe(2);
     expect(Math.max(...xs)).toBe(6);
@@ -373,12 +373,12 @@ describe('tools · terreno (placeTerrainAt)', () => {
 
   it('dos terrenos colocados no comparten ids ni se pisan', () => {
     const state = new EditorState();
-    placeTerrainAt(state, 0, 0, 4); // 4 sectores, 9 vértices
+    placeTerrainAt(state, 0, 0, 4); // 64 sectores, 81 vértices
     placeTerrainAt(state, 10, 0, 4);
-    expect(state.world.sectors).toHaveLength(32);
-    expect(state.world.vertices).toHaveLength(50);
+    expect(state.world.sectors).toHaveLength(128);
+    expect(state.world.vertices).toHaveLength(162);
     const ids = new Set(state.world.vertices.map((v) => v.id));
-    expect(ids.size).toBe(50);
+    expect(ids.size).toBe(162);
   });
 
   it('sobre un sector con piso 3, la grilla nace elevada a la base', () => {
@@ -448,15 +448,36 @@ describe('tools · pincel de esculpido (sculptTerrainAt)', () => {
 
   it('Mover captura el terreno entero: un vértice o una celda arrastran la grilla', () => {
     const state = new EditorState();
-    placeTerrainAt(state, 0, 0, 4); // 9 vértices compartidos
+    placeTerrainAt(state, 0, 0, 4); // 81 vértices compartidos
     const v = state.world.vertices.find((v) => v.x === 2 && v.y === 2)!;
     const cell = state.world.sectors.find((s) => s.id.startsWith('terr_'))!;
-    expect(collectTranslateTargets(state, [{ kind: 'vertex', id: v.id }]).vertexIds).toHaveLength(25);
-    expect(collectTranslateTargets(state, [{ kind: 'sector', id: cell.id }]).vertexIds).toHaveLength(25);
+    expect(collectTranslateTargets(state, [{ kind: 'vertex', id: v.id }]).vertexIds).toHaveLength(81);
+    expect(collectTranslateTargets(state, [{ kind: 'sector', id: cell.id }]).vertexIds).toHaveLength(81);
     // Una sala normal sigue moviéndose solo por sus vértices (4)
     const room = makeRoom();
     expect(
       collectTranslateTargets(room, [{ kind: 'sector', id: room.world.sectors[0]!.id }]).vertexIds,
     ).toHaveLength(4);
+  });
+});
+describe('tools · vértices ocultos de terreno (hiddenTerrainVertices)', () => {
+  const vertexId = (state: EditorState, x: number, z: number) =>
+    state.world.vertices.find((v) => v.x === x && v.y === z)!.id;
+
+  it('oculta los interiores de la grilla y deja visibles solo las 4 esquinas', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 4); // 0,5 m: 9×9 = 81 vértices, 4 esquinas
+    const hidden = hiddenTerrainVertices(state);
+    expect(hidden.size).toBe(81 - 4);
+    for (const [x, z] of [[0, 0], [4, 0], [4, 4], [0, 4]] as const) {
+      expect(hidden.has(vertexId(state, x, z))).toBe(false);
+    }
+    expect(hidden.has(vertexId(state, 2, 2))).toBe(true); // centro interior
+    expect(hidden.has(vertexId(state, 0, 2))).toBe(true); // borde interior
+  });
+
+  it('no oculta vértices de salas normales', () => {
+    const state = makeRoom();
+    expect(hiddenTerrainVertices(state).size).toBe(0);
   });
 });

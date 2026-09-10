@@ -235,8 +235,10 @@ export function collectTranslateTargets(
 
 // ── Terreno (herramienta Terreno) ──────────────────────────────
 
-/** Tamaño de celda del terreno en metros (1 m: grilla densa = Relief más suave). */
-export const TERRAIN_CELL = 1;
+/** Tamaño de celda del terreno en metros (0,5 m: doble densidad = curva casi continua).
+ * ponytail: 32 m → 4096 celdas; si el pincel va a tirones, batching de notify
+ * (un rebuild por frame) antes de bajar de 0,5 m otra vez. */
+export const TERRAIN_CELL = 0.5;
 /** Radio del pincel de esculpido (m). */
 export const TERRAIN_BRUSH_RADIUS = 3;
 
