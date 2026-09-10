@@ -1,36 +1,36 @@
 /**
- * SkySystem.js — horizonte lejano estilo Daggerfall.
+ * SkySystem.js — horizonte lejano estilo Daggerfall CLÁSICO (telón 2D).
  *
- * Los assets `The Sky` de Daggerfall son 31 sets (SKY00–SKY30, uno por hora
- * del día/tiempo). Cada set trae 2 capas en paralaje (0 = lejana: montañas y
- * nubes; 1 = cercana: silueta de bosque sobre el horizonte) y 32 fotogramas
- * de 512×220: VENTANAS precalculadas de la panorámica. Al girar la cámara no
- * se desplaza el UV: se CAMBIA de fotograma (el truco original, sin costuras).
- *
- * Render: dos cilindros parciales (arco ~110°) sin iluminación, sin niebla y
- * sin escribir profundidad, que siguen a la cámara → se ven infinitamente
- * lejos. El fondo/neblina bajo el horizonte sigue siendo el color del renderer.
+ * Como en el motor de 1996: el cielo NO es un skybox 3D. Son DOS imágenes
+ * planas 2D (billboards) siempre de frente a la cámara, ancladas a la línea
+ * del horizonte:
+ *  - Scroll horizontal por yaw: 32 fotogramas precalculados por capa
+ *    (ventanas de la panorámica) + micro-desplazamiento UV entre fotogramas
+ *    → giro continuo sin costuras ni saltos.
+ *  - "Y-shearing" gratis: el telón se ancla a la horizontal del mundo, así
+ *    que al mirar arriba/abajo la banda se desliza en pantalla solo lo justo
+ *    para mantener el horizonte pegado al terreno (como en Doom/Duke).
+ *  - Dos capas: 0 = lejana (montañas/nubes, gira al 50 % del yaw → paralaje;
+ *    32·0.5 = 16 entero, la vuelta de 360° cierra sin salto), 1 = cercana
+ *    (silueta de bosque, anclada 1:1 al yaw).
+ * Render: `depthTest:false` + `renderOrder` negativo → SIEMPRE por detrás del
+ * mundo; nunca tapa geometría.
  */
 import * as THREE from 'three';
 import { loadTextures } from './textures.js';
 
 export const SKY_SETS = 31;
 export const SKY_FRAMES = 32;
-const LAYERS = ['far', 'near'];
-const ARC = Math.PI / 2 + 0.27; // ventana por fotograma (rad)
-// Radio por debajo del `far` de la cámara (200): con depthTest:false y
-// renderOrder negativo el cielo se pinta SIEMPRE detrás del mundo.
-const R_FAR = 90;
-const R_NEAR = 84;
-// ponytail: estas alturas/base son "a ojo" — calibrar en el playtest (H cubre
-// el ángulo vertical de la banda, BASE el offset bajo el centro de cámara).
-const H_FAR = 72;
-const H_NEAR = 36;
-const BASE_FAR = -1;
-const BASE_NEAR = -2.4;
-// 0.5 (no 0.6): con 32 frames, 32·0.5=16 entero → tras una vuelta completa de
-// 360° la capa lejana vuelve AL MISMO fotograma (sin salto al cerrar el giro).
-const PARALLAX_FAR = 0.5;  // la capa lejana gira al 50 % de la velocidad
+
+const DEG = Math.PI / 180;
+const ARC = (110 * DEG);      // arco horizontal que ocupa cada fotograma-ventana
+const D_NEAR = 150;          // distancias arbitrarias: no escriben profundidad
+const D_FAR = 160;
+// Banda vertical de cada telón, en grados sobre la horizontal del mundo.
+// ponytail: calibrar en playtest si el horizonte se ve "pegado" o muy alto.
+const TOP_FAR = 55 * DEG;    // como el original: prohibido mirar más allá (cubre ±45°)
+const TOP_NEAR = 24 * DEG;   // la silueta del bosque vive abajo: banda corta
+const BOTTOM = -2 * DEG;     // un dedo por debajo del horizonte, tapado por el suelo
 
 /** Índice de fotograma [0,frames) para un yaw (rad), envolvente y para negativos. */
 export function skyFrameIndex(yaw, frames = SKY_FRAMES) {
@@ -60,6 +60,8 @@ export class SkySystem {
     this.textures = {};
     this.meshes = [];
     this.loaded = false;
+    this._prevYaw = 0;
+    this._v = new THREE.Vector3();
   }
 
   /** Carga todas las texturas del set (una vez, en paralelo). */
@@ -67,61 +69,92 @@ export class SkySystem {
     if (this.set == null) return;
     const n = Math.floor(SKY_FRAMES / this.stride);
     const defs = {};
-    for (let l = 0; l < LAYERS.length; l++) {
+    for (let l = 0; l < 2; l++) {
       for (let f = 0; f < n; f++) {
         defs[`${l}:${f}`] = encodeURI(skyFrameUrl(this.base, this.set, l, f * this.stride));
       }
     }
     this.textures = await loadTextures(defs);
+    for (const tex of Object.values(this.textures)) {
+      tex.wrapS = THREE.RepeatWrapping; // micro-scroll UV dentro de la ventana
+    }
     this.loaded = true;
   }
 
   addTo(scene) {
     if (!this.loaded) return;
-    for (let l = 0; l < LAYERS.length; l++) {
+    const geo = new THREE.PlaneGeometry(1, 1);
+    for (let l = 0; l < 2; l++) {
       const near = l === 1;
-      const geo = new THREE.CylinderGeometry(
-        near ? R_NEAR : R_FAR, near ? R_NEAR : R_FAR,
-        near ? H_NEAR : H_FAR, 48, 1, true, -ARC / 2, ARC,
-      );
       const mat = new THREE.MeshBasicMaterial({
         map: this.textures[`${l}:0`],
         transparent: true,
         depthWrite: false,
         depthTest: false,
-        side: THREE.BackSide,
+        side: THREE.DoubleSide,
         fog: false,
       });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.renderOrder = near ? -2 : -3;     // cielo: primero lo lejos, luego lo cerca
-      mesh.frustumCulled = false;            // sigue a la cámara: no recortar nunca
-      mesh.userData.isSky = true;            // WorldMesh.clear debe saltarlos
+      const mesh = new THREE.Mesh(geo.clone(), mat);
+      mesh.renderOrder = near ? -2 : -3;      // cielo: primero lo lejos, luego lo cerca
+      mesh.frustumCulled = false;
+      mesh.userData.isSky = true;             // WorldMesh.clear debe saltarlos
       mesh.userData.layer = l;
-      mesh.userData.base = near ? BASE_NEAR : BASE_FAR;
+      mesh.userData.dist = near ? D_NEAR : D_FAR;
+      mesh.userData.top = near ? TOP_NEAR : TOP_FAR;
       this.meshes.push(mesh);
       scene.add(mesh);
     }
   }
 
-  /** Cada frame: seguir a la cámara, elegir fotograma por yaw y apuntar el arco. */
+  /** Telón cada frame: anclarse a la horizontal de cámara, elegir fotograma y scrollear. */
   update(camera) {
     if (!this.loaded || this.meshes.length === 0) return;
-    const d = new THREE.Vector3();
-    camera.getWorldDirection(d);
-    const yaw = Math.atan2(d.z, d.x); // convención Engine3D: (cos yaw, sin yaw) en XZ
+    const fwd = this._v.clone();
+    camera.getWorldDirection(fwd);
+    let hx = fwd.x;
+    let hz = fwd.z;
+    const hl = Math.hypot(hx, hz);
+    if (hl < 1e-4) { hx = Math.cos(this._prevYaw); hz = Math.sin(this._prevYaw); } // mirando al cenit: mantener la última horizontal
+    else { hx /= hl; hz /= hl; this._prevYaw = Math.atan2(hz, hx); }
+    const yaw = Math.atan2(hz, hx);          // convención Engine3D: (cos yaw, sin yaw)
     const n = Math.floor(SKY_FRAMES / this.stride);
+    const step = (Math.PI * 2) / n;
+    const fovH = 2 * Math.atan(Math.tan((camera.fov * DEG) / 2) * camera.aspect);
+
     for (const mesh of this.meshes) {
-      const l = mesh.userData.layer;
-      const near = l === 1;
-      mesh.position.set(camera.position.x, camera.position.y - mesh.userData.base, camera.position.z);
-      // El arco SIEMPRE mira al frente de la cámara (la ventana es fija);
-      // el paralaje vive solo en la ELECCIÓN del fotograma. (Rotar el arco
-      // con el ángulo del paralaje duplicaba el horizonte en el playtest.)
-      mesh.rotation.y = Math.PI / 2 - yaw;
-      const f = skyFrameIndex(near ? yaw : yaw * PARALLAX_FAR, n);
-      const tex = this.textures[`${l}:${f}`];
-      if (tex && mesh.material.map !== tex) {
-        mesh.material.map = tex;
+      const near = mesh.userData.layer === 1;
+      const D = mesh.userData.dist;
+      const angle = near ? yaw : yaw * 0.5;  // la capa lejana gira al 50 % (paralaje)
+      const norm = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const f = skyFrameIndex(angle, n);
+
+      // Geometría del telón: el ancho cubre el FOV con la imagen REPETIDA
+      // horizontalmente (tiling, como en el original: "imágenes planas que se
+      // repiten"), manteniendo la escala angular exacta de la ventana ARC.
+      const planeArc = Math.max(fovH * 1.3, ARC);
+      const w = 2 * D * Math.tan(planeArc / 2);
+      const topY = D * Math.tan(mesh.userData.top);
+      const botY = D * Math.tan(BOTTOM);
+      mesh.scale.set(w, topY - botY, 1);
+
+      // Centrado a media altura de la banda, a D en la horizontal de cámara.
+      const cy = camera.position.y + (topY + botY) / 2;
+      mesh.position.set(
+        camera.position.x + hx * D,
+        cy,
+        camera.position.z + hz * D,
+      );
+      mesh.rotation.set(0, Math.atan2(hx, hz) + Math.PI, 0); // de frente a la cámara, sin alabeo
+
+      const tex = this.textures[`${mesh.userData.layer}:${f}`];
+      if (tex) {
+        if (mesh.material.map !== tex) mesh.material.map = tex;
+        // Tiling + scroll sub-paso: la imagen llena la ventana ARC y se repite
+        // para cubrir el FOV; el offset UV desliza de forma CONTINUA el tramo
+        // recorrido dentro de la ventana (scrolleo 2D del original, sin saltos
+        // al cambiar de fotograma). Signo calibrado en playtest.
+        tex.repeat.x = planeArc / ARC;
+        tex.offset.x = -(norm - f * step) / ARC;
       }
     }
   }
@@ -133,7 +166,9 @@ export class SkySystem {
       m.removeFromParent();
     }
     this.meshes = [];
-    for (const tex of Object.values(this.textures)) tex.dispose?.();
+    for (const tex of Object.values(this.textures)) {
+      tex.dispose?.();
+    }
     this.textures = {};
     this.loaded = false;
   }

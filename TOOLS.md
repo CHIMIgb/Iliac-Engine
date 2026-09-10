@@ -98,9 +98,10 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 **Formato de assets:** 2 capas en paralaje (0 = lejana: montañas/nubes; 1 = cercana: silueta de bosque sobre el horizonte) × **32 fotogramas 512×220** — ventanas precalculadas de la panorámica: al girar se CAMBIA de fotograma (truco original de Daggerfall, sin costuras). Con `stride 2` solo se cargan los pares (14 MB→7 MB de VRAM, pasos de 22,5°).
 
-**Cómo funciona (engine/three/SkySystem.js):**
-- Dos cilindros parciales (~110° de arco) con `MeshBasicMaterial` sin luz, sin niebla, `depthTest:false`, `renderOrder −3/−2` y radio menor que el `far` de cámara: se pintan SIEMPRE detrás del mundo y **siguen a la cámara** cada frame (`Renderer3D.render → sky.update(camera)` — cubre orbit del editor y modo juego).
-- Frame por capa: `skyFrameIndex(yaw)` con la cercana al 100 % y la lejana al 60 % + deriva lenta de nubes → paralaje.
+**Cómo funciona (engine/three/SkySystem.js) — telón 2D, NO skybox 3D** (igual que el Daggerfall de 1996):
+- DOS imágenes planas (billboards) siempre de frente a la cámara, ancladas a la horizontal del mundo: al girar, **scrolleo horizontal UV continuo** sobre los 32 fotogramas-ventana (tiling + offset sub-paso = giro fluido, sin costuras); al cambiar el pitch, la banda se desliza en pantalla lo justo para mantener el horizonte pegado al terreno ("Y-shearing" gratis por el anclaje).
+- La capa lejana avanza al 50 % del yaw (paralaje; 32·0.5 = 16 entero → la vuelta de 360° cierra sin salto); la cercana 1:1.
+- `depthTest:false` + `renderOrder −3/−2`: el telón se pinta SIEMPRE por detrás del mundo y no tapa nunca el mapa; cubre ±55° (más arriba, color de fondo, como el límite de visión original).
 - `Engine3D._loadSky` reacciona a cambios de `skySignature` en `setWorld`: cambiar de cielo no recrea el motor entero.
 
 **Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
