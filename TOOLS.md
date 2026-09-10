@@ -106,9 +106,9 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 **Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
 
-**Herramienta de TIEMPO (en el popover del Cielo):** el set 0–30 ES la hora del día. Slider 0–30 para recorrerlo a mano y «Avanzar el tiempo solo» (un paso cada 4 s; sigue corriendo si cierras el popover).
+**El set como hora del día:** SKY00–SKY30 cubre el ciclo (el motor carga el cielo nuevo antes de retirar el viejo: cambiar de set no parpadea). La subherramienta de auto-avance con slider se retiró por decisión del usuario: el selector es un solo `<select>`.
 
-**UI:** tecla 8 o botón Cielo (icono cloud de lucide) → «— Sin cielo — / SKY00…SKY30» + slider + auto-avance; se ve al instante (el reload en vivo intercambia el SkySystem).
+**UI:** tecla 8 o botón Cielo (icono cloud de lucide) → «— Sin cielo — / SKY00…SKY30»; se ve al instante (el reload en vivo intercambia el SkySystem).
 
 > **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa.
 

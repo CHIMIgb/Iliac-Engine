@@ -636,8 +636,6 @@ export class ToolManager {
 
   private skyPicker: HTMLElement | null = null;
   private skyPickerOpenedAt = 0;
-  /** Timer de «avanzar el tiempo solo» (SKYnn cada 4 s); sigue corriendo si cierras el popover. */
-  private _skyTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
    * Abre el popover de Cielo (tecla 8): un solo `<select>` con «Sin cielo» y
@@ -686,63 +684,14 @@ export class ToolManager {
       select.appendChild(o);
     }
     select.value = this.doc.world.sky ? String(this.doc.world.sky.set) : '';
-
-    // Herramienta de TIEMPO: el set 0–30 ES la hora del día. Slider para
-    // recorrerlo a mano + «avanzar solo» (un paso cada 4 s) para ver atardecer
-    // y noche pasar; al cruzar de set, el motor recarga el telón sin parpadeo.
-    const timeRow = document.createElement('label');
-    timeRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px';
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = '0';
-    slider.max = '30';
-    slider.step = '1';
-    slider.value = select.value || '0';
-    slider.style.cssText = 'flex:1;accent-color:#89b4fa';
-    const hourLabel = document.createElement('span');
-    hourLabel.style.cssText = 'min-width:52px;font:11px monospace';
-    const autoRow = document.createElement('label');
-    autoRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer';
-    const autoBox = document.createElement('input');
-    autoBox.type = 'checkbox';
-    autoBox.checked = this._skyTimer !== null;
-    const syncTimeLabel = (): void => {
-      hourLabel.textContent = select.value === '' ? '—' : `SKY${select.value.padStart(2, '0')}`;
-    };
-    syncTimeLabel();
-    const applySet = (n: number): void => {
-      this.doc.setSky({ set: n });
-      select.value = String(n);
-      slider.value = String(n);
-      syncTimeLabel();
-    };
     select.addEventListener('change', () => {
-      if (select.value === '') {
-        this.doc.setSky(null);
-        syncTimeLabel();
-        this.cb.onNotice?.('Cielo retirado', 'success');
-      } else {
-        applySet(Number(select.value));
-      }
+      this.doc.setSky(select.value === '' ? null : { set: Number(select.value) });
+      this.cb.onNotice?.(
+        select.value === '' ? 'Cielo retirado' : `Cielo SKY${select.value.padStart(2, '0')} aplicado`,
+        'success',
+      );
     });
-    slider.addEventListener('input', () => applySet(Number(slider.value)));
-    autoRow.appendChild(autoBox);
-    autoRow.appendChild(document.createTextNode('Avanzar el tiempo solo (1 hora / 4 s)'));
-    autoBox.addEventListener('change', () => {
-      if (autoBox.checked) {
-        this._skyTimer = window.setInterval(() => {
-          const cur = this.doc.world.sky?.set ?? -1;
-          applySet((cur + 1) % 31);
-        }, 4000);
-      } else if (this._skyTimer !== null) {
-        clearInterval(this._skyTimer);
-        this._skyTimer = null;
-      }
-    });
-    timeRow.appendChild(slider);
-    timeRow.appendChild(hourLabel);
-    panel.appendChild(timeRow);
-    panel.appendChild(autoRow);
+    panel.appendChild(select);
 
     panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeSkyPicker();

@@ -106,7 +106,7 @@ El proyecto tiene **dos capas**:
 
 El esquema usa un modelo de **sectores poligonales 2D extruidos en 3D**:
 
-- **Vertices** → puntos 2D del mundo.
+**El set como hora del día:** SKY00–SKY30 cubre el ciclo (el motor carga el cielo nuevo antes de retirar el viejo: cambiar de set no parpadea). La subherramienta de auto-avance con slider se retiró por decisión del usuario: el selector es un solo `<select>`.
 - **Sectores** → polígonos convexos (o cóncavos con ear-clipping) con `floorH`/`ceilH` independientes, opcionalmente con `floorSlope`/`ceilSlope` para superficies inclinadas.
 - **Paredes** → segmentos entre dos vértices. Cada pared pertenece a un `sectorFront` y opcionalmente un `sectorBack` (portal = pared transitable).
 - **Rampas** → superficies inclinadas (`slope`) o escaleras de peldaños (`stairs`) posicionadas dentro de sectores.
@@ -257,7 +257,7 @@ motor-raycast/
 | F4 Studio: **Herramientas de edición 3D** (picking, tools, ToolManager, Overlay2D, viewport interactivo) | ✅ Validada |
 | F4+ **Herramienta Mover (tecla 3) + selección múltiple Shift+clic**: traslación rígida de vértice/pared/sector/sprite, drag de grupo y Delete múltiple | ✅ Realizada |
 | F4+ **Herramienta Terreno (tecla 7)**: suelo plano de 8–32 m como grilla de celdas de 0,5 m con vértices compartidos (formato `floorH` por vértice del motor); el editor solo marca las 4 esquinas de cada colocación (los interiores existen para el pincel, no se pintan ni capturan); **modo Moldear** esculpe con PINCEL solo la zona bajo el cursor (radio 3 m, decaimiento suave, 2 m/s frame-independent vía `update(dt)`, dirección fija según Elevar/Hundir); Mover traslada la colocación completa como una pieza; altura en vivo en la statusbar; popover con tamaño libre 8–64 m, celda 0,5–2 m, fuerza/radio del pincel ajustables y colocación adyacente (nunca solapa) | ✅ Realizada |
-| F4+ **Cielo Daggerfall (tecla 8)**: horizonte lejano `world.sky {set:0–30}` — técnica clásica de telón 2D (dos billboards 1:1 con el yaw, bandas verticales complementarias, scrolleo UV por los 32 fotogramas-ventana, z-buffer; sin skybox 3D); **herramienta de tiempo**: slider de hora + auto-avance (1 SKY/4 s); `npm run setup:sky` importa los assets (no versionados); demo con SKY15 | ✅ Realizada |
+| F4+ **Cielo Daggerfall (tecla 8)**: horizonte lejano `world.sky {set:0–30}` — técnica clásica de telón 2D (dos billboards 1:1 con el yaw, bandas verticales complementarias, scrolleo UV por los 32 fotogramas-ventana, z-buffer; sin skybox 3D); `npm run setup:sky` importa los assets (no versionados); demo con SKY15 | ✅ Realizada |
 | F4+ ~~Pantalla (tecla 9)~~ y CRT: retirados por decisión del usuario — el render vuelve a **resolución nativa** a pantalla completa (el buffer interno fijo dejaba el editor en miniatura) | — Retirada |
 | F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
