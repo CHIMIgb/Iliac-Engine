@@ -276,11 +276,17 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ── Edición en vivo: onChange → reload con debounce ─────────────
-let reloadTimer: ReturnType<typeof setTimeout> | undefined;
-doc.onChange(() => {
-  clearTimeout(reloadTimer);
-  reloadTimer = setTimeout(() => {
+// ── Edición en vivo: onChange → reload con THROTTLE ─────────────
+// (No debounce puro: el pincel muta el estado cada frame mientras se mantiene
+// el clic; un trailing-debounce se re-programa sin descanso y el viewport no
+// se entera hasta soltar. El throttle garantiza ~1 reload cada RELOAD_MS.)
+const RELOAD_MS = 120;
+let reloadPending = false;
+function scheduleReload(): void {
+  if (reloadPending) return;
+  reloadPending = true;
+  setTimeout(() => {
+    reloadPending = false;
     const raw = toRawProject(doc);
     const errors = validateProjectJson(raw);
     if (errors.length > 0) {
@@ -288,8 +294,9 @@ doc.onChange(() => {
       return;
     }
     viewport.reload(raw);
-  }, 150);
-});
+  }, RELOAD_MS);
+}
+doc.onChange(scheduleReload);
 
 // ── Helpers ────────────────────────────────────────────────────
 function toRawProject(d: EditorState): Record<string, unknown> {
