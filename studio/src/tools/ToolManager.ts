@@ -34,6 +34,8 @@ export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity'
 
 /** Tamaños de terreno disponibles (metros cuadrados, celda = 1 m). */
 export const TERRAIN_SIZES = [8, 16, 24, 32] as const;
+/** Velocidad de esculpido del terreno (m/s) mientras se mantiene el clic. */
+export const SCULPT_SPEED = 2.0;
 
 export type Selection =
   | { kind: 'vertex'; id: string }
@@ -111,11 +113,12 @@ export class ToolManager {
    */
   terrainMode: 'place' | 'raise' | 'lower' = 'place';
   /**
-   * Arrastre de moldeado en curso: el movimiento vertical del ratón sobre un
-   * terreno colocado eleva (arriba) o hunde (abajo) 0,5 m por cada 8 px
-   * acumulados. null = no hay arrastre.
+   * Clic de esculpido en curso: mientras está activo, el método `update(dt)`
+   * aplica el esculpido continuo al sector bajo el cursor con la dirección
+   * fija de la herramienta ('raise' sube, 'lower' baja). El arrastre del
+   * ratón NO afecta la dirección (ver implementation_plan.md).
    */
-  private moldearGrab: { sectorId: string; lastY: number; acc: number } | null = null;
+  private moldearGrab: { direction: 1 | -1 } | null = null;
   /** Selector HTML de tamaños abierto (herramienta Terreno). */
   private terrainPicker: HTMLSelectElement | null = null;
   private terrainPickerOpenedAt = 0;
@@ -168,20 +171,7 @@ export class ToolManager {
         else this.doc.moveSprite(o.id, o.x + dx, o.z + dz, o.h);
       }
     }
-    // Moldeado continuo de terreno: el ratón hacia arriba eleva, hacia abajo
-    // hunde. 0,5 m por cada 8 px acumulados de movimiento vertical.
-    if (this.moldearGrab) {
-      const dy = this.moldearGrab.lastY - ctx.py;
-      this.moldearGrab.lastY = ctx.py;
-      this.moldearGrab.acc += dy;
-      const STEP_PX = 8;
-      while (Math.abs(this.moldearGrab.acc) >= STEP_PX) {
-        const dir = this.moldearGrab.acc > 0 ? 1 : -1;
-        changeSectorHeight(this.doc, this.moldearGrab.sectorId, dir * 0.5, false);
-        this.moldearGrab.acc -= dir * STEP_PX;
-      }
-      if (dy !== 0) this._reportTerrainHeight(this.moldearGrab.sectorId);
-    }
+    // El esculpido del terreno NO depende del arrastre: lo hace update(dt).
   }
 
   onPointerUp(): void {
@@ -190,6 +180,22 @@ export class ToolManager {
       this.moldearGrab = null;
       this.cb.onStatus?.('Terreno: —');
     }
+  }
+
+  /**
+   * Pulso de tiempo para la herramienta Terreno (llamado cada frame por el
+   * viewport). Con el clic presionado sobre un terreno, esculpe de forma
+   * continua y frame-independent: `velocidad * dt` metros por segundo, con la
+   * dirección SIEMPRE la de la herramienta ('raise' eleva, 'lower' hunde),
+   * aunque el ratón se mueva en otra dirección.
+   */
+  update(dt: number, ctx: PickContext): void {
+    if (!this.moldearGrab || !ctx.world) return;
+    const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
+    if (!sector || !sector.startsWith('terr_')) return; // fuera del terreno: pausa
+    const delta = this.moldearGrab.direction * SCULPT_SPEED * dt;
+    changeSectorHeight(this.doc, sector, delta, false);
+    this._reportTerrainHeight(sector);
   }
 
   /**
@@ -403,11 +409,9 @@ export class ToolManager {
     if (this.terrainMode !== 'place') {
       const sector = findSectorAt(this.doc, ctx.world.x, ctx.world.z);
       if (sector && sector.startsWith('terr_')) {
-        const raising = this.terrainMode === 'raise';
-        // Paso fijo al presionar (un clic sin arrastre = +/−0,5 m)…
-        changeSectorHeight(this.doc, sector, raising ? 0.5 : -0.5, false);
-        // …y desde aquí el arrastre vertical moldea en ambas direcciones.
-        this.moldearGrab = { sectorId: sector, lastY: ctx.py, acc: 0 };
+        // Sin salto fijo: el esculpido lo hace update(dt) cada frame mientras
+        // el clic está presionado (dirección fija según la herramienta).
+        this.moldearGrab = { direction: this.terrainMode === 'raise' ? 1 : -1 };
         this._reportTerrainHeight(sector);
         return true;
       }

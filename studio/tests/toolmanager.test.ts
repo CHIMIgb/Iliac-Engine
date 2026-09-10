@@ -224,26 +224,46 @@ describe('Herramienta Terreno (7)', () => {
     expect(state.world.vertices).toHaveLength(4);
   });
 
-  it('modo moldear: eleva el terreno colocado con cada clic (+0,5 m)', () => {
+  it('modo moldear: el clic no salta; update(dt) eleva de forma continua y frame-independent', () => {
     const state = new EditorState();
     const tm = new ToolManager(state);
     tm.setTool('terrain');
     tm.activeTerrainSize = 4;
     tm.onPointerDown(ctx(0, 0)); // colocar terreno 0..4
     tm.terrainMode = 'raise';
-    expect(tm.onPointerDown(ctx(2, 2))).toBe(true); // clic dentro del terreno
-    expect(state.world.sectors[0]!.floorH).toBe(0.5);
+
+    // Presionar sobre el terreno NO aplica salto fijo: solo inicia el grab.
+    expect(tm.onPointerDown(ctx(2, 2))).toBe(true);
+    expect(state.world.sectors[0]!.floorH).toBe(0);
+
+    // Esculpido continuo: actualizar con 0,5 s → 2 m/s * 0,5 s = +1,0 m
+    tm.update(0.5, ctx(2, 2));
+    expect(state.world.sectors[0]!.floorH).toBe(1);
+
+    // Frame-independent: 2 frames de 0,25 s = mismo resultado que 1 de 0,5 s
+    const tm2 = new ToolManager(state);
+    // (mismo estado, nuevo grab)
+    tm2.setTool('terrain');
+    tm2.terrainMode = 'raise';
+    tm2.onPointerDown(ctx(2, 3));
+    tm2.update(0.25, ctx(2, 3));
+    tm2.update(0.25, ctx(2, 3));
+    expect(state.world.sectors[0]!.floorH).toBe(2);
+    tm2.onPointerUp();
   });
 
-  it('modo moldear: hundir baja el terreno (−0,5 m) y no moldea salas normales', () => {
+  it('modo moldear: hundir baja y el arrastre NO invierte la herramienta', () => {
     const state = new EditorState();
     const tm = new ToolManager(state);
     tm.setTool('terrain');
     tm.activeTerrainSize = 4;
     tm.onPointerDown(ctx(0, 0)); // terreno 0..4
     tm.terrainMode = 'lower';
-    expect(tm.onPointerDown(ctx(1, 1))).toBe(true);
-    expect(state.world.sectors[0]!.floorH).toBe(-0.5);
+
+    expect(tm.onPointerDown(ctx(2, 2))).toBe(true);
+    // Aunque el ratón "suba" (py decrece), la herramienta Hundir sigue hundiendo
+    tm.update(0.5, { ...ctx(2, 2), py: -100 });
+    expect(state.world.sectors[0]!.floorH).toBe(-1);
 
     // Un sector normal (sin prefijo terr_) no se moldea → no consume el clic
     const normal = new EditorState();
@@ -259,7 +279,7 @@ describe('Herramienta Terreno (7)', () => {
     expect(normal.world.sectors[0]!.floorH).toBe(0);
   });
 
-  it('arrastre continuo: el ratón hacia arriba eleva y hacia abajo hunde (0,5 m/8 px)', () => {
+  it('esculpido: pausa fuera del terreno, statusbar en vivo y limpieza al soltar', () => {
     const state = new EditorState();
     const statuses: string[] = [];
     const tm = new ToolManager(state, { onStatus: (t) => statuses.push(t) });
@@ -268,23 +288,18 @@ describe('Herramienta Terreno (7)', () => {
     tm.onPointerDown(ctx(0, 0)); // terreno 0..4
     tm.terrainMode = 'raise';
 
-    // Presionar dentro del terreno: paso fijo +0,5 → 0,5
     expect(tm.onPointerDown(ctx(2, 2))).toBe(true);
+    tm.update(0.25, ctx(2, 2));
+    expect(state.world.sectors[0]!.floorH).toBe(0.5);
+    expect(statuses.at(-1)).toBe('Terreno: 0.5 m');
+
+    // El cursor sale del terreno → el esculpido se pausa (sin cambio)
+    tm.update(0.25, ctx(50, 50));
     expect(state.world.sectors[0]!.floorH).toBe(0.5);
 
-    // Arrastrar 16 px hacia arriba (py decrece) → +1,0 → 1,5
-    tm.onPointerMove({ ...ctx(2, 2), py: -16 });
-    expect(state.world.sectors[0]!.floorH).toBe(1.5);
-
-    // Arrastrar 16 px hacia abajo (vuelve a py 0) → −1,0 → 0,5 (hundimiento)
-    tm.onPointerMove({ ...ctx(2, 2), py: 0 });
-    expect(state.world.sectors[0]!.floorH).toBe(0.5);
-
-    // Soltar: limpia el arrastre y restaura el statusbar
+    // Soltar: limpia el grab y restaura la statusbar
     tm.onPointerUp();
     expect(tm['moldearGrab']).toBeNull();
     expect(statuses.at(-1)).toBe('Terreno: —');
-    // Durante el arrastre se reportó la altura en vivo
-    expect(statuses.some((s) => s === 'Terreno: 1.5 m')).toBe(true);
   });
 });

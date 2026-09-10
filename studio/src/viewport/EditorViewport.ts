@@ -197,6 +197,8 @@ export class EditorViewport {
     // Overlay: dibujar gizmos si hay toolManager y doc
     const tm = this.toolManager;
     if (tm) {
+      // Pulso de tiempo para el esculpido continuo del terreno (ToolManager.update).
+      tm.update(dt, this._buildPickContext());
       const w = this.canvas.clientWidth || 1;
       const h = this.canvas.clientHeight || 1;
       this.overlay.resize(w, h);
