@@ -15,6 +15,8 @@ import {
   defaultSpriteTex,
   placeTerrainAt,
   sculptTerrainAt,
+  resolveTerrainPlacement,
+  terrainFootprints,
   hiddenTerrainVertices,
   collectTranslateTargets,
 } from '../src/tools/tools';
@@ -479,5 +481,58 @@ describe('tools · vértices ocultos de terreno (hiddenTerrainVertices)', () => 
   it('no oculta vértices de salas normales', () => {
     const state = makeRoom();
     expect(hiddenTerrainVertices(state).size).toBe(0);
+  });
+});
+
+describe('tools · terreno: celda configurable (idea 1)', () => {
+  it('celda 2 da 4x menos sectores que celda 0,5 y conserva el tamaño pedido', () => {
+    const a = new EditorState();
+    const b = new EditorState();
+    expect(placeTerrainAt(a, 0, 0, 8, 'grass', 2).sectorCount).toBe(16);
+    expect(placeTerrainAt(b, 0, 0, 8, 'grass', 0.5).sectorCount).toBe(256);
+    const xs = a.world.vertices.map((v) => v.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBe(8);
+    // step decimal permitido: size 10 con celda 1,5 → 7 celdas de 1,4286…
+    const c = new EditorState();
+    expect(placeTerrainAt(c, 0, 0, 10, 'grass', 1.5).sectorCount).toBe(49);
+    expect(Math.max(...c.world.vertices.map((v) => v.x))).toBe(10);
+  });
+  it('celdas fuera del rango se clampean a 0,5–2', () => {
+    const s = new EditorState();
+    expect(placeTerrainAt(s, 0, 0, 4, 'grass', 100).sectorCount).toBe(4); // celda 2
+    const t = new EditorState();
+    expect(placeTerrainAt(t, 0, 0, 2, 'grass', 0.01).sectorCount).toBe(16); // celda 0,5
+  });
+});
+
+describe('tools · terreno adyacente sin solapar (idea 4)', () => {
+  it('las huellas salen por colocación y un clic libre no se mueve', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 8, 'grass', 2);
+    const fps = terrainFootprints(state);
+    expect(fps).toHaveLength(1);
+    expect(fps[0]).toMatchObject({ minX: 0, minY: 0, maxX: 8, maxY: 8 });
+    const r = resolveTerrainPlacement(state, 50, 50, 8);
+    expect(r).toEqual({ x: 50, z: 50, adjacent: false });
+  });
+
+  it('un clic sobre un terreno existente lo desliza al borde más cercano', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 8, 'grass', 2); // huella 0..8
+    // Cuadrado 4×4 pedido en (4,4): solapa → mejor borde derecho (dist 4 vs 8/…)
+    const r = resolveTerrainPlacement(state, 4, 4, 4)!;
+    expect(r.adjacent).toBe(true);
+    expect(r.x).toBe(8);
+    expect(r.z).toBe(4);
+  });
+
+  it('encaja sin solapar encajonado entre dos terrenos', () => {
+    const state = new EditorState();
+    placeTerrainAt(state, 0, 0, 4, 'grass', 2); // 0..4
+    placeTerrainAt(state, 8, 0, 4, 'grass', 2); // 8..12
+    const r = resolveTerrainPlacement(state, 2, 0, 4)!; // solapa con el 1.º
+    expect(r).not.toBeNull();
+    expect(r.x).toBe(4); // hueco libre entre ambos (4..8)
+    expect(r.adjacent).toBe(true);
   });
 });

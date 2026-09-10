@@ -26,6 +26,9 @@ import {
   collectTranslateTargets,
   placeTerrainAt,
   sculptTerrainAt,
+  resolveTerrainPlacement,
+  TERRAIN_CELL,
+  TERRAIN_BRUSH_RADIUS,
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
@@ -108,6 +111,12 @@ export class ToolManager {
   activeEntity: EntityDef | null = null;
   /** Tamaño activo del terreno (m): null hasta elegirlo en el icono Terreno. */
   activeTerrainSize: number | null = null;
+  /** Lado de celda de la grilla de terreno (m). 0,5 = máxima suavidad. */
+  terrainCell = TERRAIN_CELL;
+  /** Velocidad del pincel al esculpir (m/s) — editable en el popover. */
+  brushSpeed = SCULPT_SPEED;
+  /** Radio del pincel de esculpido (m) — editable en el popover. */
+  brushRadius = TERRAIN_BRUSH_RADIUS;
   /**
    * Modo de la herramienta Terreno: 'place' coloca un suelo plano nuevo;
    * 'raise'/'lower' moldean (elevan/hunden) un terreno YA colocado.
@@ -121,7 +130,7 @@ export class ToolManager {
    */
   private moldearGrab: { direction: 1 | -1 } | null = null;
   /** Selector HTML de tamaños abierto (herramienta Terreno). */
-  private terrainPicker: HTMLSelectElement | null = null;
+  private terrainPicker: HTMLElement | null = null;
   private terrainPickerOpenedAt = 0;
 
   constructor(doc: EditorState, cb: ToolManagerCallbacks = {}) {
@@ -197,7 +206,8 @@ export class ToolManager {
       this.doc,
       ctx.world.x,
       ctx.world.z,
-      this.moldearGrab.direction * SCULPT_SPEED * dt,
+      this.moldearGrab.direction * this.brushSpeed * dt,
+      this.brushRadius,
     );
     if (touched > 0) this._reportTerrainHeight(ctx.world.x, ctx.world.z);
   }
@@ -428,9 +438,18 @@ export class ToolManager {
       this.cb.onNotice?.('Elige el tamaño del terreno en el icono Terreno', 'info');
       return true;
     }
-    const r = placeTerrainAt(this.doc, ctx.world.x, ctx.world.z, this.activeTerrainSize);
+    // Idea 4: nunca solapar — si el huecho choca con otro terreno, se coloca
+    // adyacente (pegado al borde más cercano al clic).
+    const size = this.activeTerrainSize;
+    const spot = resolveTerrainPlacement(this.doc, ctx.world.x, ctx.world.z, size);
+    if (!spot) {
+      this.cb.onNotice?.(`Sin lado libre alrededor para un terreno de ${size} m`, 'warning');
+      return true;
+    }
+    const r = placeTerrainAt(this.doc, spot.x, spot.z, size, 'grass', this.terrainCell);
     this.cb.onNotice?.(
-      `Suelo plano de ${r.sectorCount} celdas colocado (base ${r.base} m)`,
+      `${spot.adjacent ? 'Colocado ADYACENTE (solapaba): ' : ''}suelo de ${size}×${size} m, ` +
+      `${r.sectorCount} celdas de ${this.terrainCell} m (base ${r.base} m)`,
       'success',
     );
     return true;
@@ -458,90 +477,143 @@ export class ToolManager {
   }
 
   /**
-   * Abre el `<select>` de tamaños de terreno bajo el icono Terreno.
-   * Al elegir se fija `activeTerrainSize`; cada clic en la cuadrícula coloca
-   * un terreno de ese tamaño.
+   * Abre el POPOVER de terreno bajo el icono Terreno: tamaño libre 8–64 m
+   * (idea 2), celda 0,5–2 m (idea 1), fuerza y radio del pincel (idea 3), y
+   * botones de modo (Colocar / Elevar / Hundir). Cada campo actualiza al
+   * instante su propiedad; el conteo de sectores avisa del coste.
    */
   openTerrainSizePicker(clientX?: number, clientY?: number): void {
     this._closeTerrainPicker();
-    // Sin DOM (tests/SSR) no hay selector; el primer clic avisa igualmente.
+    // Sin DOM (tests/SSR) no hay popover; el primer clic avisa igualmente.
     if (typeof document === 'undefined') return;
-    const select = document.createElement('select');
-    select.className = 'entity-picker'; // mismo estilo que el selector de entidades
-    select.title = 'Tamaño del terreno a colocar';
 
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = '— Selecciona acción —';
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    select.appendChild(placeholder);
-
-    // Sub-sección Colocar: tamaños del suelo plano nuevo.
-    const placeGroup = document.createElement('optgroup');
-    placeGroup.label = 'Colocar suelo plano';
-    for (const size of TERRAIN_SIZES) {
-      const opt = document.createElement('option');
-      opt.value = String(size);
-      opt.textContent = `${size} × ${size} m`;
-      placeGroup.appendChild(opt);
-    }
-    select.appendChild(placeGroup);
-
-    // Sub-sección Moldear: elevar/hundir un terreno ya colocado.
-    const moldGroup = document.createElement('optgroup');
-    moldGroup.label = 'Moldear terreno colocado';
-    const moldOptions: { value: string; text: string }[] = [
-      { value: 'raise', text: '⬆ Elevar (+0,5 m por clic)' },
-      { value: 'lower', text: '⬇ Hundir (−0,5 m por clic)' },
-    ];
-    for (const m of moldOptions) {
-      const opt = document.createElement('option');
-      opt.value = m.value;
-      opt.textContent = m.text;
-      moldGroup.appendChild(opt);
-    }
-    select.appendChild(moldGroup);
-    select.size = 1 + TERRAIN_SIZES.length + moldOptions.length;
-
-    select.style.position = 'fixed';
+    const panel = document.createElement('div');
+    panel.tabIndex = 0;
+    panel.className = 'terrain-popover';
+    panel.style.cssText =
+      'position:fixed;z-index:60;min-width:238px;display:flex;flex-direction:column;gap:8px;' +
+      'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
+      'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
+      'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
     if (clientX !== undefined && clientY !== undefined) {
-      select.style.left = `${Math.min(clientX, window.innerWidth - 240)}px`;
-      select.style.top = `${Math.min(clientY + 4, window.innerHeight - 200)}px`;
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 270)}px`;
+      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 330)}px`;
     } else {
-      select.style.left = '50%';
-      select.style.top = '50%';
-      select.style.transform = 'translate(-50%, -50%)';
+      panel.style.left = '50%';
+      panel.style.top = '50%';
     }
 
-    select.addEventListener('change', () => {
-      const v = select.value;
-      if (v === 'raise' || v === 'lower') {
-        this.terrainMode = v;
-        this.activeTerrainSize = null; // no colocar por accidente
-        this.cb.onNotice?.(
-          v === 'raise'
-            ? 'Modo moldear: eleva un terreno colocado con cada clic (+0,5 m)'
-            : 'Modo moldear: hunde un terreno colocado con cada clic (−0,5 m)',
-          'success',
-        );
-      } else if (Number.isInteger(Number(v))) {
-        this.activeTerrainSize = Number(v);
-        this.terrainMode = 'place';
-        this.cb.onNotice?.(`Terreno de ${v}×${v} m — clic en la cuadrícula para colocar`, 'success');
-      }
-      this._closeTerrainPicker();
+    const sectorsInfo = document.createElement('div');
+    sectorsInfo.style.cssText = 'font:11px monospace;color:var(--text-secondary,#a6adc8)';
+
+    const refreshSectors = (): void => {
+      const size = this.activeTerrainSize ?? 8;
+      const cells = Math.max(1, Math.round(size / this.terrainCell));
+      const n = cells * cells;
+      sectorsInfo.textContent = `${n} sectores${n > 8192 ? ' · ⚠ pesado: sube la celda' : ''}`;
+    };
+
+    const addButton = (text: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.textContent = text;
+      b.style.cssText =
+        'flex:1;cursor:pointer;padding:5px 6px;border-radius:4px;font:600 11px Inter,sans-serif;' +
+        'background:var(--bg-surface,#313244);border:1px solid var(--border-default,#313244);' +
+        'color:var(--text-primary,#cdd6f4)';
+      b.addEventListener('click', onClick);
+      return b;
+    };
+
+    const addInput = (
+      label: string,
+      min: number,
+      max: number,
+      step: number,
+      value: number,
+      onValue: (n: number) => void,
+    ): void => {
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px';
+      row.appendChild(document.createTextNode(label));
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = String(min);
+      input.max = String(max);
+      input.step = String(step);
+      input.value = String(value);
+      input.style.cssText =
+        'width:74px;padding:3px 6px;border-radius:4px;font:11px "JetBrains Mono",monospace;' +
+        'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
+        'color:var(--text-primary,#cdd6f4)';
+      input.addEventListener('input', () => {
+        const n = Number(input.value);
+        if (Number.isFinite(n)) onValue(Math.min(Math.max(n, min), max));
+      });
+      row.appendChild(input);
+      panel.appendChild(row);
+    };
+
+    // Idea 2: tamaño libre (8–64 m). Elegirlo activa el modo colocar.
+    addInput('Tamaño (m)', 8, 64, 0.5, this.activeTerrainSize ?? 8, (n) => {
+      this.activeTerrainSize = n;
+      this.terrainMode = 'place';
+      refreshSectors();
+      syncModes();
     });
-    select.addEventListener('keydown', (e) => {
+    // Idea 1: lado de la celda de la grilla.
+    addInput('Celda (m)', 0.5, 2, 0.25, this.terrainCell, (n) => {
+      this.terrainCell = n;
+      refreshSectors();
+    });
+    // Idea 3: fuerza (m/s) y radio (m) del pincel de moldear.
+    addInput('Fuerza (m/s)', 0.1, 20, 0.1, this.brushSpeed, (n) => {
+      this.brushSpeed = n;
+    });
+    addInput('Radio (m)', 0.5, 20, 0.5, this.brushRadius, (n) => {
+      this.brushRadius = n;
+    });
+
+    panel.appendChild(sectorsInfo);
+    refreshSectors();
+
+    const modes = document.createElement('div');
+    modes.style.cssText = 'display:flex;gap:6px';
+    const modeButtons = new Map<string, HTMLButtonElement>();
+    const syncModes = (): void => {
+      for (const [id, btn] of modeButtons) {
+        const active = this.terrainMode === id;
+        btn.style.opacity = active ? '1' : '0.55';
+        btn.style.borderColor = active ? 'var(--accent-primary,#89b4fa)' : 'var(--border-default,#313244)';
+      }
+    };
+    const defs = [
+      { id: 'place', text: '⬜ Colocar' },
+      { id: 'raise', text: '⬆ Elevar' },
+      { id: 'lower', text: '⬇ Hundir' },
+    ] as const;
+    for (const d of defs) {
+      const btn = addButton(d.text, () => {
+        this.terrainMode = d.id;
+        if (d.id === 'place' && this.activeTerrainSize === null) this.activeTerrainSize = 8;
+        refreshSectors();
+        syncModes();
+      });
+      modeButtons.set(d.id, btn);
+      modes.appendChild(btn);
+    }
+    panel.appendChild(modes);
+    syncModes();
+
+    panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeTerrainPicker();
     });
 
-    document.body.appendChild(select);
-    this.terrainPicker = select;
+    document.body.appendChild(panel);
+    this.terrainPicker = panel;
     this.terrainPickerOpenedAt = performance.now();
     document.addEventListener('click', this._onTerrainDocClick);
-    this.cb.onNotice?.('Elige el tamaño del terreno a colocar', 'info');
-    requestAnimationFrame(() => select.focus());
+    this.cb.onNotice?.('Terreno: ajusta tamaño/celda/pincel y elige modo', 'info');
+    requestAnimationFrame(() => panel.focus());
   }
 
   private _closeTerrainPicker(): void {

@@ -303,7 +303,10 @@ export function placeTerrainAt(
   z: number,
   size: number,
   floorTex = 'grass',
+  cell = TERRAIN_CELL,
 ): { sectorCount: number; base: number } {
+  // Celda limitada a 0,5–2 m: por debajo, el coste O(celdas²) se descontrola.
+  const cs = Math.min(Math.max(cell, 0.5), 2);
   const offX = Math.round(x); // alinear a las celdas de 1 m del grid
   const offZ = Math.round(z);
 
@@ -315,7 +318,7 @@ export function placeTerrainAt(
     base = typeof fh === 'number' ? fh : (Array.isArray(fh) ? fh[0] : 0) ?? 0;
   }
 
-  const cells = Math.max(1, Math.round(size / TERRAIN_CELL));
+  const cells = Math.max(1, Math.round(size / cs));
   const step = size / cells;
 
   // El id del primer vértice generado da un namespace único por colocación.
@@ -350,6 +353,79 @@ export function placeTerrainAt(
   }
 
   return { sectorCount: cells * cells, base };
+}
+
+/** Rectángulo (en coordenadas de mundo XZ) ocupado por cada colocación de terreno. */
+export interface TerrainFootprint {
+  prefix: string;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Huellas rectangulares de todos los terrenos colocados (una por `terr_<gen>`). */
+export function terrainFootprints(state: EditorState): TerrainFootprint[] {
+  const map = new Map<string, TerrainFootprint>();
+  for (const v of state.world.vertices) {
+    const m = /^(terr_.+?)_v\d+_\d+$/.exec(v.id);
+    if (!m) continue;
+    const pfx = m[1]!;
+    const fp = map.get(pfx);
+    if (!fp) {
+      map.set(pfx, { prefix: pfx, minX: v.x, minY: v.y, maxX: v.x, maxY: v.y });
+    } else {
+      fp.minX = Math.min(fp.minX, v.x);
+      fp.minY = Math.min(fp.minY, v.y);
+      fp.maxX = Math.max(fp.maxX, v.x);
+      fp.maxY = Math.max(fp.maxY, v.y);
+    }
+  }
+  return [...map.values()];
+}
+
+function rectsOverlap(
+  a: { minX: number; minY: number; maxX: number; maxY: number },
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+): boolean {
+  return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+}
+
+/**
+ * Idea 4: un terreno NUNCA se solapa con otro. Si el rectángulo propuesto
+ * intersecta una huella existente, se desliza al borde más cercano hasta
+ * quedar ADYACENTE (pegado, compartiendo borde, sin solapar). Devuelve la
+ * posición resuelta o null si tras `maxTries` desplazamientos no hay lado
+ * libre (zona saturada de terrenos).
+ */
+export function resolveTerrainPlacement(
+  state: EditorState,
+  x: number,
+  z: number,
+  size: number,
+  maxTries = 8,
+): { x: number; z: number; adjacent: boolean } | null {
+  const fps = terrainFootprints(state);
+  let offX = Math.round(x);
+  let offZ = Math.round(z);
+  let adjacent = false;
+  for (let i = 0; i < maxTries; i++) {
+    const rect = { minX: offX, minY: offZ, maxX: offX + size, maxY: offZ + size };
+    const hit = fps.find((f) => rectsOverlap(rect, f));
+    if (!hit) return { x: offX, z: offZ, adjacent };
+    // Deslizar por el borde más corto hacia el exterior de la huella ocupada.
+    const dl = offX - (hit.minX - size); // hacia la izquierda
+    const dr = hit.maxX - offX;          // hacia la derecha
+    const db = offZ - (hit.minY - size); // hacia abajo
+    const dt = hit.maxY - offZ;          // hacia arriba
+    const best = Math.min(dl, dr, db, dt);
+    if (best === dr) offX = hit.maxX;
+    else if (best === dl) offX = hit.minX - size;
+    else if (best === dt) offZ = hit.maxY;
+    else offZ = hit.minY - size;
+    adjacent = true;
+  }
+  return null;
 }
 
 /**

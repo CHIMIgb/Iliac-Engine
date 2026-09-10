@@ -320,3 +320,75 @@ describe('Herramienta Terreno (7)', () => {
     expect(statuses.at(-1)).toBe('Terreno: —');
   });
 });
+describe('ToolManager · popover de terreno (ideas 1-3)', () => {
+  const ctx = (wx: number, wy: number, py = 0) =>
+    ({ px: wx, py, world: { x: wx, y: wy, z: wy }, z: wy, screenVertices: [], screenWalls: [], screenSprites: [], shiftKey: false }) as never;
+
+  it('terrainCell controla la densidad de la grilla colocada', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 8;
+    tm.terrainCell = 2;
+    tm.onPointerDown(ctx(0, 0));
+    expect(state.world.sectors).toHaveLength(16);
+  });
+
+  it('brushRadius limita la zona afectada del pincel', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 8;
+    tm.onPointerDown(ctx(0, 0));
+    tm.terrainMode = 'raise';
+    tm.brushRadius = 1; // solo vértices a <1 m del centro (4,4)
+    tm.onPointerDown(ctx(4, 4));
+    tm.update(0.5, ctx(4, 4)); // +1 m a 2 m/s en el centro exacto
+    const h = (x: number, z: number) => {
+      const v = state.world.vertices.find((vv) => vv.x === x && vv.y === z)!;
+      let out = 0;
+      for (const s of state.world.sectors) {
+        const i = s.vertexIds.indexOf(v.id);
+        if (i >= 0 && s.id.startsWith('terr_')) out = (Array.isArray(s.floorH) ? s.floorH[i] : s.floorH) as number;
+      }
+      return out;
+    };
+    expect(h(4, 4)).toBe(1); // bajo el cursor
+    expect(h(4, 5)).toBe(0); // a 1 m: fuera del radio
+  });
+
+  it('brushSpeed escala la fuerza del esculpido', () => {
+    const state = new EditorState();
+    const tm = new ToolManager(state);
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 8;
+    tm.onPointerDown(ctx(0, 0));
+    tm.terrainMode = 'raise';
+    tm.brushSpeed = 10;
+    tm.onPointerDown(ctx(4, 4));
+    tm.update(0.2, ctx(4, 4)); // 10 m/s * 0.2 s = +2
+    const center = state.world.vertices.find((v) => v.x === 4 && v.y === 4)!;
+    let h = 0;
+    for (const s of state.world.sectors) {
+      const i = s.vertexIds.indexOf(center.id);
+      if (i >= 0 && s.id.startsWith('terr_')) h = (Array.isArray(s.floorH) ? s.floorH[i] : s.floorH) as number;
+    }
+    expect(h).toBe(2);
+    tm.onPointerUp();
+  });
+
+  it('idea 4: colocar sobre un terreno existente coloca ADYACENTE, no encima', () => {
+    const state = new EditorState();
+    const notices: string[] = [];
+    const tm = new ToolManager(state, { onNotice: (t) => notices.push(t) });
+    tm.setTool('terrain');
+    tm.activeTerrainSize = 4;
+    tm.terrainCell = 2;
+    tm.onPointerDown(ctx(0, 0)); // terreno 0..4
+    tm.onPointerDown(ctx(2, 2)); // clic en medio → debe deslizarse
+    expect(state.world.sectors).toHaveLength(8); // dos terrenos de 4 celdas (4 m / celda 2)
+    const fp = state.world.vertices.filter((v) => v.x > 4);
+    expect(fp.length).toBeGreaterThan(0); // el segundo quedó más allá del borde
+    expect(notices.at(-1)).toContain('ADYACENTE');
+  });
+});
