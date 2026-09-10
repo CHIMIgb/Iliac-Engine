@@ -13,7 +13,7 @@ Cómo funcionan las herramientas de edición de RayCast Studio. Documento de ref
 | `Q` / `E` | Bajar / subir la altura de cámara |
 | Rueda | Zoom |
 | Arrastre en vacío | Orbitar |
-| `F5` | Playtest (pendiente F6 — la toolbar lo avisa por toast) |
+| `▶ Playtest` / `F5` | Primera persona (WASD + ratón capturado); `Tab` o `▶` de nuevo vuelven al editor |
 
 Undo/redo: **pendiente** (botón en toolbar, stack de snapshots ya preparado en `EditorState.snapshot()`).
 
