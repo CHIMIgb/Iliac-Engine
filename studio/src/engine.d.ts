@@ -14,6 +14,9 @@ declare module '@engine/core/validate.js' {
 declare module '@engine/index.js' {
   export class Engine3D {
     constructor(project: unknown);
+    /** Cambia el mundo sin recrear renderer/texturas; false si el proyecto es inválido. */
+    setWorld(project: unknown): boolean;
+    loaded: boolean;
     player: {
       posX: number;
       posY: number;

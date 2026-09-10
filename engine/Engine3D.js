@@ -36,6 +36,29 @@ export class Engine3D {
     return this;
   }
 
+  /**
+   * Cambia el mundo SIN recrear el motor (edición en vivo del Studio):
+   * revalida el proyecto, reconstruye el índice de sectores y la malla del
+   * mundo, y conserva renderer y texturas (lo caro de un reload completo).
+   * Devuelve false si el proyecto es inválido (el mundo anterior se mantiene).
+   * Limitación: las texturas NUEVAS del proyecto no se decodifican hasta un
+   * reload completo (ponytail: recargar solo la textura que falte si hace
+   * falta en el editor de assets).
+   */
+  setWorld(project) {
+    const { errors } = validateProject(project);
+    if (errors.length) return false;
+    this.project = project;
+    this.world = project.world;
+    this.sectorIndex = this.world.vertices && this.world.sectors
+      ? buildSectorIndex(this.world)
+      : null;
+    if (this.renderer && this.loaded) {
+      WorldMesh.build(this.renderer.scene, this.project, this.textures);
+    }
+    return true;
+  }
+
   resize(width, height) {
     if (!this.renderer) return;
     this.renderer.resize(width, height);

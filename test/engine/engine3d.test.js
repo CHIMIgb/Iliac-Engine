@@ -145,3 +145,21 @@ test('Engine3D se construye con mundo vacío (sin sectores)', () => {
     assert.equal(engine.world.sectors.length, 0);
   });
 });
+
+test('Engine3D.setWorld cambia el mundo sin recrear el motor', () => {
+  const engine = new Engine3D(projectV3);
+  const otro = JSON.parse(JSON.stringify(projectV3));
+  otro.world.sectors[0].floorH = [1, 2, 3, 4]; // relieve nuevo
+  assert.equal(engine.setWorld(otro), true);
+  assert.equal(engine.world.sectors[0].floorH[3], 4);
+  assert.equal(engine.project, otro);
+  // Sin renderer (nunca load): solo datos, no lanza
+});
+
+test('Engine3D.setWorld rechaza proyectos inválidos y conserva el mundo', () => {
+  const engine = new Engine3D(projectV3);
+  const roto = JSON.parse(JSON.stringify(projectV3));
+  roto.world.sectors[0].vertexIds.push('vNOEXISTE'); // error real del validador
+  assert.equal(engine.setWorld(roto), false);
+  assert.equal(engine.world, projectV3.world);
+});

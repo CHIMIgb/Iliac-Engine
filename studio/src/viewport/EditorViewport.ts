@@ -94,6 +94,15 @@ export class EditorViewport {
   }
 
   async reload(project: unknown): Promise<void> {
+    // Camino barato (edición en vivo): si el motor ya está cargado, SOLO se
+    // cambia el mundo. Recrear el Engine3D en cada pasada del pincel (renderer
+    // + texturas + GPU) era lo que trababa los terrenos > 8 m.
+    if (this.engine?.loaded && this.engine.setWorld(project as never)) {
+      this._addEditorGrid();
+      this._addEntityBoxes();
+      this.last = performance.now();
+      return;
+    }
     const mode = this.controls.mode;
     const engine = new Engine3D(project as unknown);
     await engine.load(this.canvas);
@@ -245,6 +254,9 @@ export class EditorViewport {
   private _addEditorGrid(): void {
     if (!this.engine) return;
     const scene = this.engine.renderer.scene;
+    // Idempotente: el reload barato no limpia estos helpers (no son Mesh).
+    scene.getObjectByName('__editor_grid__')?.removeFromParent();
+    scene.getObjectByName('__editor_axes__')?.removeFromParent();
 
     // Grilla 500×500 con divisiones de 1 unidad (el zoom máximo 280 alcanza
     // a verla entera; el far de la cámara del proyecto recorta más allá).
@@ -261,7 +273,9 @@ export class EditorViewport {
   private _addEntityBoxes(): void {
     if (!this.engine || !this.toolManager) return;
     const scene = this.engine.renderer.scene;
+    scene.getObjectByName('__entity_boxes__')?.removeFromParent();
     const boxes = buildEntityBoxes(this.toolManager.doc.world.sprites);
+    boxes.name = '__entity_boxes__';
     scene.add(boxes);
   }
 

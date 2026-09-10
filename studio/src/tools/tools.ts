@@ -248,7 +248,10 @@ export const TERRAIN_BRUSH_RADIUS = 3;
  * grilla se vea limpia; siguen existiendo en los datos para el pincel.
  */
 export function hiddenTerrainVertices(state: EditorState): Set<string> {
-  const placements = new Map<string, { ids: string[]; maxC: number; maxR: number }>();
+  // Una sola pasada con regex: se guardan las coordenadas de grilla (c, r)
+  // junto al id para no recompilar patrones por vértice (esto corre por
+  // frame en el overlay y el picking).
+  const placements = new Map<string, { verts: { id: string; c: number; r: number }[]; maxC: number; maxR: number }>();
   for (const v of state.world.vertices) {
     const m = /^(terr_.+?)_v(\d+)_(\d+)$/.exec(v.id);
     if (!m) continue;
@@ -256,17 +259,14 @@ export function hiddenTerrainVertices(state: EditorState): Set<string> {
     const c = Number(m[2]);
     const r = Number(m[3]);
     let e = placements.get(pfx);
-    if (!e) { e = { ids: [], maxC: 0, maxR: 0 }; placements.set(pfx, e); }
-    e.ids.push(v.id);
-    e.maxC = Math.max(e.maxC, c);
-    e.maxR = Math.max(e.maxR, r);
+    if (!e) { e = { verts: [], maxC: 0, maxR: 0 }; placements.set(pfx, e); }
+    e.verts.push({ id: v.id, c, r });
+    if (c > e.maxC) e.maxC = c;
+    if (r > e.maxR) e.maxR = r;
   }
   const hidden = new Set<string>();
-  for (const [pfx, e] of placements) {
-    for (const id of e.ids) {
-      const m = new RegExp(`^${pfx}_v(\\d+)_(\\d+)$`).exec(id)!;
-      const c = Number(m[1]);
-      const r = Number(m[2]);
+  for (const e of placements.values()) {
+    for (const { id, c, r } of e.verts) {
       const corner = (c === 0 || c === e.maxC) && (r === 0 || r === e.maxR);
       if (!corner) hidden.add(id);
     }
