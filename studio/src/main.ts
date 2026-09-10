@@ -94,6 +94,7 @@ function setActiveTool(id: ToolId): void {
   toolManager.setTool(id);
   layout.statusBar.setItem('tool', `Herramienta: ${id}`);
   toolActions.forEach((action, i) => layout.toolbar.setActive(i, action.id === id));
+  skyBtn.classList.remove('active'); // elegir una herramienta quita el badge del Cielo
 }
 
 toolActions.forEach((action) => {
@@ -123,11 +124,18 @@ toolActions.forEach((action) => {
 const skyBtn = layout.toolbar.addAction({
   icon: 'cloud', label: 'Cielo', shortcut: '8',
   onClick: () => {
+    markSkyActive();
     const r = skyBtn.getBoundingClientRect();
     toolManager.openSkyPicker(r.left, r.bottom);
   },
 });
 toolGroup.appendChild(skyBtn);
+
+/** El Cielo muestra el mismo badge azul que las herramientas al seleccionarlo. */
+function markSkyActive(): void {
+  toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
+  skyBtn.classList.add('active');
+}
 
 // ── Toolbar: mazmorras (junto a Entidades) ─────────────────────
 const dungeonGroup = layout.toolbar.addGroup();
@@ -255,9 +263,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Tecla 8: popover del cielo (no es herramienta de canvas)
+  // Tecla 8: popover del cielo (no es herramienta de canvas, pero luce su badge)
   if (key === '8' && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
+    markSkyActive();
     toolManager.openSkyPicker();
     return;
   }

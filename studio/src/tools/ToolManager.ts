@@ -664,7 +664,7 @@ export class ToolManager {
     }
 
     const label = document.createElement('div');
-    label.textContent = 'Horizonte lejano (set Daggerfall)';
+    label.textContent = 'Horizonte lejano';
     label.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
     panel.appendChild(label);
 
