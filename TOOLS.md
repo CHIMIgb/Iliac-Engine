@@ -13,7 +13,7 @@ Cómo funcionan las herramientas de edición de RayCast Studio. Documento de ref
 | `Q` / `E` | Bajar / subir la altura de cámara |
 | Rueda | Zoom |
 | Arrastre en vacío | Orbitar |
-| `▶ Playtest` / `F5` | Primera persona (WASD + ratón capturado); `Tab` o `▶` de nuevo vuelven al editor |
+ | `Playtest` (toolbar) / `F5` | Primera persona (WASD + ratón capturado); `Tab` o `Playtest` de nuevo vuelven al editor |
 
 Undo/redo: **pendiente** (botón en toolbar, stack de snapshots ya preparado en `EditorState.snapshot()`).
 
@@ -65,14 +65,14 @@ Ids con namespace por colocación (la idea 4 garantiza que nunca se solapan):
 - El prefijo `terr_` es lo que usan pincel, oclusión, adyacencia y Mover para distinguir terreno de salas/mazmorras.
 
 Parámetros del popover:
-- **Tamaño (m)**: 8–64, paso 0,5 (idea 2). Se muestra en vivo el nº de sectores (celdas²); aviso `⚠` pasado de 8192.
+- **Tamaño (m)**: 8–64, paso 0,5 (idea 2). Se muestra en vivo el nº de sectores (celdas²); aviso de peso ("pesado: sube la celda") pasado de 8192.
 - **Celda (m)**: 0,5–2, paso 0,25, clampeada dentro de `placeTerrainAt` (idea 1). Celda grande = terreno más ligero y menos suave; pequeña = curva casi continua.
 - **Fuerza (m/s)**: velocidad del pincel (0,1–20) — los metros que sube/baja el terreno POR SEGUNDO bajo el cursor. Frame-independiente (`velocidad·dt`).
 - **Radio (m)**: tamaño del pincel (0,5–20) — solo los vértices a menos de `radio` del cursor se mueven.
 
-Modos (botones): **⬜ Colocar** / **⬆ Elevar** / **⬇ Hundir**.
+Modos (botones): **Colocar / Elevar / Hundir**.
 
-### Colocar (modo ⬜)
+### Colocar (modo "Colocar")
 
 Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangulares de los terrenos existentes (`terrainFootprints`); si solaparía, **desliza el terreno al borde más cercano al clic** (pegado, nunca encima; hasta 8 saltos; toast "Colocado ADYACENTE"). Sin lado libre → no coloca y avisa. El suelo nace elevado a la base del sector bajo el clic (0 si es vacío).
 
@@ -106,21 +106,20 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 **Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
 
-**Herramienta de TIEMPO (en el popover del Cielo):** el set 0–30 ES la hora del día. Slider 0–30 para recorrerlo a mano y «⏩ Avanzar el tiempo solo» (un paso cada 4 s; sigue corriendo si cierras el popover).
+**Herramienta de TIEMPO (en el popover del Cielo):** el set 0–30 ES la hora del día. Slider 0–30 para recorrerlo a mano y «Avanzar el tiempo solo» (un paso cada 4 s; sigue corriendo si cierras el popover).
 
-**UI:** tecla 8 o botón ☁ → «— Sin cielo — / SKY00…SKY30» + slider + auto-avance; se ve al instante (el reload en vivo intercambia el SkySystem).
+**UI:** tecla 8 o botón Cielo (icono cloud de lucide) → «— Sin cielo — / SKY00…SKY30» + slider + auto-avance; se ve al instante (el reload en vivo intercambia el SkySystem).
 
 ---
 
-## 9 · Pantalla — resolución del playtest y CRT (tecla 9)
+## 9 · Pantalla — resolución del playtest (tecla 9)
 
-En `project.render`: `resolution: [ancho, alto] | null` y `crt: boolean`.
+En `project.render`: `resolution: [ancho, alto] | null` (el CRT se retiró del proyecto por decisión del usuario; la resolución se queda).
 
 - **Resolución**: buffer interno fijo (Nativa / 640×400 / 480×300 / 320×200 —la del Daggerfall— / 256×160). El navegador estira el canvas con `image-rendering: pixelated`: píxel duro retro y render más barato. Afecta a editor y juego (aspecto del mundo); los gizmos del overlay son un canvas CSS aparte y se mantienen nítidos; el picking no se resiente (mismo NDC).
-- **CRT** (`Renderer3D`, shader en GLSL propio, sin dependencias — solo three puro, para que el demo sin build también lo use): pase de post-proceso escena→`WebGLRenderTarget`→quad a pantalla completa con **curvatura barrel + scanlines por fila + viñeta**. Autoapagado en modo editor: `setMode` enciende el CRT solo en juego si `render.crt` está activo (el editor se queda nítido).
-- Cambiar cualquiera de los dos recrea el renderer (el viewport detecta el cambio de `render` y salta el reload barato).
+- Cambiar la resolución recrea el renderer (vive en el constructor de `Renderer3D`; el viewport detecta el cambio de `render` y salta el reload barato).
 
-**UI:** tecla 9 o botón 📺 → select de resolución + checkbox «📺 Efecto CRT». El proyecto inicial arranca con **CRT + 320×200**.
+**UI:** tecla 9 o el botón de pantalla de la toolbar → select de resolución. El proyecto inicial arranca con **320×200**.
 
 ---
 

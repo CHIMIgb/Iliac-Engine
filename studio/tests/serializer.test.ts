@@ -121,20 +121,17 @@ describe('Serializer', () => {
   });
 });
 
-describe('render · CRT y resolución del playtest', () => {
-  it('conserva crt y resolution en el round-trip', () => {
+describe('render · resolución del playtest', () => {
+  it('conserva resolution en el round-trip', () => {
     const s = new EditorState();
-    s.setRender({ crt: true, resolution: [320, 200] });
+    s.setRender({ resolution: [320, 200] });
     const json = toProjectJson(s);
-    expect((json.render as { crt?: boolean }).crt).toBe(true);
     const back = fromProjectJson(json as unknown as Record<string, unknown>);
     expect(back.render.resolution).toEqual([320, 200]);
-    expect(back.render.crt).toBe(true);
   });
 
-  it('el sampleProject arranca con CRT 320x200', () => {
-    const r = (sampleProject as unknown as { render: { crt?: boolean; resolution?: number[] } }).render;
-    expect(r.crt).toBe(true);
+  it('el sampleProject arranca con buffer 320x200', () => {
+    const r = (sampleProject as unknown as { render: { resolution?: number[] } }).render;
     expect(r.resolution).toEqual([320, 200]);
   });
 });

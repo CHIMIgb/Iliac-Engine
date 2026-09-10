@@ -95,8 +95,9 @@ export class EditorViewport {
 
   async reload(project: unknown): Promise<void> {
     const next = project as { render?: unknown };
-    // La resolución/CRT viven en el constructor del Renderer3D: si cambian,
-    // hay que recrear el motor completo (no vale el setWorld barato).
+    // La resolución interna vive en el constructor del Renderer3D: si cambia
+    // el bloque render, hay que recrear el motor completo (no vale el
+    // setWorld barato).
     const prevRender = (this.engine?.project as { render?: unknown } | null)?.render;
     const renderChanged = !!this.engine &&
       JSON.stringify(next.render ?? null) !== JSON.stringify(prevRender ?? null);
@@ -148,14 +149,9 @@ export class EditorViewport {
     if (wasGame && this.canvas.ownerDocument.pointerLockElement === this.canvas) {
       this.canvas.ownerDocument.exitPointerLock();
     }
-    // Al entrar en juego (▶ Playtest / F5) la cámara pasa a primera persona
-    // con el ratón capturado; Esc libera el puntero y ▶ vuelve al editor.
+    // Al entrar en juego (Playtest / F5) la cámara pasa a primera persona con
+    // el ratón capturado; Esc libera el puntero y Playtest vuelve al editor.
     if (mode === 'game') this.canvas.requestPointerLock();
-    // El CRT solo se luce en el playtest: el editor queda nítido (la
-    // resolución interna del buffer sí es compartida por ambos modos).
-    if (this.engine) {
-      this.engine.renderer.crt = mode === 'game' && !!this.toolManager?.doc.render.crt;
-    }
   }
 
   toggleMode(): void {

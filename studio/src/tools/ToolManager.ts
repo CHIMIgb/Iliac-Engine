@@ -510,7 +510,7 @@ export class ToolManager {
       const size = this.activeTerrainSize ?? 8;
       const cells = Math.max(1, Math.round(size / this.terrainCell));
       const n = cells * cells;
-      sectorsInfo.textContent = `${n} sectores${n > 8192 ? ' · ⚠ pesado: sube la celda' : ''}`;
+      sectorsInfo.textContent = `${n} sectores${n > 8192 ? ' · pesado: sube la celda' : ''}`;
     };
 
     const addButton = (text: string, onClick: () => void): HTMLButtonElement => {
@@ -587,9 +587,9 @@ export class ToolManager {
       }
     };
     const defs = [
-      { id: 'place', text: '⬜ Colocar' },
-      { id: 'raise', text: '⬆ Elevar' },
-      { id: 'lower', text: '⬇ Hundir' },
+      { id: 'place', text: 'Colocar' },
+      { id: 'raise', text: 'Elevar' },
+      { id: 'lower', text: 'Hundir' },
     ] as const;
     for (const d of defs) {
       const btn = addButton(d.text, () => {
@@ -727,7 +727,7 @@ export class ToolManager {
     });
     slider.addEventListener('input', () => applySet(Number(slider.value)));
     autoRow.appendChild(autoBox);
-    autoRow.appendChild(document.createTextNode('⏩ Avanzar el tiempo solo (1 hora / 4 s)'));
+    autoRow.appendChild(document.createTextNode('Avanzar el tiempo solo (1 hora / 4 s)'));
     autoBox.addEventListener('change', () => {
       if (autoBox.checked) {
         this._skyTimer = window.setInterval(() => {
@@ -770,17 +770,16 @@ export class ToolManager {
     if (!picker.contains(e.target as Node)) this._closeSkyPicker();
   };
 
-  // ── Pantalla: resolución del playtest + efecto CRT (tecla 9) ──
+  // ── Pantalla: resolución del playtest (tecla 9) ──────────────
 
   private screenPicker: HTMLElement | null = null;
   private screenPickerOpenedAt = 0;
 
   /**
    * Popover «Pantalla»: resolución interna de render (buffer fijo que el
-   * navegador estira con píxel duro = look retro) y CRT (curvatura +
-   * scanlines + viñeta — shader en Renderer3D, solo three puro). Escribe en
-   * `project.render`; el viewport recrea el renderer al cambiar (render no
-   * vive en el reload barato).
+   * navegador estira con píxel duro = look retro). Escribe en
+   * `project.render.resolution`; el viewport recrea el renderer al cambiar
+   * (la resolución vive en el constructor del Renderer3D).
    */
   openScreenPicker(clientX?: number, clientY?: number): void {
     this._closeScreenPicker();
@@ -837,19 +836,6 @@ export class ToolManager {
       );
     });
     panel.appendChild(resSel);
-
-    const crtRow = document.createElement('label');
-    crtRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer';
-    const crtBox = document.createElement('input');
-    crtBox.type = 'checkbox';
-    crtBox.checked = !!this.doc.render.crt;
-    crtRow.appendChild(crtBox);
-    crtRow.appendChild(document.createTextNode('📺 Efecto CRT (curvatura + scanlines + viñeta)'));
-    crtBox.addEventListener('change', () => {
-      this.doc.setRender({ crt: crtBox.checked });
-      this.cb.onNotice?.(crtBox.checked ? 'CRT activado' : 'CRT desactivado', 'success');
-    });
-    panel.appendChild(crtRow);
 
     panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeScreenPicker();

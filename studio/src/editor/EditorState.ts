@@ -157,7 +157,7 @@ export class EditorState {
     this.notify();
   }
 
-  /** Fusiona opciones de render (crt, resolution, fov, fog…) y avisa. */
+  /** Fusiona opciones de render (resolution, fov, fog…) y avisa. */
   setRender(patch: Partial<EditableRender>): void {
     this.render = { ...this.render, ...patch };
     this.notify();

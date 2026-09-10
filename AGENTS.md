@@ -31,6 +31,7 @@ Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 ## Convenciones
 
 - **Comentarios y mensajes de commit en español.** Estilo de commits en el historial: `feat: ...` (rama `main`).
+- **Iconos: solo minimalistas (lucide SVG).** Prohibido usar emojis como iconos de UI (📺 ⏩ ⬜ 🖥 ☁ o flechas decorativas en botones, labels, toasts o popovers): usar los iconos de `lucide` vía `Icon.ts`/`toolbar.addAction({icon})` o texto plano.
 - Identidad git ya configurada a nivel global: `CHIMIgb` / `adriangallardobuenrostro@gmail.com`.
 - **`assets/` NO se versiona** (`.gitignore`): sprites de Daggerfall con copyright. Nunca commitear; importar localmente bajo demanda.
 - `.env` está gitignored (guardará `DATABASE_URL`/`JWT_SECRET` cuando exista backend). No commitear.

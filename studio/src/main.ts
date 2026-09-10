@@ -129,7 +129,7 @@ const skyBtn = layout.toolbar.addAction({
 });
 toolGroup.appendChild(skyBtn);
 
-// ── Toolbar: pantalla (resolución del playtest + CRT) ──────────
+// ── Toolbar: pantalla (resolución del playtest) ─────────────────
 const screenBtn = layout.toolbar.addAction({
   icon: 'tv', label: 'Pantalla', shortcut: '9',
   onClick: () => {
@@ -236,7 +236,7 @@ viewport.onModeChange = (mode) => {
   showToast(
     mode === 'game'
       ? 'Modo juego — WASD + ratón. Tab para volver.'
-      : 'Modo editor — clic izq edita (y orbita en vacío), clic der orbita, medio pan, WASD+QE pan, rueda zoom. ▶ o F5 para jugar.',
+      : 'Modo editor — clic izq edita (y orbita en vacío), clic der orbita, medio pan, WASD+QE pan, rueda zoom. Playtest (F5) para jugar.',
     'info', 2500,
   );
 };
@@ -272,7 +272,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Tecla 9: popover de pantalla (resolución + CRT)
+  // Tecla 9: popover de pantalla (resolución del playtest)
   if (key === '9' && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     toolManager.openScreenPicker();

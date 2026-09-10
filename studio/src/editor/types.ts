@@ -98,9 +98,7 @@ export interface EditableRender {
   ambientLight?: { color?: number; intensity?: number };
   directionalLight?: { color?: number; intensity?: number; position?: number[] };
   fog?: { color?: number; density?: number };
-  /** Efecto CRT del playtest (curvatura + scanlines + viñeta). */
-  crt?: boolean;
-  /** Resolución interna de render [ancho, alto] (p. ej. [480,300]); null = nativa. */
+  /** Resolución interna de render [ancho, alto] (p. ej. [320,200]); null = nativa. */
   resolution?: number[] | null;
 }
 

@@ -39,8 +39,6 @@ declare module '@engine/index.js' {
     renderer: {
       camera: import('three').PerspectiveCamera;
       scene: import('three').Scene;
-      /** CRT activo en el pase de post-proceso (el viewport lo conmuta por modo). */
-      crt: boolean;
       render(): void;
       resize(w: number, h: number): void;
     };

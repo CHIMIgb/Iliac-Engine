@@ -2,44 +2,12 @@ import * as THREE from 'three';
 import { createFog } from './fog.js';
 
 /**
- * Pantalla de salida del motor: buffer intermedio (WebGLRenderTarget) +
- * quad a pantalla completa con el shader CRT. Sin dependencias extra
- * (solo three puro): así el demo sin build también puede usarlo.
- * Config desde project.json → render: { resolution: [w,h] | null, crt: bool }.
+ * Renderer3D — canvas WebGL + escena + cámara + luces.
+ *
+ * project.render.resolution permite fijar un buffer interno pequeño
+ * (p. ej. [320,200], la resolución nativa de Daggerfall) que el navegador
+ * estira con píxel duro: look retro y render más barato.
  */
-const CRT_VERT = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}`;
-
-const CRT_FRAG = `
-uniform sampler2D tDiffuse;
-uniform vec2 uRes;      // tamaño del buffer interno (para scanlines por fila)
-uniform float uOn;      // 1 = CRT, 0 = pase directo
-uniform vec3 uBg;       // color de fondo fuera de la pantalla curvada
-varying vec2 vUv;
-void main() {
-  if (uOn < 0.5) {
-    gl_FragColor = texture2D(tDiffuse, vUv);
-    return;
-  }
-  vec2 p = vUv * 2.0 - 1.0;
-  float r2 = dot(p, p);
-  vec2 q = p * (1.0 + 0.12 * r2);          // curvatura barrel (CRT)
-  vec2 uv2 = q * 0.5 + 0.5;
-  if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0) {
-    gl_FragColor = vec4(uBg, 1.0);
-    return;
-  }
-  vec3 c = texture2D(tDiffuse, uv2).rgb;
-  c *= 0.82 + 0.18 * sin(uv2.y * uRes.y * 3.14159265); // scanlines por fila
-  float vig = smoothstep(1.15, 0.35, length(q));       // viñeteado
-  c *= mix(0.65, 1.0, vig);
-  gl_FragColor = vec4(c, 1.0);
-}`;
-
 export class Renderer3D {
   constructor(canvas, renderSettings = {}) {
     this.canvas = canvas;
@@ -58,11 +26,10 @@ export class Renderer3D {
       renderSettings.far ?? 200,
     );
 
-    // Resolución del playtest (ej. [480,300]) y CRT: render: { resolution, crt }.
+    // Resolución interna de render [ancho, alto] (p. ej. [320,200]); null = nativa.
     this.fixedRes = Array.isArray(renderSettings.resolution) && renderSettings.resolution.length === 2
       ? [Math.round(renderSettings.resolution[0]), Math.round(renderSettings.resolution[1])]
       : null;
-    this.crt = !!renderSettings.crt;
 
     this._createRenderer();
     this._addLights(renderSettings);
@@ -110,7 +77,7 @@ export class Renderer3D {
     });
     this.canvas.addEventListener('webglcontextrestored', () => {
       this.contextLost = false;
-      // Los bufos de geometría se re-suben en el próximo render; solo hace
+      // Los buferes de geometría se re-suben en el próximo render; solo hace
       // falta recrear el renderer sobre el contexto restaurado.
       this._createRenderer();
       this.resize(this.canvas.width, this.canvas.height);
@@ -135,57 +102,7 @@ export class Renderer3D {
     // El cielo sigue a la cámara real (orbit del editor o jugador): mismo
     // punto de enganche para ambos modos.
     this.sky?.update(this.camera);
-
-    const post = this.crt ? this._ensurePost() : null;
-    if (!post) { this.renderer.render(this.scene, this.camera); return; }
-
-    // Pase 1: la escena al buffer interno. Pase 2: quad CRT a pantalla.
-    this.renderer.setRenderTarget(post.rt);
     this.renderer.render(this.scene, this.camera);
-    this.renderer.setRenderTarget(null);
-    const u = post.mat.uniforms;
-    u.tDiffuse.value = post.rt.texture;
-    u.uOn.value = this.crt ? 1 : 0;
-    u.uRes.value.set(post.rt.width, post.rt.height);
-    this.renderer.render(post.scene, post.camera);
-  }
-
-  /**
-   * Escena de post-proceso (buffer + quad con shader CRT). Se crea una vez
-   * y se redimensiona solo cuando cambia el tamaño del buffer.
-   */
-  _ensurePost() {
-    const size = new THREE.Vector2();
-    this.renderer.getDrawingBufferSize(size);
-    const [w, h] = [size.x || this.canvas.width, size.y || this.canvas.height];
-    if (!this._post) {
-      const rt = new THREE.WebGLRenderTarget(w, h, {
-        minFilter: THREE.LinearFilter,
-        magFilter: this.crt ? THREE.LinearFilter : THREE.NearestFilter,
-        depthBuffer: true,
-      });
-      const mat = new THREE.ShaderMaterial({
-        vertexShader: CRT_VERT,
-        fragmentShader: CRT_FRAG,
-        uniforms: {
-          tDiffuse: { value: rt.texture },
-          uRes: { value: new THREE.Vector2(w, h) },
-          uOn: { value: 0 },
-          uBg: { value: this.scene.background?.clone?.() ?? new THREE.Color(0x202020) },
-        },
-        depthTest: false,
-        depthWrite: false,
-      });
-      const scene = new THREE.Scene();
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
-      mesh.frustumCulled = false;
-      scene.add(mesh);
-      this._post = { rt, mat, scene, camera: new THREE.Camera() };
-    } else if (this._post.rt.width !== w || this._post.rt.height !== h) {
-      this._post.rt.setSize(w, h);
-      this._post.mat.uniforms.uRes.value.set(w, h);
-    }
-    return this._post;
   }
 
   resize(width, height) {
@@ -197,12 +114,6 @@ export class Renderer3D {
   }
 
   dispose() {
-    if (this._post) {
-      this._post.rt.dispose();
-      this._post.mat.dispose();
-      this._post.scene.children[0]?.geometry?.dispose();
-      this._post = null;
-    }
     if (this.contextLost) return;
     this.renderer.dispose();
     this.contextLost = true;
