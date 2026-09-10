@@ -40,6 +40,9 @@ export class Engine3D {
    * Cambia el mundo SIN recrear el motor (edición en vivo del Studio):
    * revalida el proyecto, reconstruye el índice de sectores y la malla del
    * mundo, y conserva renderer y texturas (lo caro de un reload completo).
+   * Vía rápida: si solo cambiaron alturas de piso de terreno
+   * (WorldMesh.applyHeightsIfOnlyChange) se parchea el buffer en el sitio —
+   * ni merge de geometrías ni subida nueva, esculpido fluido hasta 32 m.
    * Devuelve false si el proyecto es inválido (el mundo anterior se mantiene).
    * Limitación: las texturas NUEVAS del proyecto no se decodifican hasta un
    * reload completo (ponytail: recargar solo la textura que falte si hace
@@ -48,14 +51,17 @@ export class Engine3D {
   setWorld(project) {
     const { errors } = validateProject(project);
     if (errors.length) return false;
+    const prevWorld = this.world;
     this.project = project;
     this.world = project.world;
+    if (this.renderer && this.loaded) {
+      if (!WorldMesh.applyHeightsIfOnlyChange(this.renderer.scene, prevWorld, this.world)) {
+        WorldMesh.build(this.renderer.scene, this.project, this.textures);
+      }
+    }
     this.sectorIndex = this.world.vertices && this.world.sectors
       ? buildSectorIndex(this.world)
       : null;
-    if (this.renderer && this.loaded) {
-      WorldMesh.build(this.renderer.scene, this.project, this.textures);
-    }
     return true;
   }
 
