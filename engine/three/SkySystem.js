@@ -13,8 +13,9 @@
  *  - Dos capas: 0 = lejana (montañas/nubes, gira al 50 % del yaw → paralaje;
  *    32·0.5 = 16 entero, la vuelta de 360° cierra sin salto), 1 = cercana
  *    (silueta de bosque, anclada 1:1 al yaw).
- * Render: `depthTest:false` + `renderOrder` negativo → SIEMPRE por detrás del
- * mundo; nunca tapa geometría.
+ * Render: el telón se dibuja con z-buffer a profundidad fija (D=150/160) y
+ * `depthWrite:false`: todo lo más cercano del mundo lo tapa (el horizonte
+ * queda "enviado al fondo", como en el original), y él nunca tapa el mapa.
  */
 import * as THREE from 'three';
 import { loadTextures } from './textures.js';
@@ -90,7 +91,12 @@ export class SkySystem {
         map: this.textures[`${l}:0`],
         transparent: true,
         depthWrite: false,
-        depthTest: false,
+        // CON z-buffer: el telón vive a profundidad D (150/160), así que
+        // CUALQUIER geometría del mundo más cercana lo tapa (antes, con
+        // depthTest:false, Three pintaba lo transparente después del mundo
+        // y el horizonte tapaba el mapa). depthWrite:false para que el cielo
+        // nunca tape a otros transparentes (sprites).
+        depthTest: true,
         side: THREE.DoubleSide,
         fog: false,
       });
