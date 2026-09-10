@@ -119,6 +119,16 @@ toolActions.forEach((action) => {
   toolGroup.appendChild(btn);
 });
 
+// ── Toolbar: cielo (horizonte Daggerfall) ──────────────────────
+const skyBtn = layout.toolbar.addAction({
+  icon: 'cloud', label: 'Cielo', shortcut: '8',
+  onClick: () => {
+    const r = skyBtn.getBoundingClientRect();
+    toolManager.openSkyPicker(r.left, r.bottom);
+  },
+});
+toolGroup.appendChild(skyBtn);
+
 // ── Toolbar: mazmorras (junto a Entidades) ─────────────────────
 const dungeonGroup = layout.toolbar.addGroup();
 const dungeonBrowser = new DungeonBrowser();
@@ -235,6 +245,13 @@ document.addEventListener('keydown', (e) => {
   if (toolMap[key] && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     setActiveTool(toolMap[key]);
+    return;
+  }
+
+  // Tecla 8: popover del cielo (no es herramienta de canvas)
+  if (key === '8' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    toolManager.openSkyPicker();
     return;
   }
 

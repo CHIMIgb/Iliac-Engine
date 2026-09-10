@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** (no es herramienta de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -89,6 +89,23 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 ### Vértices solo-visibles
 
 `hiddenTerrainVertices()` oculta en overlay y picking **todos los vértices interiores** de cada grilla: el editor solo marca las **4 esquinas** de cada terreno (los interiores existen para el pincel). Los terrenos además no interfieren con el resto de herramientas.
+
+---
+
+## 8 · Cielo — horizonte lejano estilo Daggerfall (tecla 8)
+
+`world.sky: { set: 0–30, stride?: 1|2, base?: '/sky/' }` (opcional; ausente = fondo de color, comportamiento histórico). Cada **set** es un horizonte distinto (hora del día/tempo de Daggerfall: SKY00–SKY30).
+
+**Formato de assets:** 2 capas en paralaje (0 = lejana: montañas/nubes; 1 = cercana: silueta de bosque sobre el horizonte) × **32 fotogramas 512×220** — ventanas precalculadas de la panorámica: al girar se CAMBIA de fotograma (truco original de Daggerfall, sin costuras). Con `stride 2` solo se cargan los pares (14 MB→7 MB de VRAM, pasos de 22,5°).
+
+**Cómo funciona (engine/three/SkySystem.js):**
+- Dos cilindros parciales (~110° de arco) con `MeshBasicMaterial` sin luz, sin niebla, `depthTest:false`, `renderOrder −3/−2` y radio menor que el `far` de cámara: se pintan SIEMPRE detrás del mundo y **siguen a la cámara** cada frame (`Renderer3D.render → sky.update(camera)` — cubre orbit del editor y modo juego).
+- Frame por capa: `skyFrameIndex(yaw)` con la cercana al 100 % y la lejana al 60 % + deriva lenta de nubes → paralaje.
+- `Engine3D._loadSky` reacciona a cambios de `skySignature` en `setWorld`: cambiar de cielo no recrea el motor entero.
+
+**Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
+
+**UI:** tecla 8 o botón ☁ de la toolbar → «— Sin cielo — / SKY00…SKY30»; se ve al instante (el reload en vivo monta/desmonta el SkySystem).
 
 ---
 

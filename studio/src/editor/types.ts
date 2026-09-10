@@ -107,6 +107,13 @@ export interface EditableMeta {
   renderMode?: string;
 }
 
+/** Cielo lejano (horizonte Daggerfall). Sin sky = fondo de color actual. */
+export interface EditableSky {
+  set: number;
+  stride?: 1 | 2;
+  base?: string;
+}
+
 /** Estado editable completo del mundo (lo que edita el Studio). */
 export interface EditableWorld {
   vertices: EditableVertex[];
@@ -115,4 +122,5 @@ export interface EditableWorld {
   ramps: EditableRamp[];
   sprites: EditableSprite[];
   textures: EditableTextures;
+  sky?: EditableSky | null;
 }

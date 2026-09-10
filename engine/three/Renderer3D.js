@@ -22,6 +22,7 @@ export class Renderer3D {
     this._createRenderer();
     this._addLights(renderSettings);
     this._bindContextLost();
+    this.sky = null; // SkySystem asignado por Engine3D; actualiza en render()
   }
 
   _defaultCreateRenderer(canvas) {
@@ -75,6 +76,9 @@ export class Renderer3D {
 
   render() {
     if (this.contextLost) return;
+    // El cielo sigue a la cámara real (orbit del editor o jugador): mismo
+    // punto de enganche para ambos modos.
+    this.sky?.update(this.camera);
     this.renderer.render(this.scene, this.camera);
   }
 

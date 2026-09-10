@@ -8,3 +8,7 @@ public/
 
 # assets con copyright (sprites de Daggerfall) — nunca versionar
 assets/
+
+# Copias de cielos Daggerfall (setup:sky) — no versionar (copyright)
+studio/public/sky/
+demo/sky/

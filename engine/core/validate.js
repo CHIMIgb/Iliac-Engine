@@ -7,6 +7,18 @@ export function validateProject(project) {
   const world = project.world;
   if (!world || typeof world !== 'object') return finish(errors, 'project.json inválido: falta "world"');
 
+  // Cielo lejano opcional (horizonte estilo Daggerfall): { set 0–30 }.
+  if (world.sky != null) {
+    if (typeof world.sky !== 'object') {
+      finish(errors, '"world.sky" debe ser un objeto { set, stride?, base? }');
+    } else {
+      const s = world.sky;
+      if (!Number.isInteger(s.set) || s.set < 0 || s.set > 30) errors.push('"world.sky.set" debe ser un entero 0–30');
+      if (s.stride != null && s.stride !== 1 && s.stride !== 2) errors.push('"world.sky.stride" solo admite 1 o 2');
+      if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
+    }
+  }
+
   const vertexIds = new Set((world.vertices || []).map((v) => v.id));
   const sectorIds = new Set((world.sectors || []).map((s) => s.id));
 

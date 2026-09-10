@@ -47,6 +47,7 @@ export class WorldMesh {
     WorldMesh._groupMeshes.clear();
     for (let i = scene.children.length - 1; i >= 0; i--) {
       const child = scene.children[i];
+      if (child.userData?.isSky) continue; // el cielo lo gestiona SkySystem
       if (child.isMesh || child.isSprite) {
         if (child.geometry) child.geometry.dispose();
         if (Array.isArray(child.material)) {

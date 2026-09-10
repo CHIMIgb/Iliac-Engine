@@ -349,5 +349,7 @@ export const project = {
     ramps,
     sprites,
     textures,
+    // Horizonte Daggerfall (SKY15). Requiere `npm run setup:sky` (assets no versionados).
+    sky: { set: 15, base: './sky/' },
   },
 };

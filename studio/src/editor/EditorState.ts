@@ -19,6 +19,7 @@ import type {
   EditableCamera,
   EditableRender,
   EditableMeta,
+  EditableSky,
 } from './types';
 
 export type EditorChangeHandler = () => void;
@@ -148,6 +149,12 @@ export class EditorState {
     s.ceilH = ceilH;
     this.notify();
     return true;
+  }
+
+  /** Cielo lejano del mundo (horizonte Daggerfall, tecla 8). null = sin cielo. */
+  setSky(cfg: EditableSky | null): void {
+    this.world.sky = cfg;
+    this.notify();
   }
 
   setSectorTex(id: string, part: 'floor' | 'ceil' | 'wall', tex: string): boolean {

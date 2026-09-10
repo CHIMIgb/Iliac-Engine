@@ -57,6 +57,7 @@ export function toProjectJson(state: EditorState): ProjectJson {
         ...(s.collisionBox ? { collisionBox: s.collisionBox } : {}),
       })),
       textures: { ...state.world.textures },
+      ...(state.world.sky ? { sky: { ...state.world.sky } } : {}),
     },
   };
 }
@@ -77,6 +78,7 @@ export function fromProjectJson(json: Record<string, unknown> | ProjectJson): Ed
       ramps: Array.isArray(world.ramps) ? (world.ramps as EditorState['world']['ramps']) : [],
       sprites: Array.isArray(world.sprites) ? (world.sprites as EditorState['world']['sprites']) : [],
       textures,
+      sky: (world.sky ?? null) as EditorState['world']['sky'],
     },
   });
 }

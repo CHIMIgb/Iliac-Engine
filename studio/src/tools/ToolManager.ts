@@ -632,6 +632,93 @@ export class ToolManager {
     if (!picker.contains(e.target as Node)) this._closeTerrainPicker();
   };
 
+  // ── Cielo (selector de horizonte Daggerfall) ────────────────
+
+  private skyPicker: HTMLElement | null = null;
+  private skyPickerOpenedAt = 0;
+
+  /**
+   * Abre el popover de Cielo (tecla 8): un solo `<select>` con «Sin cielo» y
+   * los 31 sets SKY00–SKY30 de Daggerfall (cada uno es una hora del día /
+   * tempo). Al elegir, `doc.setSky({ set })` → el motor monta/desmonta el
+   * horizonte en el reload en vivo.
+   */
+  openSkyPicker(clientX?: number, clientY?: number): void {
+    this._closeSkyPicker();
+    if (typeof document === 'undefined') return;
+
+    const panel = document.createElement('div');
+    panel.tabIndex = 0;
+    panel.className = 'terrain-popover';
+    panel.style.cssText =
+      'position:fixed;z-index:60;min-width:220px;display:flex;flex-direction:column;gap:8px;' +
+      'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
+      'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
+      'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
+    if (clientX !== undefined && clientY !== undefined) {
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 250)}px`;
+      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 160)}px`;
+    } else {
+      panel.style.left = '50%';
+      panel.style.top = '50%';
+    }
+
+    const label = document.createElement('div');
+    label.textContent = 'Horizonte lejano (set Daggerfall)';
+    label.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
+    panel.appendChild(label);
+
+    const select = document.createElement('select');
+    select.style.cssText =
+      'padding:5px 8px;border-radius:4px;font:12px "JetBrains Mono",monospace;' +
+      'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
+      'color:var(--text-primary,#cdd6f4)';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '— Sin cielo (fondo de color) —';
+    select.appendChild(none);
+    for (let i = 0; i <= 30; i++) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = `SKY${String(i).padStart(2, '0')} — horizonte ${i}`;
+      select.appendChild(o);
+    }
+    select.value = this.doc.world.sky ? String(this.doc.world.sky.set) : '';
+    select.addEventListener('change', () => {
+      this.doc.setSky(select.value === '' ? null : { set: Number(select.value) });
+      this.cb.onNotice?.(
+        select.value === '' ? 'Cielo retirado' : `Cielo SKY${select.value.padStart(2, '0')} aplicado`,
+        'success',
+      );
+    });
+    panel.appendChild(select);
+
+    panel.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeSkyPicker();
+    });
+
+    document.body.appendChild(panel);
+    this.skyPicker = panel;
+    this.skyPickerOpenedAt = performance.now();
+    document.addEventListener('click', this._onSkyDocClick);
+    requestAnimationFrame(() => panel.focus());
+  }
+
+  private _closeSkyPicker(): void {
+    if (this.skyPicker) {
+      this.skyPicker.remove();
+      this.skyPicker = null;
+      if (typeof document !== 'undefined') document.removeEventListener('click', this._onSkyDocClick);
+    }
+  }
+
+  private _onSkyDocClick = (e: MouseEvent): void => {
+    const picker = this.skyPicker;
+    if (!picker) return;
+    if (performance.now() - this.skyPickerOpenedAt < 300) return;
+    if (!picker.contains(e.target as Node)) this._closeSkyPicker();
+  };
+
   // ── Selector de entidades (dropdown desde el icono Entidades) ──
 
   /**

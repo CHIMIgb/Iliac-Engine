@@ -5,6 +5,7 @@ import { validateProject } from './core/validate.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
+import { SkySystem, skySignature } from './three/SkySystem.js';
 
 const MAX_DT = 0.05; // 50 ms; evita que un frame largo desestabilice la física.
 
@@ -22,6 +23,8 @@ export class Engine3D {
     this.loaded = false;
     this.textures = null;
     this.sectorIndex = null;
+    this.sky = null;
+    this._skySig = skySignature(null);
     if (this.world.vertices && this.world.sectors) {
       this.sectorIndex = buildSectorIndex(this.world);
     }
@@ -32,8 +35,32 @@ export class Engine3D {
     const renderSettings = this.project.render ?? this.project.meta?.render ?? {};
     this.renderer = new Renderer3D(canvas, renderSettings);
     WorldMesh.build(this.renderer.scene, this.project, this.textures);
+    await this._loadSky();
     this.loaded = true;
     return this;
+  }
+
+  /**
+   * Carga el horizonte lejano (world.sky = { set: 0–30, stride?, base? }).
+   * Sin sky: limpia el anterior y deja el fondo de color actual (comportamiento
+   * histórico). Se dispara async desde setWorld al cambiar la firma del cielo.
+   */
+  async _loadSky() {
+    const cfg = this.world.sky;
+    this._skySig = skySignature(cfg);
+    if (this.sky) {
+      this.sky.dispose();
+      this.sky = null;
+      if (this.renderer) this.renderer.sky = null;
+    }
+    if (!cfg || !Number.isInteger(cfg.set) || !this.renderer) return;
+    const sky = new SkySystem(cfg);
+    await sky.load();
+    // El mundo pudo cambiar mientras se cargaban las texturas: descartar.
+    if (skySignature(this.world.sky) !== this._skySig) { sky.dispose(); return; }
+    sky.addTo(this.renderer.scene);
+    this.sky = sky;
+    this.renderer.sky = sky;
   }
 
   /**
@@ -54,6 +81,7 @@ export class Engine3D {
     const prevWorld = this.world;
     this.project = project;
     this.world = project.world;
+    if (skySignature(this.world.sky) !== this._skySig) void this._loadSky();
     if (this.renderer && this.loaded) {
       if (!WorldMesh.applyHeightsIfOnlyChange(this.renderer.scene, prevWorld, this.world)) {
         WorldMesh.build(this.renderer.scene, this.project, this.textures);
@@ -72,6 +100,9 @@ export class Engine3D {
 
   dispose() {
     if (!this.renderer) return;
+    this.sky?.dispose();
+    this.sky = null;
+    this._skySig = skySignature(null);
     WorldMesh.clear(this.renderer.scene);
     for (const key in this.textures || {}) {
       this.textures[key].dispose();

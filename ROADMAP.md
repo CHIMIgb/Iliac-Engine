@@ -257,6 +257,7 @@ motor-raycast/
 | F4 Studio: **Herramientas de edición 3D** (picking, tools, ToolManager, Overlay2D, viewport interactivo) | ✅ Validada |
 | F4+ **Herramienta Mover (tecla 3) + selección múltiple Shift+clic**: traslación rígida de vértice/pared/sector/sprite, drag de grupo y Delete múltiple | ✅ Realizada |
 | F4+ **Herramienta Terreno (tecla 7)**: suelo plano de 8–32 m como grilla de celdas de 0,5 m con vértices compartidos (formato `floorH` por vértice del motor); el editor solo marca las 4 esquinas de cada colocación (los interiores existen para el pincel, no se pintan ni capturan); **modo Moldear** esculpe con PINCEL solo la zona bajo el cursor (radio 3 m, decaimiento suave, 2 m/s frame-independent vía `update(dt)`, dirección fija según Elevar/Hundir); Mover traslada la colocación completa como una pieza; altura en vivo en la statusbar; popover con tamaño libre 8–64 m, celda 0,5–2 m, fuerza/radio del pincel ajustables y colocación adyacente (nunca solapa) | ✅ Realizada |
+| F4+ **Cielo Daggerfall (tecla 8)**: horizonte lejano `world.sky {set:0–30}` — 2 capas de cilindros que siguen a la cámara con los 32 fotogramas precalculados por capa (cambio de frame según yaw, sin costuras), paralaje + deriva de nubes, stride opcional; `npm run setup:sky` importa los assets (no versionados); demo con SKY15 | ✅ Realizada |
 | F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "setup:textures": "node -e \"const fs=require('fs');const d='public/textures';fs.mkdirSync(d,{recursive:true});for(const f of fs.readdirSync('../demo/textures'))fs.copyFileSync('../demo/textures/'+f,d+'/'+f);console.log('Texturas copiadas a public/textures');\""
+    "setup:textures": "node -e \"const fs=require('fs');const d='public/textures';fs.mkdirSync(d,{recursive:true});for(const f of fs.readdirSync('../demo/textures'))fs.copyFileSync('../demo/textures/'+f,d+'/'+f);console.log('Texturas copiadas a public/textures');\"",
+    "setup:sky": "node scripts/setup-sky.mjs"
   },
   "dependencies": {
     "lucide": "^1.41.0",
