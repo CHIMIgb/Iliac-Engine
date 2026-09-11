@@ -222,7 +222,7 @@ describe('tools · sprites', () => {
     expect(defaultSpriteTex(state)).toBe('sprite_blue');
   });
 
-  it('moveSpriteTo mueve con snap y conserva la altura', () => {
+  it('moveSpriteTo mueve con snap y re-apoya en el terreno (suelo plano → z 0)', () => {
     const state = makeRoom();
     const id = placeSpriteAt(state, 2, 2);
     const before = state.world.sprites.find((s) => s.id === id)!;
@@ -232,7 +232,34 @@ describe('tools · sprites', () => {
     const after = state.world.sprites.find((s) => s.id === id)!;
     expect(after.pos.x).toBe(3.5);
     expect(after.pos.y).toBe(4.5);
-    expect(after.pos.z).toBe(1.5);
+    expect(after.pos.z).toBe(0); // la habitación tiene floorH = 0
+  });
+
+  it('placeSpriteAt/moveSpriteTo apoyan sobre terreno con altura por vértice', () => {
+    const state = new EditorState();
+    // Cuadrado 0..8 con floorH [0, 4, 8, 4] por vértice (igual que el terreno)
+    const a = state.addVertex(0, 0, 'ta');
+    const b = state.addVertex(8, 0, 'tb');
+    const c = state.addVertex(8, 8, 'tc');
+    const d = state.addVertex(0, 8, 'td');
+    state.addSector([a.id, b.id, c.id, d.id], [0, 4, 8, 4], 50, 'ts');
+
+    // (7.5, 7.5) cae en el triángulo del abanico (a,b,c): baricéntricas → 7.5
+    const id = placeSpriteAt(state, 7.5, 7.5);
+    const sp = state.world.sprites.find((s) => s.id === id)!;
+    expect(sp.pos.z).toBeCloseTo(7.5, 5);
+
+    // snap(0.1) = 0 → vértice a exacto → altura 0
+    moveSpriteTo(state, id, 0.1, 0.1);
+    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBeCloseTo(0, 5);
+
+    // Diagonal a→c: interpolación lineal 0..8 → 4 en el centro
+    moveSpriteTo(state, id, 4, 4);
+    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBeCloseTo(4, 5);
+
+    // Fuera del mapa: 0
+    moveSpriteTo(state, id, 100.4, 100.4);
+    expect(state.world.sprites.find((s) => s.id === id)!.pos.z).toBe(0);
   });
 
   it('moveSpriteTo devuelve false si no existe', () => {

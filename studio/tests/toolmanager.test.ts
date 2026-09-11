@@ -115,14 +115,15 @@ describe('ToolManager — Herramienta Mover (tecla 3): traslación rígida', () 
     expect(state.getVertex(ids.d)).toMatchObject({ x: 2, y: 10 });
   });
 
-  it('arrastrar un sprite lo traslada en el plano (mantiene altura)', () => {
+  it('arrastrar un sprite lo traslada y re-apoya en el terreno', () => {
     const state = new EditorState();
     const tm = new ToolManager(state);
     const sp = state.addSprite('sprite_blue', 4, 4, 1);
     tm.setTool('move');
     tm.onPointerDown({ ...ctx(4, 4), px: 0, py: 0, screenSprites: [{ id: sp.id, x: 0, y: 0 }] });
     tm.onPointerMove(ctx(6, 6)); // delta +2,+2
-    expect(state.world.sprites[0]!.pos).toEqual({ x: 6, y: 6, z: 1 });
+    // Sin sectores el terreno mide 0 → el sprite se apoya en z=0 (ya no conserva z=1).
+    expect(state.world.sprites[0]!.pos).toEqual({ x: 6, y: 6, z: 0 });
   });
 
   it('mover un vértice suelto no arrastra al resto del sector', () => {

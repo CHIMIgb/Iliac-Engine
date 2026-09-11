@@ -22,6 +22,7 @@ import {
   closeSector,
   changeSectorHeight,
   placeEntityAt,
+  floorHeightAtPoint,
   findSectorAt,
   collectTranslateTargets,
   placeTerrainAt,
@@ -179,7 +180,9 @@ export class ToolManager {
       const dz = snap(ctx.world.z - this.grab.cursorStartZ);
       for (const o of this.grab.originals) {
         if (o.kind === 'vertex') this.doc.moveVertex(o.id, o.x + dx, o.z + dz);
-        else this.doc.moveSprite(o.id, o.x + dx, o.z + dz, o.h);
+        // Los sprites se re-apoyan en el terreno: el drag sobre una ladera
+        // cambia de altura (conservar o.h los dejaría enterrados/flotando).
+        else this.doc.moveSprite(o.id, o.x + dx, o.z + dz, floorHeightAtPoint(this.doc.world, o.x + dx, o.z + dz));
       }
     }
     // El esculpido del terreno NO depende del arrastre: lo hace update(dt).

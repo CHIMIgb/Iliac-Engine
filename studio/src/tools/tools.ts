@@ -15,8 +15,23 @@ import { clampFloorCeil, pointInPolygon, snap } from './picking';
 import type { PolygonPoint } from './picking';
 import type { EntityDef } from '../entities/entityCatalog';
 import { createNoise, fbm2 } from '@engine/core/noise.js';
+import { buildSectorIndex, pointInSector, getFloorHeightAt } from '@engine/core/sector.js';
 
 // ── Helpers de acceso ───────────────────────────────────────────
+
+/**
+ * Altura del terreno en (x, z): busca el sector que contiene el punto e
+ * interpola su `floorH` (con pendientes) usando la fórmula del motor.
+ * Devuelve 0 fuera del mapa. O(n) con un único índice: solo corre al
+ * colocar/arrastrar entidades, no por frame.
+ */
+export function floorHeightAtPoint(world: EditorState['world'], x: number, z: number): number {
+  const { vertexMap } = buildSectorIndex(world);
+  for (const s of world.sectors) {
+    if (pointInSector(world, s, x, z, vertexMap)) return getFloorHeightAt(world, s, x, z, vertexMap);
+  }
+  return 0;
+}
 
 /** Polígono (en plano suelo) de un sector, resolviendo sus ids de vértice. */
 export function sectorPolygon(state: EditorState, sectorId: string): PolygonPoint[] {
@@ -150,9 +165,11 @@ export function changeSectorHeight(state: EditorState, sectorId: string, delta: 
   return true;
 }
 
-/** Herramienta E — coloca un sprite en (x, z) con snap. */
+/** Herramienta E — coloca un sprite apoyado en el terreno, con snap. */
 export function placeSpriteAt(state: EditorState, x: number, z: number, tex?: string): string {
-  return state.addSprite(tex ?? defaultSpriteTex(state), snap(x), snap(z), 0).id;
+  const sx = snap(x);
+  const sz = snap(z);
+  return state.addSprite(tex ?? defaultSpriteTex(state), sx, sz, floorHeightAtPoint(state.world, sx, sz)).id;
 }
 
 /**
@@ -168,7 +185,9 @@ export function placeEntityAt(
   def: EntityDef,
 ): string {
   const tex = state.world.textures[def.tex] ? def.tex : defaultSpriteTex(state);
-  return state.addSprite(tex, snap(x), snap(z), 0, undefined, {
+  const sx = snap(x);
+  const sz = snap(z);
+  return state.addSprite(tex, sx, sz, floorHeightAtPoint(state.world, sx, sz), undefined, {
     entityType: def.id,
     entityName: def.name,
     collisionType: def.collisionType,
@@ -176,11 +195,13 @@ export function placeEntityAt(
   }).id;
 }
 
-/** Herramienta Q/E — mueve un sprite con snap (mantiene su altura actual). */
+/** Herramienta Q/E — mueve un sprite con snap, apoyándolo en el terreno. */
 export function moveSpriteTo(state: EditorState, id: string, x: number, z: number): boolean {
   const sp = state.world.sprites.find((s) => s.id === id);
   if (!sp) return false;
-  return state.moveSprite(id, snap(x), snap(z), sp.pos.z);
+  const sx = snap(x);
+  const sz = snap(z);
+  return state.moveSprite(id, sx, sz, floorHeightAtPoint(state.world, sx, sz));
 }
 
 // ── Traslación (herramienta Mover) ─────────────────────────────

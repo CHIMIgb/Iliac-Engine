@@ -32,6 +32,28 @@ declare module '@engine/core/noise.js' {
   ): number;
 }
 
+declare module '@engine/core/sector.js' {
+  export function buildSectorIndex(world: unknown): {
+    vertexMap: Map<string, { x: number; y: number }>;
+    wallsBySector: Map<string, unknown[]>;
+    bvh: unknown;
+  };
+  export function pointInSector(
+    world: unknown,
+    sector: unknown,
+    x: number,
+    y: number,
+    vertexMap: Map<string, { x: number; y: number }>,
+  ): boolean;
+  export function getFloorHeightAt(
+    world: unknown,
+    sector: unknown,
+    x: number,
+    y: number,
+    vertexMap: Map<string, { x: number; y: number }>,
+  ): number;
+}
+
 declare module '@engine/index.js' {
   export class Engine3D {
     constructor(project: unknown);
