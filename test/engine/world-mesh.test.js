@@ -44,9 +44,9 @@ test('WorldMesh.buildSectorWorld mergea superficies por textura', () => {
   WorldMesh.buildSectorWorld(scene, world, textures);
 
   const meshes = scene.children.filter((c) => c.isMesh);
-  // stone se usa en suelo (doubleside) y techo (doubleside) → 1 mesh.
+  // stone se usa en suelo (doubleside) y techo (frontside) → 2 meshes distintos.
   // wall se usa en 4 paredes (frontside) → 1 mesh.
-  assert.equal(meshes.length, 2, 'solo 2 meshes tras mergear por textura');
+  assert.equal(meshes.length, 3, '3 meshes tras mergear por textura (suelo, techo y paredes)');
 });
 
 test('WorldMesh.buildSectorWorld conserva geometría mergeada', () => {

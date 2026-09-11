@@ -173,7 +173,7 @@ export class WorldMesh {
       addToGroup(
         sector.ceilTex,
         0x888888,
-        THREE.DoubleSide,
+        THREE.FrontSide, // techo mira hacia abajo: al mirar hacia arriba se ve su backface y se cuela
         createSectorCeilingGeometry(world, sector, vertexMap, ceilRepeat)
       );
 

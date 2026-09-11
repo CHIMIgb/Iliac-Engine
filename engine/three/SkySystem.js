@@ -26,8 +26,10 @@ export { SKY_SETS, SKY_FRAMES } from '../core/sky.js';
 
 const DEG = Math.PI / 180;
 const ARC = 110 * DEG;      // arco horizontal que ocupa el fotograma-ventana
-const D = 150;              // distancia arbitraria: el z-buffer la ordena
+const D = 500;              // distancia: más lejos que el terreno, detrás de todo
 const IMG_ASPECT = 220 / 512; // alto/ancho del fotograma: altura natural del telón
+const BAND_SCALE = 0.4;     // porcentaje de la textura que mostramos (crop UV);
+                            // el horizonte se ve más delgado y lejano, sin deformar
 
 /** URL del PNG de un set/capa/frame. */
 export function skyFrameUrl(base, set, layer, frame) {
@@ -115,10 +117,12 @@ export class SkySystem {
 
     // Geometría del telón: el ancho cubre el FOV con la imagen REPETIDA
     // horizontalmente (tiling), manteniendo la escala angular exacta de la
-    // ventana ARC. El alto es el ancho por la proporción del fotograma.
+    // ventana ARC. El alto es el ancho por la proporción del fotograma
+    // multiplicado por BAND_SCALE: mostramos solo la parte baja de la textura
+    // (crop UV) para que el horizonte se vea más delgado y lejano.
     const planeArc = Math.max(fovH * 1.3, ARC);
     const w = 2 * D * Math.tan(planeArc / 2);
-    const h = w * IMG_ASPECT;
+    const h = w * IMG_ASPECT * BAND_SCALE;
     mesh.scale.set(w, h, 1);
 
     // Borde inferior clavado en la horizontal de cámara (el horizonte);
@@ -131,7 +135,12 @@ export class SkySystem {
     mesh.rotation.set(0, Math.atan2(hx, hz) + Math.PI, 0); // de frente a la cámara, sin alabeo
 
     const tex = this.textures[String(this.frame)];
-    if (tex) tex.repeat.x = planeArc / ARC;
+    if (tex) {
+      tex.repeat.x = planeArc / ARC;
+      // Crop vertical: solo la parte baja de la textura, sin deformar.
+      tex.repeat.y = BAND_SCALE;
+      tex.offset.y = 0;
+    }
   }
 
   dispose() {
