@@ -37,6 +37,7 @@ export class EditorViewport {
   private engine: Engine3D | null = null;
   private controls: CameraControls = new CameraControls();
   private overlay: Overlay2D = new Overlay2D();
+  private _grid: THREE.Object3D | null = null;
   private keys: Record<string, boolean> = {};
   private raf = 0;
   private last = 0;
@@ -149,6 +150,14 @@ export class EditorViewport {
     if (wasGame && this.canvas.ownerDocument.pointerLockElement === this.canvas) {
       this.canvas.ownerDocument.exitPointerLock();
     }
+    // Gizmos del editor fuera del playtest: el overlay 2D no se redibuja en
+    // modo juego (conservaría el último frame de orbit) y las cajas de
+    // entidades son ayuda visual de edición, no del juego.
+    if (this.engine) {
+      const boxes = this.engine.renderer.scene.getObjectByName('__entity_boxes__');
+      if (boxes) boxes.visible = mode !== 'game';
+    }
+    if (mode === 'game') this.overlay.clear();
     // Al entrar en juego (Playtest / F5) la cámara pasa a primera persona con
     // el ratón capturado; Esc libera el puntero y Playtest vuelve al editor.
     if (mode === 'game') this.canvas.requestPointerLock();
@@ -170,8 +179,20 @@ export class EditorViewport {
       } else {
         this._updateOrbit(dt);
       }
+      this._followGrid();
     }
     this.raf = requestAnimationFrame(this._frame);
+  }
+
+  /**
+   * Grid «infinita»: reposiciona la malla sobre la cámara con snap a la celda
+   * (1 m). Al ser el patrón periódico, las líneas siguen ancladas al mundo y
+   * el borde físico (±250 m) nunca entra en pantalla.
+   */
+  private _followGrid(): void {
+    if (!this._grid || !this.engine) return;
+    const cam = this.engine.renderer.camera;
+    this._grid.position.set(Math.round(cam.position.x), 0, Math.round(cam.position.z));
   }
 
   private _updateGame(now: number, dt: number): void {
@@ -267,11 +288,13 @@ export class EditorViewport {
     scene.getObjectByName('__editor_grid__')?.removeFromParent();
     scene.getObjectByName('__editor_axes__')?.removeFromParent();
 
-    // Grilla 500×500 con divisiones de 1 unidad (el zoom máximo 280 alcanza
-    // a verla entera; el far de la cámara del proyecto recorta más allá).
-    const grid = new THREE.GridHelper(500, 500, 0x444466, 0x333355);
+    // Grilla de 2000×2000 m con celdas de 1 m. El borde queda a ±1000 m, muy
+    // más allá del far (500 m): el recorte lejano + la niebla lo ocultan siempre.
+    // Con el follow, el patrón es efectivamente infinito.
+    const grid = new THREE.GridHelper(2000, 2000, 0x444466, 0x333355);
     grid.name = '__editor_grid__';
     scene.add(grid);
+    this._grid = grid;
     // Ejes de color (rojo=X, verde=Y/up, azul=Z)
     const axes = new THREE.AxesHelper(5);
     axes.name = '__editor_axes__';

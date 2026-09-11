@@ -7,6 +7,7 @@
 import './style.css';
 import { AppLayout } from './layout/AppLayout';
 import { showToast } from './ui/Toast';
+import { Icon } from './ui/Icon';
 import { EditorViewport } from './viewport/EditorViewport';
 import { EditorState } from './editor/EditorState';
 import { ToolManager, type ToolId, type Selection } from './tools/ToolManager';
@@ -208,10 +209,11 @@ miscGroup.appendChild(layout.toolbar.addAction({
   icon: 'panel-right', label: 'Panel derecho',
   onClick: () => layout.togglePanelRight(),
 }));
-miscGroup.appendChild(layout.toolbar.addAction({
+const playtestBtn = layout.toolbar.addAction({
   icon: 'play', label: 'Playtest', shortcut: 'F5',
   onClick: () => viewport.setMode(viewport.mode === 'game' ? 'orbit' : 'game'),
-}));
+});
+miscGroup.appendChild(playtestBtn);
 
 // ── Status bar ─────────────────────────────────────────────────
 layout.statusBar.setItem('mode', 'Modo: Editor');
@@ -231,6 +233,9 @@ viewport.onCoordsChange = (x, y, z) => {
 };
 viewport.onModeChange = (mode) => {
   layout.statusBar.setItem('mode', `Modo: ${mode === 'game' ? 'Juego' : 'Editor'}`);
+  // El botón de Playtest se convierte en Stop mientras el juego corre.
+  playtestBtn.replaceChildren(Icon(mode === 'game' ? 'square' : 'play', 16));
+  playtestBtn.title = (mode === 'game' ? 'Detener playtest' : 'Playtest') + ' (F5)';
   showToast(
     mode === 'game'
       ? 'Modo juego — WASD + ratón. Tab para volver.'
@@ -313,7 +318,12 @@ document.addEventListener('keydown', (e) => {
 // (No debounce puro: el pincel muta el estado cada frame mientras se mantiene
 // el clic; un trailing-debounce se re-programa sin descanso y el viewport no
 // se entera hasta soltar. El throttle garantiza ~1 reload cada RELOAD_MS.)
-const RELOAD_MS = 120;
+// En mundos muy grandes (mapa por defecto de 500 m: 62.500 sectores) cada
+// reload copia/valida/reconstruye todo el JSON, así que se espacia más para
+// mantener el pincel usable.
+function reloadMs(): number {
+  return doc.world.sectors.length > 40000 ? 250 : 120;
+}
 let reloadPending = false;
 function scheduleReload(): void {
   if (reloadPending) return;
@@ -327,7 +337,7 @@ function scheduleReload(): void {
       return;
     }
     viewport.reload(raw);
-  }, RELOAD_MS);
+  }, reloadMs());
 }
 doc.onChange(scheduleReload);
 

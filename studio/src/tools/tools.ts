@@ -248,12 +248,22 @@ export const TERRAIN_BRUSH_RADIUS = 3;
  * cada colocación). El editor los oculta en dibujo y picking para que la
  * grilla se vea limpia; siguen existiendo en los datos para el pincel.
  */
+// Memo del conjunto de vértices ocultos: se calcula por frame en overlay y
+// picking sobre mapas de decenas de miles de vértices. La firma (cantidad +
+// último id) cambia con todo alta/borrado; los ids de terreno son inmutables
+// entre mutaciones de altura, que es justo lo que no afecta al conjunto.
+let _hiddenCache: { key: string; set: Set<string> } | null = null;
+
 export function hiddenTerrainVertices(state: EditorState): Set<string> {
+  const verts = state.world.vertices;
+  const key = `${verts.length}:${verts[verts.length - 1]?.id ?? ''}`;
+  if (_hiddenCache && _hiddenCache.key === key) return _hiddenCache.set;
+
   // Una sola pasada con regex: se guardan las coordenadas de grilla (c, r)
   // junto al id para no recompilar patrones por vértice (esto corre por
   // frame en el overlay y el picking).
   const placements = new Map<string, { verts: { id: string; c: number; r: number }[]; maxC: number; maxR: number }>();
-  for (const v of state.world.vertices) {
+  for (const v of verts) {
     const m = /^(terr_.+?)_v(\d+)_(\d+)$/.exec(v.id);
     if (!m) continue;
     const pfx = m[1]!;
@@ -272,6 +282,7 @@ export function hiddenTerrainVertices(state: EditorState): Set<string> {
       if (!corner) hidden.add(id);
     }
   }
+  _hiddenCache = { key, set: hidden };
   return hidden;
 }
 
@@ -296,6 +307,9 @@ function floorAt(s: { floorH: number | number[] }, i: number): number {
  * Ids con namespace por colocación: vértices `terr_<gen>_v{c}_{r}`, celdas
  * `terr_<gen>_s{c}_{r}`.
  *
+ * @param ceil — Altura de techo de las celdas (50 m por defecto; mapas con
+ * montañas altas la suben para que el jugador no se clave en las cimas).
+ *
  * @returns Conteo de celdas (sectores) y base de elevación.
  */
 export function placeTerrainAt(
@@ -305,6 +319,7 @@ export function placeTerrainAt(
   size: number,
   floorTex = 'grass',
   cell = TERRAIN_CELL,
+  ceil = 50,
 ): { sectorCount: number; base: number } {
   // Celda limitada a 0,5–2 m: por debajo, el coste O(celdas²) se descontrola.
   const cs = Math.min(Math.max(cell, 0.5), 2);
@@ -346,7 +361,7 @@ export function placeTerrainAt(
       state.addSector(
         [grid[r]![c]!, grid[r]![c + 1]!, grid[r + 1]![c + 1]!, grid[r + 1]![c]!],
         [base, base, base, base],
-        50,
+        ceil,
         `${pfx}_s${c}_${r}`,
         { floorTex },
       );

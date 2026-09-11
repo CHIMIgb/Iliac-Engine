@@ -31,6 +31,11 @@ export class Overlay2D {
     this.canvas.height = h;
   }
 
+  /** Borra los gizmos (modo juego: el canvas conserva el último frame de orbit). */
+  clear(): void {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
   /**
    * Dibuja el estado actual de la edición.
    * @param camera Cámara del renderer (Three.js) para proyectar.

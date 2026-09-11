@@ -83,18 +83,19 @@ describe('Serializer', () => {
     expect(restored.getSector(sct.id)?.floorH).toBe(0);
   });
 
-  it('genera un project.json válido para el motor (sampleProject con terreno 64 m y sin cielo)', () => {
+  it('genera un project.json válido para el motor (sampleProject con terreno 100 m y sin cielo)', () => {
     const errors = validateProjectJson(sampleProject as unknown as Record<string, unknown>);
     expect(errors).toEqual([]);
-    // El proyecto inicial ya no está vacío: terreno 64 m (celda 2) = 32×32 sectores
-    // con relieve, sin cielo por defecto, y sobrevive al round-trip.
+    // El proyecto inicial: terreno 100 m (celda 2) = 50×50 sectores con
+    // paisaje (praderas/montañas/río/lago), sin cielo por defecto, y sobrevive
+    // al round-trip.
     const w = (sampleProject as unknown as { world: { sectors: unknown[]; sky: { set: number } | null } }).world;
-    expect(w.sectors.length).toBe(1024);
+    expect(w.sectors.length).toBe(2500);
     expect(w.sky).toBeUndefined();
     const restored = fromProjectJson(sampleProject as unknown as Record<string, unknown>);
-    expect(restored.world.sectors.length).toBe(1024);
+    expect(restored.world.sectors.length).toBe(2500);
     expect(restored.world.sky).toBeNull();
-  });
+  }, 15000);
 
   it('serializa los ids de paredes/vertices/sectores correctamente', () => {
     const s = new EditorState();
