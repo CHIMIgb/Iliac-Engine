@@ -11,12 +11,15 @@
  *    dentro de cada set, 32 franjas del día (fotogramas 0–31 de la capa 0).
  *    `set` elige el horizonte; `frame` elige la franja/iluminación del día.
  *    Son independientes: cambiar la hora cambia la franja, no el horizonte.
- *  - "Y-shearing" gratis: el telón se ancla a la horizontal del mundo, así
- *    que al mirar arriba/abajo la banda se desliza en pantalla solo lo justo
- *    para mantener el horizonte pegado al terreno (como en Doom/Duke).
- * Render: el telón se dibuja con z-buffer a profundidad fija (D=150) y
- * `depthWrite:false`: todo lo más cercano del mundo lo tapa (el horizonte
- * queda "enviado al fondo", como en el original), y él nunca tapa el mapa.
+ *  - "Y-shear" real: el horizonte de la imagen (v=0 del fotograma) se ancla a
+ *    la horizontal del mundo desplazando la UV vertical: al levantar la vista
+ *    el horizonte baja por pantalla y se clava en el borde inferior (siempre
+ *    visible), y por encima la franja superior del fotograma (cenit) se estira
+ *    (wrapT ClampToEdge). Nunca se ve el fondo detras del cielo.
+ * Render: el quad se dibuja PRIMERO del pase opaco, sin test de profundidad
+ * (depthTest:false, depthWrite:false): asi NUNCA se recorta por el plano far
+ * ni tiene borde superior alcanzable, y toda la geometria del mundo (que va
+ * despues) lo tapa (el horizonte queda "enviado al fondo", como en el original).
  */
 import * as THREE from 'three';
 import { loadTextures } from './textures.js';
@@ -26,10 +29,10 @@ export { SKY_SETS, SKY_FRAMES } from '../core/sky.js';
 
 const DEG = Math.PI / 180;
 const ARC = 110 * DEG;      // arco horizontal que ocupa el fotograma-ventana
-const D = 500;              // distancia: más lejos que el terreno, detrás de todo
-const IMG_ASPECT = 220 / 512; // alto/ancho del fotograma: altura natural del telón
-const BAND_SCALE = 0.7;     // porcentaje de la textura que mostramos (crop UV);
-                            // cubre más cielo para que no desaparezca al levantar la vista
+const QUAD_DIST = 10;       // distancia del quad anclado a la camara (sin z-test: arbitraria)
+const MARGIN = 1.04;        // pequeno margen para que el frustum nunca vea el borde del quad
+const IMG_ASPECT = 220 / 512; // alto/ancho del fotograma: altura natural del telon
+const BAND_SCALE = 0.7;     // escala del crop UV vertical (conserva la altura angular de la banda)
 
 /** URL del PNG de un set/capa/frame. */
 export function skyFrameUrl(base, set, layer, frame) {
@@ -53,7 +56,6 @@ export class SkySystem {
     this.textures = {};
     this.meshes = [];
     this.loaded = false;
-    this._prevYaw = 0;
     this._v = new THREE.Vector3();
   }
 
@@ -67,6 +69,7 @@ export class SkySystem {
     this.textures = await loadTextures(defs);
     for (const tex of Object.values(this.textures)) {
       tex.wrapS = THREE.RepeatWrapping; // tiling para FOV anchos
+      tex.wrapT = THREE.ClampToEdgeWrapping; // por encima de la franja: el cenit se estira, no se repite
     }
     this.loaded = true;
   }
@@ -75,17 +78,17 @@ export class SkySystem {
     if (!this.loaded) return;
     const mat = new THREE.MeshBasicMaterial({
       map: this.textures[String(this.frame)],
-      transparent: true,
       depthWrite: false,
-      // CON z-buffer: el telón vive a profundidad D, así que CUALQUIER
-      // geometría del mundo más cercana lo tapa (el horizonte queda al fondo,
-      // como en el original). depthWrite:false para que nunca tape sprites.
-      depthTest: true,
+      // Sin test de profundidad y dibujado primero (renderOrder -3 en el pase
+      // opaco): el cielo cubre SIEMPRE todo el viewport (nada de caja de fondo
+      // al levantar la camara ni recorte por el plano far) y el mundo, que se
+      // dibuja despues, lo tapa por completo donde hay geometria.
+      depthTest: false,
       side: THREE.DoubleSide,
       fog: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-    mesh.renderOrder = -3;               // cielo: lo primero del orden transparente
+    mesh.renderOrder = -3;               // cielo: lo primero del pase opaco
     mesh.frustumCulled = false;
     mesh.userData.isSky = true;          // WorldMesh.clear debe saltarlos
     this.meshes.push(mesh);
@@ -102,45 +105,41 @@ export class SkySystem {
     }
   }
 
-  /** Telón cada frame: billboard de frente a la cámara, anclado al horizonte. */
+  /** Quad anclado a la camara cada frame: cubre TODO el viewport, horizonte anclado por UV. */
   update(camera) {
     if (!this.loaded || this.meshes.length === 0) return;
-    const fwd = this._v.clone();
-    camera.getWorldDirection(fwd);
-    let hx = fwd.x;
-    let hz = fwd.z;
-    const hl = Math.hypot(hx, hz);
-    if (hl < 1e-4) { hx = Math.cos(this._prevYaw); hz = Math.sin(this._prevYaw); } // mirando al cenit: mantener la última horizontal
-    else { hx /= hl; hz /= hl; this._prevYaw = Math.atan2(hz, hx); }
-    const fovH = 2 * Math.atan(Math.tan((camera.fov * DEG) / 2) * camera.aspect);
     const mesh = this.meshes[0];
-
-    // Geometría del telón: el ancho cubre el FOV con la imagen REPETIDA
-    // horizontalmente (tiling), manteniendo la escala angular exacta de la
-    // ventana ARC. El alto es el ancho por la proporción del fotograma
-    // multiplicado por BAND_SCALE: mostramos solo la parte baja de la textura
-    // (crop UV) para que el horizonte se vea más delgado y lejano.
-    const planeArc = Math.max(fovH * 1.3, ARC);
-    const w = 2 * D * Math.tan(planeArc / 2);
-    const h = w * IMG_ASPECT * BAND_SCALE;
-    mesh.scale.set(w, h, 1);
-
-    // Borde inferior clavado en la horizontal de cámara (el horizonte);
-    // la mitad inferior del fotograma (suelo oscuro) queda tras el terreno.
-    mesh.position.set(
-      camera.position.x + hx * D,
-      camera.position.y + h / 2,
-      camera.position.z + hz * D,
-    );
-    mesh.rotation.set(0, Math.atan2(hx, hz) + Math.PI, 0); // de frente a la cámara, sin alabeo
-
     const tex = this.textures[String(this.frame)];
-    if (tex) {
-      tex.repeat.x = planeArc / ARC;
-      // Crop vertical: solo la parte baja de la textura, sin deformar.
-      tex.repeat.y = BAND_SCALE;
-      tex.offset.y = 0;
-    }
+    if (!tex) return;
+    const fwd = this._v;
+    camera.getWorldDirection(fwd);
+
+    // Quad perpendicular a la vista, a distancia fija, del tamano exacto de la
+    // seccion del frustum (+margen): por mucho que se levante la camara nunca
+    // se ve el fondo detras del cielo (sin z-test tampoco lo recorta el far).
+    const fovV = camera.fov * DEG;
+    const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect);
+    const w = 2 * QUAD_DIST * Math.tan(fovH / 2) * MARGIN;
+    const h = 2 * QUAD_DIST * Math.tan(fovV / 2) * MARGIN;
+    mesh.scale.set(w, h, 1);
+    mesh.position.copy(camera.position).addScaledVector(fwd, QUAD_DIST);
+    mesh.quaternion.copy(camera.quaternion); // de frente a la camara, sin alabeo
+
+    // Y-shear: la linea v=0 del fotograma (horizonte de la imagen) se coloca a
+    // la altura de la horizontal del mundo (y = -d*tan(pitch)), acotada al quad:
+    // mirando arriba el horizonte queda clavado en el borde inferior de pantalla
+    // (siempre visible) y el cielo llena el resto; la franja > 1 se estira (ClampToEdge).
+    const cosP = Math.max(Math.sqrt(Math.max(0, 1 - fwd.y * fwd.y)), 1e-3);
+    const yH = Math.max(-h / 2, Math.min(h / 2, -QUAD_DIST * (fwd.y / cosP)));
+
+    // Escala angular constante: cada copia del tile horizontal ocupa ARC y la
+    // banda vertical termina a la misma elevacion que el antiguo telon (h/D).
+    const planeArc = Math.max(fovH * MARGIN, ARC);
+    const bandH = QUAD_DIST * 2 * IMG_ASPECT * BAND_SCALE * Math.tan(planeArc / 2);
+    tex.repeat.x = (fovH * MARGIN) / ARC;
+    tex.offset.x = 0;
+    tex.repeat.y = (BAND_SCALE * h) / bandH;
+    tex.offset.y = -(BAND_SCALE * (h / 2 + yH)) / bandH;
   }
 
   dispose() {
