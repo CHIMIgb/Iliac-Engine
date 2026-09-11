@@ -28,8 +28,8 @@ const DEG = Math.PI / 180;
 const ARC = 110 * DEG;      // arco horizontal que ocupa el fotograma-ventana
 const D = 500;              // distancia: más lejos que el terreno, detrás de todo
 const IMG_ASPECT = 220 / 512; // alto/ancho del fotograma: altura natural del telón
-const BAND_SCALE = 0.4;     // porcentaje de la textura que mostramos (crop UV);
-                            // el horizonte se ve más delgado y lejano, sin deformar
+const BAND_SCALE = 0.7;     // porcentaje de la textura que mostramos (crop UV);
+                            // cubre más cielo para que no desaparezca al levantar la vista
 
 /** URL del PNG de un set/capa/frame. */
 export function skyFrameUrl(base, set, layer, frame) {
