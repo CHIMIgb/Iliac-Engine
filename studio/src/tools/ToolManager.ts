@@ -33,6 +33,7 @@ import {
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
 import { snap } from './picking';
+import { SKY_FRAMES, skyFrameLabel } from '@engine/core/sky.js';
 
 export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity' | 'terrain';
 
@@ -632,16 +633,17 @@ export class ToolManager {
     if (!picker.contains(e.target as Node)) this._closeTerrainPicker();
   };
 
-  // ── Cielo (selector de horizonte Daggerfall) ────────────────
+  // ── Cielo (selector de hora del día → horizonte Daggerfall) ──
 
   private skyPicker: HTMLElement | null = null;
   private skyPickerOpenedAt = 0;
 
   /**
-   * Abre el popover de Cielo (tecla 8): un solo `<select>` con «Sin cielo» y
-   * los 31 sets SKY00–SKY30 de Daggerfall (cada uno es una hora del día /
-   * tempo). Al elegir, `doc.setSky({ set })` → el motor monta/desmonta el
-   * horizonte en el reload en vivo.
+   * Abre el popover de Cielo (tecla 8) con DOS subherramientas INDEPENDIENTES:
+   *  - «Horizonte»: elige la carpeta SKY00–SKY30 (el escenario/horizonte).
+   *  - «Hora del día»: elige la franja 0–31 dentro del set (la iluminación del
+   *    día). Cambiar la hora NO cambia el horizonte, solo la franja del set.
+   * Ambas escriben en `doc.setSky` y se sincronizan tras cada cambio.
    */
   openSkyPicker(clientX?: number, clientY?: number): void {
     this._closeSkyPicker();
@@ -663,35 +665,73 @@ export class ToolManager {
       panel.style.top = '50%';
     }
 
-    const label = document.createElement('div');
-    label.textContent = 'Horizonte lejano';
-    label.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
-    panel.appendChild(label);
-
-    const select = document.createElement('select');
-    select.style.cssText =
+    const SEL_CSS =
       'padding:5px 8px;border-radius:4px;font:12px "JetBrains Mono",monospace;' +
       'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
       'color:var(--text-primary,#cdd6f4)';
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = '— Sin cielo (fondo de color) —';
-    select.appendChild(none);
-    for (let i = 0; i <= 30; i++) {
+    const cur = this.doc.world.sky;
+    const skyName = (n: number): string => `SKY${String(n).padStart(2, '0')}`;
+    /** Añade una fila label+select al popover y devuelve el select. */
+    const mkRow = (title: string): HTMLSelectElement => {
+      const t = document.createElement('div');
+      t.textContent = title;
+      t.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
+      panel.appendChild(t);
+      const s = document.createElement('select');
+      s.style.cssText = SEL_CSS;
+      panel.appendChild(s);
+      return s;
+    };
+    const opt = (sel: HTMLSelectElement, value: string, text: string): void => {
       const o = document.createElement('option');
-      o.value = String(i);
-      o.textContent = `SKY${String(i).padStart(2, '0')} — horizonte ${i}`;
-      select.appendChild(o);
-    }
-    select.value = this.doc.world.sky ? String(this.doc.world.sky.set) : '';
-    select.addEventListener('change', () => {
-      this.doc.setSky(select.value === '' ? null : { set: Number(select.value) });
-      this.cb.onNotice?.(
-        select.value === '' ? 'Cielo retirado' : `Cielo SKY${select.value.padStart(2, '0')} aplicado`,
-        'success',
-      );
+      o.value = value;
+      o.textContent = text;
+      sel.appendChild(o);
+    };
+
+    const sync = (): void => {
+      const s = this.doc.world.sky;
+      horizonSel.value = s ? String(s.set) : '';
+      hourSel.value = s && s.frame != null ? String(s.frame) : '';
+    };
+
+    // Subherramienta 1: elige el horizonte/escenario (carpeta SKY00–SKY30).
+    const horizonSel = mkRow('Horizonte');
+    opt(horizonSel, '', '— Sin cielo (fondo de color) —');
+    for (let i = 0; i <= 30; i++) opt(horizonSel, String(i), `${skyName(i)} — horizonte ${i}`);
+    horizonSel.value = cur ? String(cur.set) : '';
+    horizonSel.addEventListener('change', () => {
+      if (horizonSel.value === '') {
+        this.doc.setSky(null);
+        this.cb.onNotice?.('Cielo retirado', 'success');
+      } else {
+        const set = Number(horizonSel.value);
+        this.doc.setSky({ set, frame: this.doc.world.sky?.frame ?? 0 });
+        this.cb.onNotice?.(`Horizonte ${skyName(set)}`, 'success');
+      }
+      sync();
     });
-    panel.appendChild(select);
+
+    // Subherramienta 2: franja del día 0–31 dentro del set seleccionado.
+    const hourSel = mkRow('Hora del día');
+    opt(hourSel, '', '— Franja —');
+    for (let f = 0; f < SKY_FRAMES; f++) opt(hourSel, String(f), `${skyFrameLabel(f)} · franja ${f}`);
+    hourSel.value = cur && cur.frame != null ? String(cur.frame) : '';
+    hourSel.addEventListener('change', () => {
+      const f = hourSel.value === '' ? null : Number(hourSel.value);
+      const s = this.doc.world.sky;
+      if (f == null) {
+        if (s) this.doc.setSky({ set: s.set });
+        this.cb.onNotice?.('Franja retirada (mantiene franja 0)', 'success');
+      } else if (s) {
+        this.doc.setSky({ set: s.set, frame: f });
+        this.cb.onNotice?.(`Hora ${skyFrameLabel(f)} · franja ${f}`, 'success');
+      } else {
+        this.doc.setSky({ set: 0, frame: f });
+        this.cb.onNotice?.(`Horizonte SKY00 y franja ${f} establecidos`, 'success');
+      }
+      sync();
+    });
 
     panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeSkyPicker();

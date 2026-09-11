@@ -11,6 +11,17 @@ declare module '@engine/core/validate.js' {
   };
 }
 
+declare module '@engine/core/sky.js' {
+  export const SKY_SETS: 31;
+  export const SKY_FRAMES: 32;
+  /** Etiqueta "HH:MM" para una franja del día 0–31. */
+  export function skyFrameLabel(frame: number): string;
+  /** Set 0–30 que corresponde a una hora del día 0–23 (etiqueta opcional). */
+  export function skySetForHour(hour: number): number;
+  /** Hora 0–23 más cercana a un set (etiqueta opcional). */
+  export function skyHourForSet(set: number): number;
+}
+
 declare module '@engine/core/noise.js' {
   export function createNoise(seed?: number): unknown;
   export function fbm2(

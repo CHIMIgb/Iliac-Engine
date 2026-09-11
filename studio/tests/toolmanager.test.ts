@@ -392,3 +392,5 @@ describe('ToolManager · popover de terreno (ideas 1-3)', () => {
     expect(notices.at(-1)).toContain('ADYACENTE');
   });
 });
+
+

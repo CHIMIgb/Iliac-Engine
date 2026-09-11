@@ -41,7 +41,9 @@ export class Engine3D {
   }
 
   /**
-   * Carga el horizonte lejano (world.sky = { set: 0–30, stride?, base? }).
+    * Carga el horizonte lejano (world.sky = { set: 0–30, frame?: 0–31, base? }).
+    * `set` elige la carpeta SKY; `frame` la franja del día. El frame se sincroniza
+    * por separado (sin recargar las 32 texturas).
    * Sin sky: limpia el anterior y deja el fondo de color actual (comportamiento
    * histórico). Se dispara async desde setWorld al cambiar la firma del cielo.
    * Carga el nuevo ANTES de tirar del viejo: cambiar de hora no deja parpadeo.
@@ -82,7 +84,12 @@ export class Engine3D {
     const prevWorld = this.world;
     this.project = project;
     this.world = project.world;
-    if (skySignature(this.world.sky) !== this._skySig) void this._loadSky();
+    if (skySignature(this.world.sky) !== this._skySig) {
+      void this._loadSky();
+    } else if (this.sky && this.world.sky && this.sky.set === this.world.sky.set && this.sky.frame !== this.world.sky.frame) {
+      // Mismo horizonte, distinta franja del día: swap instantáneo, sin recargar.
+      this.sky.setFrame(this.world.sky.frame ?? 0);
+    }
     if (this.renderer && this.loaded) {
       if (!WorldMesh.applyHeightsIfOnlyChange(this.renderer.scene, prevWorld, this.world)) {
         WorldMesh.build(this.renderer.scene, this.project, this.textures);

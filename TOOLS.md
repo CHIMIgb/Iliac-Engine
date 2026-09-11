@@ -94,21 +94,28 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 ## 8 · Cielo — horizonte lejano estilo Daggerfall (tecla 8)
 
-`world.sky: { set: 0–30, stride?: 1|2, base?: '/sky/' }` (opcional; ausente = fondo de color, comportamiento histórico). Cada **set** es un horizonte distinto (hora del día/tempo de Daggerfall: SKY00–SKY30).
+`world.sky: { set: 0–30, frame?: 0–31, base?: '/sky/' }` (opcional; ausente = fondo de color, comportamiento histórico).
+- **`set`** = carpeta `SKY00–SKY30`: el **horizonte/escenario** (paisaje distinto en cada carpeta).
+- **`frame`** = franja del día **0–31** dentro de esa carpeta (`0-{frame}.PNG` de la capa 0): cambia la iluminación/hora del mismo horizonte sin cambiar de escenario.
 
-**Formato de assets:** 2 capas en paralaje (0 = lejana: montañas/nubes; 1 = cercana: silueta de bosque sobre el horizonte) × **32 fotogramas 512×220** — ventanas precalculadas de la panorámica: al girar se CAMBIA de fotograma (truco original de Daggerfall, sin costuras). Con `stride 2` solo se cargan los pares (14 MB→7 MB de VRAM, pasos de 22,5°).
+`engine/core/sky.js` contiene `SKY_SETS`, `SKY_FRAMES` y `skyFrameLabel()` para etiquetar las franjas.
+
+**Formato de assets:** cada `SKYnn.DAT` se extrae en 64 PNG: 2 capas × 32 fotogramas. El motor usa **capa 0** (`0-{frame}.PNG`) y **32 franjas por set**. La capa 1 y el scroll por giro quedan sin usar (decisión del usuario): el telón es fijo y no se deforma.
 
 **Cómo funciona (engine/three/SkySystem.js) — telón 2D, NO skybox 3D** (igual que el Daggerfall de 1996):
-- DOS imágenes planas (billboards) siempre de frente a la cámara, ancladas a la horizontal del mundo: al girar, **scrolleo horizontal UV continuo** sobre los 32 fotogramas-ventana (tiling + offset sub-paso = giro fluido, sin costuras); al cambiar el pitch, la banda se desliza en pantalla lo justo para mantener el horizonte pegado al terreno ("Y-shearing" gratis por el anclaje).
-- Las dos capas scrollean **1:1 con el yaw**: tras 360° exactos todo vuelve a su sitio (un paralaje de velocidad las hacía "adelantar el tiempo" al girar — eliminado). La profundidad la dan las bandas: **complementarias, no superpuestas** — lejana (montañas/nubes) cuelga de 8° a 68° sobre el horizonte; cercana (silueta del bosque) de −2° a 13°.
-- **Z-buffer**: el telón se dibuja con `depthTest:true` + `depthWrite:false` a profundidad fija (150/160): cualquier geometría más cercana lo tapa (el horizonte vive "en el fondo", como en el original) y él no tapa nunca el mapa.
-- `Engine3D._loadSky` reacciona a cambios de `skySignature` en `setWorld`: cambiar de cielo no recrea el motor entero, y carga el nuevo **antes** de retirar el viejo (no parpadea al cambiar de hora).
+- UNA imagen plana (billboard) siempre de frente a la cámara, **fija**: girar el yaw no cambia el fotograma ni scrollea. Sigue el tiling horizontal (`repeat.x`) para FOV anchos.
+- `set` elige la carpeta SKY; `frame` elige la franja del día dentro de ella. Son independientes: cambiar `frame` solo cambia la iluminación, cambiar `set` carga las 32 franjas del nuevo horizonte.
+- Anclado a la horizontal del mundo: al cambiar el pitch la banda se desliza en pantalla lo justo para mantener el horizonte pegado al terreno ("Y-shearing" gratis). Su alto es la **proporción natural del fotograma** (ancho × 220/512): la imagen nunca se deforma ni se achata.
+- **Z-buffer**: el telón se dibuja con `depthTest:true` + `depthWrite:false` a profundidad fija (150): cualquier geometría más cercana lo tapa y él no tapa nunca el mapa.
+- `Engine3D._loadSky` carga las 32 franjas del set; cambiar solo `frame` hace **swap instantáneo** sin recargar texturas.
 
 **Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
 
-**El set como hora del día:** SKY00–SKY30 cubre el ciclo (el motor carga el cielo nuevo antes de retirar el viejo: cambiar de set no parpadea). La subherramienta de auto-avance con slider se retiró por decisión del usuario: el selector es un solo `<select>`.
+**UI (tecla 8, popover con DOS subherramientas):** botón Cielo (icono cloud de lucide) abre:
+- **«Horizonte»** — «— Sin cielo — / SKY00…SKY30». Elige el escenario; conserva la franja del día si existe.
+- **«Hora del día»** — «— Franja — / 00:00 · franja 0 / 00:45 · franja 1 / … / 23:15 · franja 31». Cambia la iluminación dentro del set activo; **NO cambia de horizonte**.
 
-**UI:** tecla 8 o botón Cielo (icono cloud de lucide) → «— Sin cielo — / SKY00…SKY30»; se ve al instante (el reload en vivo intercambia el SkySystem).
+Ambos selects se sincronizan tras cada cambio.
 
 > **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa.
 

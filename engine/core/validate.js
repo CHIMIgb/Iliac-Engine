@@ -7,14 +7,15 @@ export function validateProject(project) {
   const world = project.world;
   if (!world || typeof world !== 'object') return finish(errors, 'project.json inválido: falta "world"');
 
-  // Cielo lejano opcional (horizonte estilo Daggerfall): { set 0–30 }.
+  // Cielo lejano opcional (horizonte estilo Daggerfall): { set 0–30, frame? 0–31, base? }.
+  // `set` elige la carpeta SKY (horizonte); `frame` elige la franja del día.
   if (world.sky != null) {
     if (typeof world.sky !== 'object') {
-      finish(errors, '"world.sky" debe ser un objeto { set, stride?, base? }');
+      finish(errors, '"world.sky" debe ser un objeto { set, frame?, base? }');
     } else {
       const s = world.sky;
       if (!Number.isInteger(s.set) || s.set < 0 || s.set > 30) errors.push('"world.sky.set" debe ser un entero 0–30');
-      if (s.stride != null && s.stride !== 1 && s.stride !== 2) errors.push('"world.sky.stride" solo admite 1 o 2');
+      if (s.frame != null && (!Number.isInteger(s.frame) || s.frame < 0 || s.frame > 31)) errors.push('"world.sky.frame" debe ser un entero 0–31');
       if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
     }
   }

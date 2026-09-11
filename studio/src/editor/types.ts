@@ -109,8 +109,10 @@ export interface EditableMeta {
 
 /** Cielo lejano (horizonte Daggerfall). Sin sky = fondo de color actual. */
 export interface EditableSky {
+  /** Carpeta SKY00–SKY30 (el horizonte/escenario). */
   set: number;
-  stride?: 1 | 2;
+  /** Franja del día 0–31 dentro del set (iluminación/hora del día). */
+  frame?: number;
   base?: string;
 }
 
