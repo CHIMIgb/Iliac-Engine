@@ -9,6 +9,7 @@
  * Estructura en escena:
  *  - Sky (esfera gigante con shader atmosférico) + sol/luna visibles (sprites)
  *  - estrellas nocturnas (Points) que aparecen de noche
+ *  - aurora boreal (domo interior, GLSL procedural) colgando del polo norte
  *  - DirectionalLight como SOL (con shadow map PCF 2048) + luz hemisférica
  *
  * API simétrica a SkySystem: addTo(scene) / update(camera, hour, dt) / dispose().
@@ -23,12 +24,14 @@ const DEG = Math.PI / 180;
 
 export class SunSystem {
   /**
-   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number, sunIntensity?:number, moonIntensity?:number, stars?:boolean}} cfg
+   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number, sunIntensity?:number, moonIntensity?:number, stars?:boolean, aurora?:boolean, auroraIntensity?:number}} cfg
    */
   constructor(cfg = {}) {
     this.cfg = {
       hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5,
       sunIntensity: 0.85, moonIntensity: 0.55, stars: true,
+      // F4.7 aurora boreal: cortina de luz verde/cian/wiolita en el polo norte.
+      aurora: true, auroraIntensity: 1,
       ...cfg,
     };
     this.hour = this.cfg.hour;
@@ -37,6 +40,8 @@ export class SunSystem {
     this.sun = null;         // DirectionalLight (sol, con sombras)
     this.moon = null;        // DirectionalLight (luna, sin sombras, F4.7)
     this.hemi = null;        // HemisphereLight
+    this.stars = null;       // Points con shader propio
+    this.aurora = null;      // domo interior BackSide (aurora boreal, F4.7)
     this.meshes = [];
     this.loaded = true;      // todo es procedural, no hay carga async
   }
@@ -49,6 +54,7 @@ export class SunSystem {
     this._addSky();
     this._addCelestialBodies();
     this._addStars();
+    this._addAurora();
     this._addLights();
 
     scene.add(this.group);
@@ -167,6 +173,121 @@ export class SunSystem {
     this.group.add(this.stars);
   }
 
+  /**
+   * Aurora boreal (F4.7): cortina de luz verde→cian→violeta en el polo norte.
+   *
+   * Un domo interior (radio 1, escalado al far real en update()) con un shader
+   * procedural GLSL (adaptado del Shadertoy "Auroras" de nimitz, XtGGRt): cada
+   * fragmento marcha un rayo por el cielo y acumula densidad de "cortina" con
+   * ruido triangular (_triNoise2d, 5 octavas) → bandas verticales ondeando con
+   * el tiempo. La paleta (verde→cian→violeta) sale de una onda senoidal sobre
+   * la altura de cada paso.
+   *
+   * El domo usa BLENDING ADITIVO + depthTest: la aurora suma luz sobre el cielo
+   * nocturno y queda oculta tras los muros (el mundo escribe depth); se ve a
+   * través de ventanas y por encima de los muros, como la de verdad. Es
+   * translúcida: la opacidad se modula con uNight*uIntensity en el alpha.
+   *
+   * Solo aparece de noche (uNight = p.night de daylight.js): de día el alpha es
+   * 0 y el blending aditivo no aporta nada. El toggle `aurora:false` la oculta
+   * por completo (visible=false).
+   */
+  _addAurora() {
+    const geo = new THREE.SphereGeometry(1, 48, 32);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uNight: { value: 0 },
+        uIntensity: { value: this.cfg.auroraIntensity },
+      },
+      vertexShader: `
+        varying vec3 vWorldPos;
+        void main() {
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uNight;
+        uniform float uIntensity;
+        varying vec3 vWorldPos;
+
+        // Ruido triangular (nimitz): barato y con bandas naturales para la cortina.
+        mat2 mm2(in float a){ float c=cos(a), s=sin(a); return mat2(c, s, -s, c); }
+        float tri(in float x){ return clamp(abs(fract(x)-.5), 0.01, 0.49); }
+        vec2 tri2(in vec2 p){ return vec2(tri(p.x)+tri(p.y), tri(p.y+tri(p.x))); }
+        // Rotación fija del torrente (constante del shader original).
+        const mat2 M2 = mat2(0.95534, -0.29552, 0.29552, 0.95534);
+
+        float hash21(vec2 n){ return fract(sin(dot(n, vec2(12.9898, 4.1414)))*43758.5453); }
+
+        float triNoise2d(in vec2 p, float spd){
+          float z = 1.8;
+          float z2 = 2.5;
+          float rz = 0.;
+          p *= mm2(p.x*0.06);
+          vec2 bp = p;
+          for(int i = 0; i < 5; i++){
+            vec2 dg = tri2(bp*1.85)*.75;
+            dg *= mm2(uTime*spd);
+            p -= dg/z2;
+            bp *= 1.3;
+            z2 *= .45;
+            z *= .42;
+            p *= 1.21 + (rz - 1.0)*.02;
+            rz += tri(p.x + tri(p.y))*z;
+            p *= -M2;
+          }
+          return clamp(1.0/pow(rz*29.0, 1.3), 0.0, .55);
+        }
+
+        // Ray-march liviano de las cortinas por la dirección del cielo.
+        vec4 aurora(in vec3 ro, in vec3 rd){
+          vec4 col = vec4(0.0);
+          vec4 avgCol = vec4(0.0);
+          for(float i = 0.; i < 50.; i++){
+            float of = 0.006*hash21(gl_FragCoord.xy)*smoothstep(0., 15., i);
+            float pt = ((.8 + pow(i, 1.4)*.002) - ro.y) / (rd.y*2. + 0.4);
+            pt -= of;
+            vec3 bpos = ro + pt*rd;
+            vec2 p = bpos.zx;
+            float rzt = triNoise2d(p, 0.06);
+            vec4 col2 = vec4(0., 0., 0., rzt);
+            col2.rgb = (sin(1. - vec3(2.15, -.5, 1.2) + i*0.043)*.5 + .5)*rzt;
+            avgCol = mix(avgCol, col2, .5);
+            col += avgCol*exp2(-i*0.065 - 2.5)*smoothstep(0., 5., i);
+          }
+          col *= (clamp(rd.y*15. + .4, 0., 1.));
+          return col;
+        }
+
+        void main(){
+          // Dirección del rayo: del fragmento (en el domo del cielo) a la cámara.
+          vec3 rd = normalize(vWorldPos - cameraPosition);
+          // Aurora solo hacia el polo norte del mundo (-Z) y por encima del
+          // horizonte: cerca del horizonte norte la cortina se ve de canto.
+          float north = clamp(dot(vec3(0., 0., -1.), normalize(vec3(rd.x, 0., rd.z))), 0., 1.);
+          float sky = smoothstep(0.02, 0.25, rd.y); // solo sobre horizonte
+          vec4 c = aurora(vec3(0.), rd);
+          float alpha = c.a * uNight * uIntensity * north * sky;
+          vec3 rgb = c.rgb * uIntensity * uNight * north * sky;
+          gl_FragColor = vec4(rgb, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.BackSide,
+      fog: false,
+    });
+    this.aurora = new THREE.Mesh(geo, mat);
+    this.aurora.renderOrder = -2;
+    this.aurora.frustumCulled = false; // domo gigante, nunca entero en el frustum
+    this.group.add(this.aurora);
+  }
+
   /** Luz principal (sol, con sombras) + luz hemisférica de ambiente. */
   _addLights() {
     const sun = new THREE.DirectionalLight(0xffffff, 1);
@@ -222,6 +343,9 @@ export class SunSystem {
       // Escala las estrellas al alcance visual real de la cámara (×0.8 del
       // far): siempre dentro del view frustum, por lejos que llegue el far.
       this.stars.scale.setScalar(Math.max(10, camera.far * 0.8));
+      // La aurora (domo interior) también escala al far: el march de rayos
+      // depende solo de la DIRECCIÓN (rd), el radio solo hace de pantalla.
+      this.aurora.scale.setScalar(Math.max(10, camera.far * 0.8));
       this._placeCelestial(camera);
       this._syncShadows(camera);
     }
@@ -258,6 +382,16 @@ export class SunSystem {
     const uni = this.stars.material.uniforms;
     uni.uSize.value = p.night * 1.0;
     uni.uTime.value = performance.now() * 0.001;
+
+    // Aurora boreal: se enciende de noche (uNight), con su intensidad propia
+    // (slider del editor) y una animación siempre viva (uTime real). El destino
+    // `aurora` combina alpha y rgb (blending aditivo) → translúcida sin brillar
+    // de día (uNight 0 apaga el producto).
+    this.aurora.visible = this.cfg.aurora;
+    const au = this.aurora.material.uniforms;
+    au.uNight.value = p.night;
+    au.uIntensity.value = this.cfg.auroraIntensity;
+    au.uTime.value = performance.now() * 0.001;
   }
 
   /** Coloca sol y luna en la dirección celeste correspondiente a la hora. */

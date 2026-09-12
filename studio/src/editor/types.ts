@@ -130,6 +130,10 @@ export interface EditableSky {
   moonIntensity?: number;
   /** True = estrellas visibles de noche. */
   stars?: boolean;
+  /** True = aurora boreal en el polo norte (F4.7). */
+  aurora?: boolean;
+  /** Multiplicador de la intensidad de la aurora (0.1–3, 1 = base). */
+  auroraIntensity?: number;
 }
 
 /** Definición de audio (project.audio, F4.5): una voz = una entrada. */

@@ -5,6 +5,59 @@ const canvas = document.getElementById('screen');
 canvas.width = 640;
 canvas.height = 480;
 
+// Brújula (F4.7): rosa de los vientos en la esquina inferior derecha. Es un
+// overlay 2D ajeno al motor (UX de la demo): muestra hacia dónde mira el
+// jugador respecto al norte del mundo (-Z del espacio Three). El norte es
+// también el polo de la aurora boreal (SunSystem), así se verifica la cortina.
+const compass = document.createElement('canvas');
+compass.width = compass.height = 96;
+compass.style.cssText = 'position:fixed;right:12px;bottom:12px;width:96px;height:96px;pointer-events:none;z-index:10;';
+document.body.appendChild(compass);
+const cctx = compass.getContext('2d');
+
+function drawCompass(yaw) {
+  const s = 96;
+  cctx.clearRect(0, 0, s, s);
+  // Fondo translúcido + anillo.
+  cctx.beginPath();
+  cctx.arc(s / 2, s / 2, s / 2 - 2, 0, Math.PI * 2);
+  cctx.fillStyle = 'rgba(30,30,46,0.55)';
+  cctx.fill();
+  cctx.strokeStyle = 'rgba(137,180,250,0.6)';
+  cctx.lineWidth = 2;
+  cctx.stroke();
+  cctx.save();
+  cctx.translate(s / 2, s / 2);
+  // La N queda arriba cuando el jugador mira al norte (yaw = -π/2).
+  cctx.rotate(Math.atan2(-Math.cos(yaw), -Math.sin(yaw)));
+  // Marcas de 8 rumbos.
+  cctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const r1 = i % 2 === 0 ? 34 : 30;
+    cctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+    cctx.lineTo(Math.cos(a) * 40, Math.sin(a) * 40);
+  }
+  cctx.strokeStyle = 'rgba(205,214,244,0.5)';
+  cctx.lineWidth = 1.5;
+  cctx.stroke();
+  // Letras N/E/S/O (norte destacado en azul).
+  cctx.font = 'bold 13px "Inter", sans-serif';
+  cctx.textAlign = 'center';
+  cctx.textBaseline = 'middle';
+  const labels = [
+    ['N', 0, -27, 'rgba(137,180,250,1)'],
+    ['E', 27, 0, 'rgba(166,173,200,0.9)'],
+    ['S', 0, 27, 'rgba(166,173,200,0.9)'],
+    ['O', -27, 0, 'rgba(166,173,200,0.9)'],
+  ];
+  for (const [txt, x, y, col] of labels) {
+    cctx.fillStyle = col;
+    cctx.fillText(txt, x, y);
+  }
+  cctx.restore();
+}
+
 const engine = new Engine3D(project);
 await engine.load(canvas);
 
@@ -76,6 +129,7 @@ function frame(now) {
   engine.update({ dirX, dirY, speed: moveSpeed }, dt);
 
   engine.render();
+  drawCompass(p.yaw);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

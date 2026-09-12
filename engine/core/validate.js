@@ -92,6 +92,13 @@ export function validateProject(project) {
         if (s.stars != null && typeof s.stars !== 'boolean') {
           errors.push('"world.sky.stars" debe ser booleano');
         }
+        // F4.7 aurora boreal: toggle y multiplicador de intensidad (0.1–3).
+        if (s.aurora != null && typeof s.aurora !== 'boolean') {
+          errors.push('"world.sky.aurora" debe ser booleano');
+        }
+        if (s.auroraIntensity != null && !(typeof s.auroraIntensity === 'number' && s.auroraIntensity >= 0.1 && s.auroraIntensity <= 3)) {
+          errors.push('"world.sky.auroraIntensity" debe ser un número 0.1–3 (multiplicador de la aurora)');
+        }
         if (s.set != null || s.frame != null) {
           errors.push('"world.sky" realista no usa set/frame (úsalo solo con style:"classic")');
         }
@@ -100,8 +107,8 @@ export function validateProject(project) {
         if (s.frame != null && (!Number.isInteger(s.frame) || s.frame < 0 || s.frame > 31)) errors.push('"world.sky.frame" debe ser un entero 0–31');
         if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
         if (s.hour != null || s.dayLengthSec != null || s.shadows != null || s.sunTilt != null ||
-            s.sunIntensity != null || s.moonIntensity != null || s.stars != null) {
-          errors.push('"world.sky" clásico no usa hour/dayLengthSec/shadows/sunTilt/sunIntensity/moonIntensity/stars (reservados a style:"realista")');
+            s.sunIntensity != null || s.moonIntensity != null || s.stars != null || s.aurora != null || s.auroraIntensity != null) {
+          errors.push('"world.sky" clásico no usa hour/dayLengthSec/shadows/sunTilt/sunIntensity/moonIntensity/stars/aurora/auroraIntensity (reservados a style:"realista")');
         }
       }
     }

@@ -158,11 +158,14 @@ export class Engine3D {
     }
     if (this.sun && (this.world.sky?.style ?? 'classic') === 'realista') {
       // F4.7: ajustes en caliente (sin reconstruir el SunSystem): intensidad
-      // del sol, luz de luna y estrellas se aplican en _applyPalette leyendo cfg.
+      // del sol, luz de luna, estrellas y aurora se aplican en _applyPalette
+      // leyendo cfg.
       const s = this.world.sky;
       if (s.sunIntensity != null) this.sun.cfg.sunIntensity = s.sunIntensity;
       if (s.moonIntensity != null) this.sun.cfg.moonIntensity = s.moonIntensity;
       if (s.stars != null) this.sun.cfg.stars = s.stars;
+      if (s.aurora != null) this.sun.cfg.aurora = s.aurora;
+      if (s.auroraIntensity != null) this.sun.cfg.auroraIntensity = s.auroraIntensity;
     }
     this._setupSun();
     if (this.renderer && this.loaded) {

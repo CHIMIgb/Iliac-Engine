@@ -83,25 +83,34 @@ test('validateProject acepta hora 24 (medianoche) y dayLengthSec 0 (manual)', ()
   assert.equal(r.valid, true, JSON.stringify(r.errors));
 });
 
-test('validateProject acepta ajustes F4.7 en realista (sol/luna/estrellas)', () => {
+test('validateProject acepta ajustes F4.7 en realista (sol/luna/estrellas/aurora)', () => {
   const p = validProject();
-  p.world.sky = { style: 'realista', sunIntensity: 0.85, moonIntensity: 0.35, stars: true };
+  p.world.sky = { style: 'realista', sunIntensity: 0.85, moonIntensity: 0.35, stars: true, aurora: true, auroraIntensity: 1.4 };
   const r = validateProject(p);
   assert.equal(r.valid, true, JSON.stringify(r.errors));
 });
 
 test('validateProject rechaza ajustes F4.7 fuera de rango en realista', () => {
   const p = validProject();
-  p.world.sky = { style: 'realista', sunIntensity: 5, moonIntensity: 2 };
+  p.world.sky = { style: 'realista', sunIntensity: 5, moonIntensity: 2, auroraIntensity: 9 };
   const r = validateProject(p);
   assert.equal(r.valid, false);
   assert.ok(r.errors.some((e) => e.includes('sunIntensity')));
   assert.ok(r.errors.some((e) => e.includes('moonIntensity')));
+  assert.ok(r.errors.some((e) => e.includes('auroraIntensity')));
+});
+
+test('validateProject rechaza aurora no booleana', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', aurora: 'sí' };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('aurora')));
 });
 
 test('validateProject rechaza ajustes F4.7 en estilo clásico', () => {
   const p = validProject();
-  p.world.sky = { set: 3, stars: false };
+  p.world.sky = { set: 3, stars: false, aurora: true, auroraIntensity: 1 };
   const r = validateProject(p);
   assert.equal(r.valid, false);
   assert.ok(r.errors.some((e) => e.includes('no usa')));

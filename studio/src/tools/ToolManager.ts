@@ -822,6 +822,28 @@ export class ToolManager {
     starsWrap.appendChild(starsChk);
     realSec.appendChild(starsWrap);
 
+    // Aurora boreal (F4.7): cortina de luz en el polo norte, toggle + intensidad.
+    const auroraWrap = mkRow('Aurora boreal');
+    const auroraChk = document.createElement('input');
+    auroraChk.type = 'checkbox';
+    auroraChk.style.cssText = 'accent-color:var(--accent-primary,#89b4fa)';
+    auroraWrap.appendChild(auroraChk);
+    realSec.appendChild(auroraWrap);
+
+    const auroraRow = mkRow('Intensidad aurora');
+    const auroraRange = document.createElement('input');
+    auroraRange.type = 'range';
+    auroraRange.min = '0.1';
+    auroraRange.max = '3';
+    auroraRange.step = '0.1';
+    auroraRange.style.cssText = 'flex:1;accent-color:var(--accent-primary,#89b4fa)';
+    const auroraVal = document.createElement('span');
+    auroraVal.style.cssText = 'font:11px "JetBrains Mono",monospace;color:var(--text-primary,#cdd6f4);min-width:44px;text-align:right';
+    auroraRow.appendChild(auroraRange);
+    auroraRow.appendChild(auroraVal);
+    auroraWrap.appendChild(auroraRow);
+    realSec.appendChild(auroraWrap);
+
     panel.appendChild(classicSec);
     panel.appendChild(realSec);
 
@@ -830,7 +852,7 @@ export class ToolManager {
       const s = this.doc.world.sky;
       return s && s.style === 'realista'
         ? s
-        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, sunIntensity: 0.85, moonIntensity: 0.55, stars: true };
+        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, sunIntensity: 0.85, moonIntensity: 0.55, stars: true, aurora: true, auroraIntensity: 1 };
     };
     const sync = (): void => {
       const s = this.doc.world.sky;
@@ -850,6 +872,9 @@ export class ToolManager {
         moonIRange.value = String(s?.moonIntensity ?? 0.55);
         moonIVal.textContent = `${Math.round(Number(moonIRange.value) * 100)}%`;
         starsChk.checked = s?.stars ?? true;
+        auroraChk.checked = s?.aurora ?? true;
+        auroraRange.value = String(s?.auroraIntensity ?? 1);
+        auroraVal.textContent = `×${Number(auroraRange.value).toFixed(1)}`;
       } else {
         horizonSel.value = s && s.set != null ? String(s.set) : '';
         hourSel.value = s && s.frame != null ? String(s.frame) : '';
@@ -906,6 +931,11 @@ export class ToolManager {
       setReal({ moonIntensity: Number(moonIRange.value) });
     });
     starsChk.addEventListener('change', () => setReal({ stars: starsChk.checked }));
+    auroraChk.addEventListener('change', () => setReal({ aurora: auroraChk.checked }));
+    auroraRange.addEventListener('input', () => {
+      auroraVal.textContent = `×${Number(auroraRange.value).toFixed(1)}`;
+      setReal({ auroraIntensity: Number(auroraRange.value) });
+    });
 
     tabClassic.addEventListener('click', () => {
       const s = this.doc.world.sky;
