@@ -195,9 +195,12 @@ export class Engine3D {
    * La rota el yaw del jugador en render(); el norte del mundo (-Z de Three)
    * coincide con el polo de la aurora boreal. Overlay opcional: null hasta que
    * se activa, y se dibuja solo si el yaw cambió (cero coste por frame).
+   * @param {boolean} on
+   * @param {HTMLElement} [container] dónde anclarla (default body; el Studio
+   * pasa el viewport del editor para que quede sobre el juego, no la ventana).
    */
-  setCompass(on) {
-    if (on && !this.compass) this.compass = new CompassOverlay();
+  setCompass(on, container) {
+    if (on && !this.compass) this.compass = new CompassOverlay(container);
     if (!on && this.compass) {
       this.compass.dispose();
       this.compass = null;

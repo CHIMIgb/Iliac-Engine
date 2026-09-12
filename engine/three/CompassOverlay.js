@@ -20,7 +20,13 @@ const SIZE = 96;
 const S = SIZE / 2; // centro
 
 export class CompassOverlay {
-  constructor() {
+  /**
+   * @param {HTMLElement} [container=document.body] dónde anclar la brújula.
+   * La demo usa el body; el Studio pasa el viewport del editor (.editor-viewport,
+   * position:relative) para que la rosa quede en la esquina del JUEGO, no de la
+   * ventana del navegador.
+   */
+  constructor(container = document.body) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.canvas.height = SIZE;
     this.canvas.style.cssText =
@@ -28,6 +34,8 @@ export class CompassOverlay {
       'pointer-events:none;z-index:10;';
     this.ctx = this.canvas.getContext('2d');
     this._lastYaw = null;
+    this.container = container;
+    container.appendChild(this.canvas);
   }
 
   /**

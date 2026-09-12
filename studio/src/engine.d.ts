@@ -120,7 +120,7 @@ declare module '@engine/index.js' {
     /** Silencia los bucles al salir del playtest (no-op sin audio). */
     stopAudio(): void;
     /** Muestra/oculta la brújula HUD (rosa N/E/S/O) del playtest. */
-    setCompass(on: boolean): void;
+    setCompass(on: boolean, container?: HTMLElement): void;
     project: unknown;
     load(canvas: HTMLCanvasElement): Promise<this>;
     resize(w: number, h: number): void;
