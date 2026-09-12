@@ -119,7 +119,7 @@ declare module '@engine/index.js' {
     resumeAudio(): Promise<boolean>;
     /** Silencia los bucles al salir del playtest (no-op sin audio). */
     stopAudio(): void;
-    /** Muestra/oculta la brújula HUD (rosa N/E/S/O) del playtest. */
+    /** Muestra/oculta la brújula HUD (cinta de rumbo horizontal) del playtest. */
     setCompass(on: boolean, container?: HTMLElement): void;
     project: unknown;
     load(canvas: HTMLCanvasElement): Promise<this>;

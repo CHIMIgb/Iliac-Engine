@@ -191,7 +191,7 @@ export class Engine3D {
   }
 
   /**
-   * Muestra/oculta la brújula HUD (rosa N/E/S/O en la esquina inferior derecha).
+   * Muestra/oculta la brújula HUD (cinta de rumbo horizontal, abajo-centro).
    * La rota el yaw del jugador en render(); el norte del mundo (-Z de Three)
    * coincide con el polo de la aurora boreal. Overlay opcional: null hasta que
    * se activa, y se dibuja solo si el yaw cambió (cero coste por frame).

@@ -8,8 +8,8 @@ canvas.height = 480;
 const engine = new Engine3D(project);
 await engine.load(canvas);
 
-// Brújula HUD (F4.7): rosa N/E/S/O en la esquina inferior derecha. La dibuja el
-// MOTOR (CompassOverlay) rotando con el yaw del jugador; el norte del mundo
+// Brújula HUD (F4.7): cinta de rumbo horizontal. La dibuja el MOTOR
+// (CompassOverlay) deslizándose con el rumbo del jugador; el norte del mundo
 // (-Z de Three) coincide con el polo de la aurora boreal (SunSystem).
 engine.setCompass(true);
 await engine.load(canvas);

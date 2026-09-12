@@ -176,7 +176,7 @@ export class EditorViewport {
       // El audio exige gesto del usuario: la entrada a playtest (clic/F5) lo desbloquea.
       void this.engine?.resumeAudio?.();
       this._stepAccum = 0; // reinicia el contador de pasos del playtest
-      // Brújula HUD (rosa N/E/S/O): el norte del mundo coincide con la aurora.
+      // Brújula HUD (cinta de rumbo): el norte del mundo coincide con la aurora.
       // Anclada al viewport del editor (no al body): así queda sobre el JUEGO.
       this.engine?.setCompass?.(true, this.el);
     }
