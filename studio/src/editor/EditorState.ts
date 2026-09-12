@@ -20,6 +20,8 @@ import type {
   EditableRender,
   EditableMeta,
   EditableSky,
+  EditableAudioDef,
+  EditableMusicRef,
 } from './types';
 
 export type EditorChangeHandler = () => void;
@@ -34,6 +36,10 @@ export class EditorState {
   camera: EditableCamera;
   render: EditableRender;
   world: EditableWorld;
+  /** Definiciones de audio (project.audio): vacías = sin audio (comportamiento histórico). */
+  audio: EditableAudioDef[];
+  /** Pista musical activa (project.music) o null. */
+  music: EditableMusicRef | null;
 
   private handlers: EditorChangeHandler[] = [];
 
@@ -47,6 +53,8 @@ export class EditorState {
       fog: { color: 0x1a1a2e, density: 0.005 },
     };
     this.world = initial?.world ?? { vertices: [], sectors: [], walls: [], ramps: [], sprites: [], textures: {} };
+    this.audio = initial?.audio ?? [];
+    this.music = initial?.music ?? null;
   }
 
   /** Suscribe un handler de cambios. */

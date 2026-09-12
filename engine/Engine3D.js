@@ -2,6 +2,8 @@ import { Player } from './core/player.js';
 import { moveWithSectorCollision, updateVerticalSector } from './core/physics.js';
 import { buildSectorIndex } from './core/sector.js';
 import { validateProject } from './core/validate.js';
+import { AudioEngine } from './core/audio.js';
+import { AdaptiveMusic } from './core/music.js';
 import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
@@ -25,6 +27,9 @@ export class Engine3D {
     this.sectorIndex = null;
     this.sky = null;
     this._skySig = skySignature(null);
+    this.audio = null;   // AudioEngine (null si el proyecto no declara audio[])
+    this.music = null;   // AdaptiveMusic (null si no hay project.music con layers)
+    this._audioSig = null;
     if (this.world.vertices && this.world.sectors) {
       this.sectorIndex = buildSectorIndex(this.world);
     }
@@ -36,8 +41,34 @@ export class Engine3D {
     this.renderer = new Renderer3D(canvas, renderSettings);
     WorldMesh.build(this.renderer.scene, this.project, this.textures);
     await this._loadSky();
+    this._setupAudio();
     this.loaded = true;
     return this;
+  }
+
+  /**
+   * Vuelve a crear el AudioEngine/AdaptiveMusic si cambió la firma de
+   * project.audio / project.music (edición en vivo del Studio). El contexto
+   * real no se crea hasta resume() (gesto del usuario): aquí solo datos.
+   */
+  _setupAudio() {
+    const sig = JSON.stringify([this.project.audio ?? null, this.project.music ?? null]);
+    if (sig === this._audioSig) return;
+    this._audioSig = sig;
+    this.music?.dispose();
+    this.music = null;
+    this.audio?.dispose();
+    this.audio = null;
+    const defs = this.project.audio;
+    if (!Array.isArray(defs) || defs.length === 0) return;
+    this.audio = new AudioEngine(defs);
+    const m = this.project.music;
+    const mdef = m && defs.find((d) => d.id === m.id);
+    if (mdef) {
+      this.music = new AdaptiveMusic(this.audio, mdef);
+      this.audio.music = this.music;
+      this.music.setIntensity(m.intensity ?? 0, true);
+    }
   }
 
   /**
@@ -98,6 +129,9 @@ export class Engine3D {
     this.sectorIndex = this.world.vertices && this.world.sectors
       ? buildSectorIndex(this.world)
       : null;
+    // El audio puede haber cambiado (edición en vivo del Studio): re-crear si
+    // cambió la firma. Sin gesto previo no hay contexto, así que no suena ni corta.
+    this._setupAudio();
     return true;
   }
 
@@ -111,6 +145,10 @@ export class Engine3D {
     this.sky?.dispose();
     this.sky = null;
     this._skySig = skySignature(null);
+    this.music?.dispose();
+    this.music = null;
+    this.audio?.dispose();
+    this.audio = null;
     WorldMesh.clear(this.renderer.scene);
     for (const key in this.textures || {}) {
       this.textures[key].dispose();
@@ -129,6 +167,19 @@ export class Engine3D {
       moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
     }
     updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
+    // Oído espacial y emisores que siguen a los sprites, solo con audio activo.
+    if (this.audio) {
+      this.audio.setListener(this.player.posX, this.player.posY, this.player.posZ, this.player.yaw);
+      this.audio.updateEmitters(this.world.sprites);
+    }
+  }
+
+  /**
+   * Desbloquea/reanuda el audio (política de autoplay): llamarla desde un gesto
+   * del usuario (click/tecla). Sin proyecto con audio es un no-op.
+   */
+  async resumeAudio() {
+    return this.audio ? this.audio.resume() : false;
   }
 
   render() {

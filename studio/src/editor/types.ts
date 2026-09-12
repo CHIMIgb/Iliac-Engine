@@ -116,6 +116,28 @@ export interface EditableSky {
   base?: string;
 }
 
+/** Definición de audio (project.audio, F4.5): una voz = una entrada. */
+export interface EditableAudioDef {
+  id: string;
+  src: string;
+  bus?: 'music' | 'sfx' | 'ambience' | 'voice';
+  loop?: boolean;
+  volume?: number;
+  /** Espacial 3D: posición fija o siguiendo a un sprite (`follow`). */
+  spatial?: { x?: number; y?: number; z?: number; follow?: string; refDistance?: number; maxDistance?: number; rolloff?: number };
+  /** Pools de variantes para SFX (anti-machine-gun). */
+  variations?: string[];
+  /** Stems sincronizados (solo bus 'music'): intensidad sube capas. */
+  layers?: string[];
+}
+
+/** Pista musical activa + intensidad inicial (project.music). */
+export interface EditableMusicRef {
+  id: string;
+  intensity?: 0 | 1 | 2;
+  bpm?: number;
+}
+
 /** Estado editable completo del mundo (lo que edita el Studio). */
 export interface EditableWorld {
   vertices: EditableVertex[];

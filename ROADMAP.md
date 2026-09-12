@@ -88,7 +88,10 @@ El proyecto tiene **dos capas**:
     "textures": { "id": "ruta_o_color" }
   },
   "entities":   [ { "id", "type", "sprite", "pos": {x,y,z}, "stats": {} } ],
-  "audio":      [ { "id", "src", "loop", "volume", "spatial" } ],
+  "audio":      [ { "id", "src", "bus"?: "music"|"sfx"|"ambience"|"voice", "loop"?, "volume"?,
+                    "spatial"?: { x?, y?, z?, follow?, refDistance?, maxDistance?, rolloff? },
+                    "variations"?: ["ruta"], "layers"?: ["ruta-stem"] } ],
+  "music":      { "id", "intensity"?: 0|1|2, "bpm"? },
   "items":      [ { "id", "name", "type", "effects", "price", "icon", "stackable" } ],
   "spells":     [ { "id", "name", "school", "manaCost", "effects", "fx" } ],
   "npc":        [ { "id", "sprite", "dialogueId", "faction", "shopId" } ],
@@ -112,6 +115,7 @@ El esquema usa un modelo de **sectores poligonales 2D extruidos en 3D**:
 - **Rampas** → superficies inclinadas (`slope`) o escaleras de peldaños (`stairs`) posicionadas dentro de sectores.
 - **Sprites** → entidades 2D billboard posicionadas en coordenadas 3D (`x`, `y`, `z`).
 - **Textures** → mapa de id a ruta de imagen o color sólido.
+- **Audio** (F4.5) → `audio[]` define las voces (buses `music|sfx|ambience|voice`, loops, espacial 3D con `follow` de sprite, `variations` de SFX y `layers` de stems); `music` elige la pista activa e intensidad 0–2. El motor las expone en `engine.audio`/`engine.music` (Web Audio API: buses en dB, limiter, pool de one-shots, ducking).
 
 Migración automatizada de versiones anteriores: un migrador Zod convierte v1/v2 a v3 al cargar.
 
@@ -262,7 +266,7 @@ motor-raycast/
 | F4+ **Mapa por defecto 100×100 m (celdas 2 m, 2.500 sectores)**: paisaje determinista en `sample-project.ts` (`landscapeHeight`/`MOUNTAIN`) — **montaña central** cónica de ~50 m con flancos rugosos en (50,50), **río** meandro que cruza de O a E por el sur (~z 18, lecho plano 0,25 m sobre vértices compartidos) y **resto terreno medio irregular** (colinas FBM 0–5 m); sin texturas por defecto: el suelo usa el gris de fallback del motor (0x555555); techo 200 m (`placeTerrainAt` nuevo parámetro `ceil`); `hiddenTerrainVertices` memoizado (corrige el coste O(n)/frame con mapas grandes); throttle de reload 250 ms con >40k sectores; tests en `studio/tests/landscape.test.ts`. (Se probaron 500×500 con biomas, 250×250 y 150×150: grandeza/traba según tamaño; fijado en 100 m, decisión del usuario) | ✅ Realizada |
 | F4+ ~~Pantalla (tecla 9)~~ y CRT: retirados por decisión del usuario — el render vuelve a **resolución nativa** a pantalla completa (el buffer interno fijo dejaba el editor en miniatura) | — Retirada |
 | F4+ **Entidades apoyadas en el terreno**: `placeSpriteAt`/`placeEntityAt`/`moveSpriteTo` y el drag de la herramienta Mover ya no fijan `pos.z` a 0 ni conservan la altura vieja — re-muestrean el terreno con el helper `floorHeightAtPoint` (`tools.ts`, escanea sectores con `pointInSector` + interpola `floorH` con la fórmula del motor `getFloorHeightAt`, fan-triangulation incluidas pendientes; fuera del mapa → 0). Limitación asumida: esculpir el terreno NO re-apoya las entidades ya colocadas (se re-apoyan al moverlas). Test en `tools.test.ts` | ✅ Realizada |
-| F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa) | ⏳ Pendiente |
+| F4.5 **Audio Engine** (Web Audio API: buses, SFX espacial, música adaptativa): `engine/core/audio.js` — un `AudioContext` perezoso (creado en `resume()` al primer gesto), mezclador `Master(limiter)←{Music,SFX,Ambience,Voice}` con ganancia en dB (`linearToDb/dbToLinear`), loops **múltiples simultáneos** (música + ambiente + bucles de entidades), SFX one-shot con pool reutilizable (`onended` libera) y variación anti-machine-gun (pitch ±6 %, volumen ±20 %, muestras), espacial 3D HRTF `inverse` con `PannerNode` (posición fija o `follow` de sprite, `updateEmitters()` por frame), `ducking` de Music −12 dB (attack 10 ms/release 400 ms) y `setBusVolume(0..1)` en dB; `engine/core/music.js` — `AdaptiveMusic` por layering vertical (stems arrancados juntos, la intensidad 0–2 solo mueve ganancias con ramps, nunca se desincroniza) + `secondsPerBeat/timeUntilNextBeat/levelFromIntensity`; schema `audio[]`+`music{}` (validate.js, aditivo); `Engine3D` crea/recrea (`setWorld`), oído en `update()`, cierra en `dispose()`, API `resumeAudio()`; Studio: `EditorState.audio/music` + Serializer passthrough + mapa por defecto con música 3 stems, viento, río espacial, guardián NPC (sprite con `spatial.follow`) y pasos por distancia en playtest; `npm run setup:audio` sintetiza 12 WAVs retro procedurales (sin copyright, no versionados) en `studio/public/audio/` y `demo/audio/`; demo jugable `demo/audio` (1/2/3 intensidad, F/H golpes, V voz con ducking, M mute). Tests: `test/engine/audio.test.js` (8) + `music.test.js` (4) con AudioContext stub inyectable | ✅ Realizada |
 | 🚀 **HITO: DEMO FUNCIONAL (Vertical Slice)** | ⏳ Pendiente |
 | F5 Asset Pipeline (Asset Manager, Sprite Pipeline) | ⏳ Pendiente |
 | F6 Sistemas RPG en TypeScript (Combate, IA, Inventario) | ⏳ Pendiente |

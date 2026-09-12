@@ -12,3 +12,7 @@ assets/
 # Copias de cielos Daggerfall (setup:sky) — no versionar (copyright)
 studio/public/sky/
 demo/sky/
+
+# Audio procedural de F4.5 (setup:audio) — regenerable, no versionar
+studio/public/audio/
+demo/audio/

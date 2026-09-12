@@ -11,7 +11,7 @@
 
 import { validateProject } from '@engine/core/validate.js';
 import { EditorState } from '../editor/EditorState';
-import type { EditableTextures } from '../editor/types';
+import type { EditableTextures, EditableAudioDef, EditableMusicRef } from '../editor/types';
 
 export interface ProjectJson {
   meta: EditorState['meta'];
@@ -25,10 +25,12 @@ export interface ProjectJson {
     sprites: EditorState['world']['sprites'];
     textures: EditorState['world']['textures'];
   };
+  audio?: EditableAudioDef[];
+  music?: EditableMusicRef;
 }
 
 export function toProjectJson(state: EditorState): ProjectJson {
-  return {
+  const json: ProjectJson = {
     meta: { ...state.meta },
     render: { ...state.render },
     camera: { ...state.camera },
@@ -60,6 +62,10 @@ export function toProjectJson(state: EditorState): ProjectJson {
       ...(state.world.sky ? { sky: { ...state.world.sky } } : {}),
     },
   };
+  // Audio y música viajan SOLO si existen (proyectos sin audio = JSON idéntico a antes).
+  if (state.audio?.length) json.audio = state.audio.map((a) => ({ ...a }));
+  if (state.music) json.music = { ...state.music };
+  return json;
 }
 
 /** Normaliza un project.json a EditorState (ignora campos desconocidos). */
@@ -80,6 +86,8 @@ export function fromProjectJson(json: Record<string, unknown> | ProjectJson): Ed
       textures,
       sky: (world.sky ?? null) as EditorState['world']['sky'],
     },
+    audio: Array.isArray(json.audio) ? (json.audio as EditableAudioDef[]) : [],
+    music: (json.music ?? null) as EditorState['music'],
   });
 }
 

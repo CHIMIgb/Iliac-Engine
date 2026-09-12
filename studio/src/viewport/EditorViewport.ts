@@ -42,6 +42,9 @@ export class EditorViewport {
   private raf = 0;
   private last = 0;
   private disposed = false;
+  /** Acumulado de distancia desde el último paso (playtest → SFX de footsteps). */
+  private _stepAccum = 0;
+  private _lastPos = { x: 0, y: 0 };
 
   // ── Control de cámara (órbita/pan) ──────────────────────────
   private controlDrag = false;
@@ -160,7 +163,12 @@ export class EditorViewport {
     if (mode === 'game') this.overlay.clear();
     // Al entrar en juego (Playtest / F5) la cámara pasa a primera persona con
     // el ratón capturado; Esc libera el puntero y Playtest vuelve al editor.
-    if (mode === 'game') this.canvas.requestPointerLock();
+    if (mode === 'game') {
+      this.canvas.requestPointerLock();
+      // El audio exige gesto del usuario: la entrada a playtest (clic/F5) lo desbloquea.
+      void this.engine?.resumeAudio?.();
+      this._stepAccum = 0; // reinicia el contador de pasos del playtest
+    }
   }
 
   toggleMode(): void {
@@ -207,6 +215,18 @@ export class EditorViewport {
     if (this.keys['ArrowLeft'] || this.keys['KeyA']) { dirX -= rightX; dirY -= rightY; }
     if (this.keys['ArrowRight'] || this.keys['KeyD']) { dirX += rightX; dirY += rightY; }
     this.engine!.update({ dirX, dirY, speed: MOVE_SPEED }, dt);
+    // Pasos: un footstep cada ~1,2 m recorridos (demo de SFX espacial del motor).
+    if (this.engine!.audio && (dirX !== 0 || dirY !== 0)) {
+      const dx = p.posX - this._lastPos.x;
+      const dy = p.posY - this._lastPos.y;
+      this._stepAccum += Math.hypot(dx, dy);
+      if (this._stepAccum >= 1.2) {
+        this._stepAccum = 0;
+        this.engine!.audio.playSfx('footstep', { x: p.posX, y: p.posY, z: p.posZ });
+      }
+    }
+    this._lastPos.x = p.posX;
+    this._lastPos.y = p.posY;
     this.engine!.render();
     this.onCoordsChange?.(p.posX, p.posY, p.posZ);
   }

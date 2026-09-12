@@ -11,9 +11,10 @@
  * (0x555555). El color lo elige el usuario pintando texturas en el editor.
  */
 import { EditorState } from './editor/EditorState';
-import { placeTerrainAt } from './tools/tools';
+import { placeTerrainAt, floorHeightAtPoint } from './tools/tools';
 import { toProjectJson } from './io/Serializer';
 import { createNoise, fbm2 } from '@engine/core/noise.js';
+import type { EditableAudioDef, EditableMusicRef } from './editor/types';
 
 const SIZE = 100;      // lado del mapa en metros
 const CELL = 2;        // tamaño de celda (2 m → 50×50 sectores, carga instantánea)
@@ -95,6 +96,32 @@ function buildDefaultDoc(): EditorState {
     // (O(n²) total) y aquí conocemos el orden de construcción.
     s.floorH = s.vertexIds.map((id) => heights.get(id) ?? 0);
   }
+
+  // ── Audio F4.5: música adaptativa + ambiente (viento y río espacial) +
+  // un NPC guardián con bucle sonoro que sigue al sprite, y SFX variado.
+  const AUDIO: EditableAudioDef[] = [
+    { id: 'music', src: '/audio/music-base.wav', bus: 'music', loop: true, volume: 0.8,
+      layers: ['/audio/music-perc.wav', '/audio/music-tension.wav'] }, // intensidad 0 calma · 1 +percusión · 2 +tensión
+    { id: 'wind', src: '/audio/wind.wav', bus: 'ambience', loop: true, volume: 0.5 },
+    { id: 'river', src: '/audio/water.wav', bus: 'ambience', loop: true, volume: 0.7,
+      spatial: { x: 50, y: 18, z: 0, refDistance: 6, maxDistance: 60, rolloff: 0.9 } },
+    { id: 'guardian', src: '/audio/sfx-voice.wav', bus: 'ambience', loop: true, volume: 0.6,
+      spatial: { follow: 'npc_guardian', refDistance: 4, maxDistance: 40, rolloff: 1.4 } },
+    { id: 'footstep', src: '/audio/sfx-footstep.wav', bus: 'sfx', volume: 0.5,
+      variations: ['/audio/sfx-footstep2.wav', '/audio/sfx-footstep3.wav'] },
+    { id: 'door', src: '/audio/sfx-door.wav', bus: 'sfx', volume: 0.8 },
+    { id: 'hit', src: '/audio/sfx-hit.wav', bus: 'sfx', volume: 0.9 },
+    { id: 'voice', src: '/audio/sfx-voice.wav', bus: 'voice', volume: 1 },
+  ];
+  const MUSIC: EditableMusicRef = { id: 'music', intensity: 0, bpm: 120 };
+  doc.audio = AUDIO;
+  doc.music = MUSIC;
+  // Guardián en la ladera (referencia del bucle espacial anterior), apoyado en el terreno.
+  const gz = floorHeightAtPoint(doc.world, 62, 60);
+  doc.addSprite('sprite', 62, 60, gz, 'npc_guardian', {
+    entityType: 'npc', entityName: 'Guardián', collisionType: 'npc',
+  });
+
   return doc;
 }
 

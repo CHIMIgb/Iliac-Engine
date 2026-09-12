@@ -4,6 +4,54 @@ export function validateProject(project) {
 
   if (!project || typeof project !== 'object') return finish(errors, 'project.json inválido: debe ser un objeto');
 
+  // Audio (F4.5): project.audio = [{ id, src, bus?, loop?, volume?, spatial?, variations?, layers? }]
+  // y project.music = { id, intensity?, bpm? } opcional. Aditivo: sin audio todo sigue válido.
+  const AUDIO_BUSES = ['music', 'sfx', 'ambience', 'voice'];
+  if (project.audio != null) {
+    if (!Array.isArray(project.audio)) {
+      errors.push('"project.audio" debe ser un array de definiciones { id, src, bus?, loop?, volume?, spatial? }');
+    } else {
+      const seen = new Set();
+      for (const a of project.audio) {
+        if (!a || typeof a !== 'object') { errors.push('"project.audio" contiene una entrada que no es objeto'); continue; }
+        if (typeof a.id !== 'string' || !a.id) errors.push('audio: cada definición requiere "id" (string)');
+        else if (seen.has(a.id)) errors.push(`audio: id duplicado "${a.id}"`);
+        else seen.add(a.id);
+        if (typeof a.src !== 'string' || !a.src) errors.push(`audio "${a.id}": requiere "src" (ruta)`);
+        if (a.bus != null && !AUDIO_BUSES.includes(a.bus)) errors.push(`audio "${a.id}": "bus" debe ser music|sfx|ambience|voice`);
+        if (a.loop != null && typeof a.loop !== 'boolean') errors.push(`audio "${a.id}": "loop" debe ser booleano`);
+        if (a.volume != null && !(typeof a.volume === 'number' && a.volume >= 0 && a.volume <= 1)) {
+          errors.push(`audio "${a.id}": "volume" debe ser un número 0..1`);
+        }
+        if (a.spatial != null && typeof a.spatial !== 'object') errors.push(`audio "${a.id}": "spatial" debe ser objeto { x?, y?, z?, follow? }`);
+        else if (a.spatial?.follow != null && typeof a.spatial.follow !== 'string') errors.push(`audio "${a.id}": "spatial.follow" debe ser un id de sprite`);
+        if (a.variations != null && (!Array.isArray(a.variations) || a.variations.some((s) => typeof s !== 'string'))) {
+          errors.push(`audio "${a.id}": "variations" debe ser un array de rutas`);
+        }
+        if (a.layers != null && (!Array.isArray(a.layers) || a.layers.some((s) => typeof s !== 'string'))) {
+          errors.push(`audio "${a.id}": "layers" debe ser un array de rutas (stems)`);
+        }
+      }
+    }
+  }
+
+  if (project.music != null) {
+    if (typeof project.music !== 'object') {
+      errors.push('"project.music" debe ser un objeto { id, intensity?, bpm? }');
+    } else {
+      if (typeof project.music.id !== 'string' || !project.music.id) errors.push('"project.music.id" requiere un id de audio válido');
+      else if (Array.isArray(project.audio) && !project.audio.some((a) => a?.id === project.music.id)) {
+        errors.push(`"project.music.id" referencia un audio inexistente "${project.music.id}"`);
+      }
+      if (project.music.intensity != null && ![0, 1, 2].includes(project.music.intensity)) {
+        errors.push('"project.music.intensity" debe ser 0, 1 o 2');
+      }
+      if (project.music.bpm != null && !(typeof project.music.bpm === 'number' && project.music.bpm > 0)) {
+        errors.push('"project.music.bpm" debe ser un número > 0');
+      }
+    }
+  }
+
   const world = project.world;
   if (!world || typeof world !== 'object') return finish(errors, 'project.json inválido: falta "world"');
 

@@ -75,6 +75,17 @@ declare module '@engine/index.js' {
       render(): void;
       resize(w: number, h: number): void;
     };
+    /** AudioEngine del motor o null si el proyecto no declara audio[]. */
+    audio: {
+      resume(): Promise<boolean>;
+      playSfx(id: string, pos?: { x: number; y: number; z: number } | null): boolean;
+      duckMusic(on: boolean, db?: number): void;
+      setBusVolume(bus: 'music' | 'sfx' | 'ambience' | 'voice', slider01: number): void;
+      setListener(x: number, y: number, z: number, yaw?: number): void;
+    } | null;
+    /** AdaptiveMusic activo si project.music apunta a un def con layers. */
+    music: { setIntensity(level: number, immediate?: boolean): void; level: number } | null;
+    resumeAudio(): Promise<boolean>;
     project: unknown;
     load(canvas: HTMLCanvasElement): Promise<this>;
     resize(w: number, h: number): void;
