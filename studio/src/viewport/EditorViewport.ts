@@ -45,6 +45,7 @@ export class EditorViewport {
   /** Acumulado de distancia desde el último paso (playtest → SFX de footsteps). */
   private _stepAccum = 0;
   private _lastPos = { x: 0, y: 0 };
+  private _lastFrameErr = '';
 
   // ── Control de cámara (órbita/pan) ──────────────────────────
   private controlDrag = false;
@@ -161,6 +162,11 @@ export class EditorViewport {
       if (boxes) boxes.visible = mode !== 'game';
     }
     if (mode === 'game') this.overlay.clear();
+    if (wasGame && mode !== 'game') {
+      // Al salir del playtest los bucles de audio se callan (halt del motor:
+      // resume() del próximo playtest los vuelve a crear y arrancar).
+      this.engine?.stopAudio?.();
+    }
     // Al entrar en juego (Playtest / F5) la cámara pasa a primera persona con
     // el ratón capturado; Esc libera el puntero y Playtest vuelve al editor.
     if (mode === 'game') {
@@ -181,13 +187,24 @@ export class EditorViewport {
     if (this.disposed) return;
     const dt = Math.min((now - this.last) / 1000, 0.05);
     this.last = now;
-    if (this.engine) {
-      if (this.controls.mode === 'game') {
-        this._updateGame(now, dt);
-      } else {
-        this._updateOrbit(dt);
+    // El bucle NUNCA debe morir: si una update lanza (p. ej. un fallo del audio,
+    // que es opcional), se registra igualmente el siguiente frame y el editor no
+    // se congela. Se avisa una vez por tipo de error para no spamear la consola.
+    try {
+      if (this.engine) {
+        if (this.controls.mode === 'game') {
+          this._updateGame(now, dt);
+        } else {
+          this._updateOrbit(dt);
+        }
+        this._followGrid();
       }
-      this._followGrid();
+    } catch (err) {
+      const key = err instanceof Error ? err.message : String(err);
+      if (key !== this._lastFrameErr) {
+        this._lastFrameErr = key;
+        console.error('[viewport] fallo aislado en el bucle (el editor sigue vivo):', err);
+      }
     }
     this.raf = requestAnimationFrame(this._frame);
   }

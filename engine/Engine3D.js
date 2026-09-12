@@ -167,10 +167,18 @@ export class Engine3D {
       moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
     }
     updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
-    // Oído espacial y emisores que siguen a los sprites, solo con audio activo.
+    // Oído espacial y emisores que siguen a los sprites. El audio es OPCIONAL y
+    // nunca puede romper el frame: cualquier fallo lo aísla aquí (el método ya
+    // se auto-silencia por dentro, esto es la segunda barrera en el bucle de juego).
     if (this.audio) {
-      this.audio.setListener(this.player.posX, this.player.posY, this.player.posZ, this.player.yaw);
-      this.audio.updateEmitters(this.world.sprites);
+      try {
+        this.audio.setListener(this.player.posX, this.player.posY, this.player.posZ, this.player.yaw);
+        this.audio.updateEmitters(this.world.sprites);
+      } catch (err) {
+        console.warn('[audio] desactivado en el bucle de juego:', err);
+        this.audio = null;
+        this.music = null;
+      }
     }
   }
 
@@ -179,7 +187,12 @@ export class Engine3D {
    * del usuario (click/tecla). Sin proyecto con audio es un no-op.
    */
   async resumeAudio() {
-    return this.audio ? this.audio.resume() : false;
+    return this.audio ? this.audio.resume().catch(() => false) : false;
+  }
+
+  /** Silencia los bucles al salir del playtest (null si no hay audio: no-op). */
+  stopAudio() {
+    try { this.audio?.halt?.(); } catch { /* el audio nunca rompe el ciclo de vida */ }
   }
 
   render() {

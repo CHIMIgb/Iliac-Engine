@@ -32,6 +32,18 @@ declare module '@engine/core/noise.js' {
   ): number;
 }
 
+declare module '@engine/core/audio.js' {
+  export class AudioEngine {
+    constructor(defs?: unknown[], opts?: { ctxFactory?: () => AudioContext });
+    resume(): Promise<boolean>;
+    playSfx(id: string, pos?: { x: number; y: number; z: number } | null): boolean;
+    halt(): void;
+    dispose(): void;
+  }
+  export function linearToDb(v: number): number;
+  export function dbToLinear(db: number): number;
+}
+
 declare module '@engine/core/sector.js' {
   export function buildSectorIndex(world: unknown): {
     vertexMap: Map<string, { x: number; y: number }>;
@@ -86,6 +98,8 @@ declare module '@engine/index.js' {
     /** AdaptiveMusic activo si project.music apunta a un def con layers. */
     music: { setIntensity(level: number, immediate?: boolean): void; level: number } | null;
     resumeAudio(): Promise<boolean>;
+    /** Silencia los bucles al salir del playtest (no-op sin audio). */
+    stopAudio(): void;
     project: unknown;
     load(canvas: HTMLCanvasElement): Promise<this>;
     resize(w: number, h: number): void;

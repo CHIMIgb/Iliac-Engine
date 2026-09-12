@@ -181,5 +181,10 @@ for (const dir of dests) {
   for (const [name, samples] of Object.entries(tracks)) {
     fs.writeFileSync(path.join(dir, name), wav(samples));
   }
-  console.log(`[setup:audio] ${Object.keys(tracks).length} WAVs escritos en ${dir}`);
+  // Manifiesto = DATO que la herramienta de Audio del Studio lee para sugerir
+  // ficheros (nada de listas hardcodeadas en el TS). Rutas absolutas del sitio
+  // de Studio; el directorio de la demo reescribe el prefijo a su ruta relativa.
+  const base = dir.includes('studio') ? '/audio/' : '../../demo/audio/';
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ files: Object.keys(tracks).map((f) => `${base}${f}`) }, null, 2));
+  console.log(`[setup:audio] ${Object.keys(tracks).length} WAVs + manifest.json escritos en ${dir}`);
 }

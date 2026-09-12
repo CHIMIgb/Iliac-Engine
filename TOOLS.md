@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo** (no es herramienta de canvas); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo**; **tecla 9 = popover de Audio (MVP: bucles de ambiente)**; `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -117,13 +117,27 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 Ambos selects se sincronizan tras cada cambio.
 
-> **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa.
+> **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa. La tecla **9** se reasignó a Audio.
+
+---
+
+## 9 · Audio — herramienta de sonido (tecla 9)
+
+Escribe `project.audio[]` y `project.music`. **MVP actual: solo AMBIENTE** (bucles `bus:'ambience'`, `loop:true`). Música, NPC y acciones quedan **documentados y pendientes de editor** (el motor ya los consume de datos: `layers` para stems, `spatial.follow` para bucles de NPC, `variations` para SFX).
+
+**Popover** (icono `volume-2`): lista de ambientes, cada uno con `archivo ▾ · volumen · Probar · ×`; botón «+ Añadir ambiente».
+
+- **Archivos sugeridos** = `fetch('/audio/manifest.json)` (dato que emite `npm run setup:audio`); si no existe el manifiesto, la ruta se escribe a mano. **Nada hardcodeado en el TS** (regla de no hardcodear).
+- **Preview**: «Probar» instancia un `AudioEngine` efímero del motor y suena 3 s (el clic es el gesto que desbloquea el autoplay) → cero lógica de audio duplicada en el Studio.
+- **Ciclo en playtest**: al entrar (`F5`/Playtest) `EditorViewport` llama `engine.resumeAudio()` → los `loop:true` arrancan en bucle; al salir, `engine.stopAudio()` (`AudioEngine.halt()`) los calla y el siguiente `resume()` los re-crea. Sin `audio[]` en el proyecto, todo es no-op (el audio es **opcional y nunca rompe el frame**).
+
+Seters en `EditorState`: `addAudioDef` (id `audio_<n>` único) · `updateAudioDef` (fusión parcial) · `removeAudioDef` (si era la pista de `doc.music`, la retira) · `setMusic`. Todos `notify()` → reload → `Engine3D._setupAudio()` por firma.
 
 ---
 
 ## Por qué va fluido (arquitectura del reload en vivo)
 
-`notify()` de cualquier mutación → `main.ts` dispara reload con **throttle** (`RELOAD_MS` 120 ms; no debounce puro: el pincel muta cada frame y un debounce hambriento nunca dispara) → `EditorViewport.reload()` → `Engine3D.setWorld(project)`:
+`notify()` de cualquier mutación → `main.ts` dispara reload con **throttle** (`reloadMs()`: 120 ms normal, 250 ms con mundos >40k sectores; no debounce puro: el pincel muta cada frame y un debounce hambriento nunca dispara) → `EditorViewport.reload()` → `Engine3D.setWorld(project)`:
 
 1. `validateProject` (rechaza datos rotos, conserva el mundo anterior).
 2. `WorldMesh.applyHeightsIfOnlyChange`: **vía rápida**. Si solo cambiaron alturas de piso de sectores con slot registrado (mismos ids/orden/vértices-XZ, sin paredes afectadas), parchea los `y` en el `BufferAttribute` mergeado + `computeVertexNormals()` + `needsUpdate` → la GPU recibe un `bufferSubData`. Nada se recrea. (~25 ms por pasada en 32 m; ~0 en 8 m).
@@ -147,5 +161,6 @@ Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · 
 | Datos del documento y mutaciones + `notify()` | `studio/src/editor/EditorState.ts` |
 | Picking con cámara + bucle de render + reload | `studio/src/viewport/EditorViewport.ts` |
 | Gizmos del editor (puntos, líneas, selección) | `studio/src/viewport/Overlay2D.ts` |
-| Toolbar/atajos 1–7 + throttle de reload | `studio/src/main.ts` |
+| Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
+| Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |
 | Motor: alturas por vértice, BVH, mallas, slots y vía rápida | `engine/core/sector.js`, `engine/three/WorldMesh.js`, `engine/Engine3D.js` |

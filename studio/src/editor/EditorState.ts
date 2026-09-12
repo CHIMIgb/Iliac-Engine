@@ -165,6 +165,48 @@ export class EditorState {
     this.notify();
   }
 
+  // ─────────────────────────────────────────────────
+  // Audio (project.audio / project.music) — herramienta 9
+  // ─────────────────────────────────────────────────
+
+  /** Añade una definición de audio con id único (`audio_<n>`) y avisa. */
+  addAudioDef(def: Omit<EditableAudioDef, 'id'> & { id?: string }): EditableAudioDef {
+    let n = this.audio.length + 1;
+    while (this.audio.some((a) => a.id === `audio_${n}`)) n++;
+    const entry: EditableAudioDef = { ...def, id: def.id ?? `audio_${n}` };
+    this.audio.push(entry);
+    this.notify();
+    return entry;
+  }
+
+  /** Fusiona cambios sobre un def existente. false si no existe. */
+  updateAudioDef(id: string, patch: Partial<Omit<EditableAudioDef, 'id'>>): boolean {
+    const a = this.audio.find((x) => x.id === id);
+    if (!a) return false;
+    Object.assign(a, patch);
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Elimina un def. Si la pista musical activa (`doc.music`) era ella,
+   * `doc.music` se retira también (invariante: music.id debe existir en audio[]).
+   */
+  removeAudioDef(id: string): boolean {
+    const idx = this.audio.findIndex((x) => x.id === id);
+    if (idx < 0) return false;
+    this.audio.splice(idx, 1);
+    if (this.music?.id === id) this.music = null;
+    this.notify();
+    return true;
+  }
+
+  /** Pista musical activa (null = sin música). */
+  setMusic(cfg: EditableMusicRef | null): void {
+    this.music = cfg;
+    this.notify();
+  }
+
   /** Fusiona opciones de render (fov, fondo, niebla…) y avisa. */
   setRender(patch: Partial<EditableRender>): void {
     this.render = { ...this.render, ...patch };

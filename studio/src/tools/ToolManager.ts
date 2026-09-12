@@ -10,6 +10,7 @@
  */
 
 import type { EditorState } from '../editor/EditorState';
+import type { EditableAudioDef } from '../editor/types';
 import {
   pickVertex,
   pickWall,
@@ -35,6 +36,7 @@ import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
 import { snap } from './picking';
 import { SKY_FRAMES, skyFrameLabel } from '@engine/core/sky.js';
+import { AudioEngine } from '@engine/core/audio.js';
 
 export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity' | 'terrain';
 
@@ -761,6 +763,216 @@ export class ToolManager {
     if (performance.now() - this.skyPickerOpenedAt < 300) return;
     if (!picker.contains(e.target as Node)) this._closeSkyPicker();
   };
+
+  // ── Audio (herramienta 9): MVP = bucles de ambiente ─────────
+  //
+  // Música, NPC y acciones quedan DOCUMENTADOS como pendiente: el modelo de
+  // datos (audio[] con bus/layers/spatial.follow/variations) ya los soporta en
+  // el motor; falta su editor. Aquí solo se editan los loops `bus:'ambience'`.
+
+  private audioPicker: HTMLElement | null = null;
+  private audioPickerOpenedAt = 0;
+  /** Lista de ficheros sugeridos (manifest generado por setup:audio; nulo = ruta libre). */
+  private _audioFiles: string[] | null = null;
+  /** Motor de audio efímero de la preview (se apaga al cambiar de preview o cerrar). */
+  private _audioPreview: AudioEngine | null = null;
+
+  /**
+   * Abre el popover de Audio (tecla 9). Lista los bucles de ambiente del doc
+   * (archivo + volumen + quitar), permite añadir nuevos, y un Preview de 3 s.
+   * Los ficheros sugeridos vienen de /audio/manifest.json (dato, no código);
+   * si no existe el manifiesto, la ruta se escribe a mano.
+   */
+  openAudioPicker(clientX?: number, clientY?: number): void {
+    this._closeAudioPicker();
+    if (typeof document === 'undefined') return;
+
+    const panel = document.createElement('div');
+    panel.tabIndex = 0;
+    panel.className = 'terrain-popover';
+    panel.style.cssText =
+      'position:fixed;z-index:60;min-width:300px;display:flex;flex-direction:column;gap:8px;' +
+      'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
+      'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
+      'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
+    if (clientX !== undefined && clientY !== undefined) {
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 330)}px`;
+      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 260)}px`;
+    } else {
+      panel.style.left = '50%';
+      panel.style.top = '50%';
+    }
+
+    const title = document.createElement('div');
+    title.textContent = 'Audio — Ambiente';
+    title.style.cssText = 'font:600 13px Inter,sans-serif;color:var(--text-primary,#cdd6f4)';
+    panel.appendChild(title);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+    panel.appendChild(list);
+
+    const SEL_CSS =
+      'flex:1;min-width:0;padding:5px 8px;border-radius:4px;font:11px "JetBrains Mono",monospace;' +
+      'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
+      'color:var(--text-primary,#cdd6f4)';
+    const Btn = 'padding:4px 8px;border-radius:4px;border:1px solid var(--border-default,#313244);' +
+      'background:var(--bg-surface,#313244);color:var(--text-primary,#cdd6f4);font:11px Inter,sans-serif;cursor:pointer';
+
+    const ambs = (): EditableAudioDef[] => this.doc.audio.filter((a) => (a.bus ?? 'sfx') === 'ambience');
+
+    const paint = (): void => {
+      list.textContent = '';
+      const defs = ambs();
+      if (defs.length === 0) {
+        const empty = document.createElement('div');
+        empty.textContent = 'Sin ambientes: añade uno con el botón de abajo.';
+        empty.style.cssText = 'color:var(--text-muted,#6c7086)';
+        list.appendChild(empty);
+      }
+      for (const a of defs) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px;align-items:center';
+
+        if (this._audioFiles) {
+          const sel = document.createElement('select');
+          sel.style.cssText = SEL_CSS;
+          const cur = this._audioFiles.includes(a.src) ? a.src : '';
+          const opts = cur === '' ? ['', ...this._audioFiles] : this._audioFiles;
+          for (const f of opts) {
+            const o = document.createElement('option');
+            o.value = f;
+            o.textContent = f === '' ? '— elegir archivo —' : f.split('/').pop() ?? f;
+            sel.appendChild(o);
+          }
+          sel.value = cur;
+          sel.addEventListener('change', () => {
+            if (sel.value) this.doc.updateAudioDef(a.id, { src: sel.value });
+            this._repaintAudio = paint;
+            paint();
+          });
+          row.appendChild(sel);
+        } else {
+          // Sin manifiesto: ruta libre escrita sobre el def.
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.value = a.src;
+          inp.placeholder = '/audio/wind.wav';
+          inp.style.cssText = SEL_CSS;
+          inp.addEventListener('change', () => this.doc.updateAudioDef(a.id, { src: inp.value }));
+          row.appendChild(inp);
+        }
+
+        const vol = document.createElement('input');
+        vol.type = 'range';
+        vol.min = '0';
+        vol.max = '1';
+        vol.step = '0.05';
+        vol.value = String(a.volume ?? 1);
+        vol.title = 'Volumen';
+        vol.style.cssText = 'width:70px;accent-color:var(--accent-primary,#89b4fa)';
+        vol.addEventListener('input', () => this.doc.updateAudioDef(a.id, { volume: Number(vol.value) }));
+        row.appendChild(vol);
+
+        const prev = document.createElement('button');
+        prev.textContent = 'Probar';
+        prev.style.cssText = Btn;
+        prev.addEventListener('click', () => this._previewAudio(a.id));
+        row.appendChild(prev);
+
+        const rm = document.createElement('button');
+        rm.textContent = '×';
+        rm.style.cssText = Btn + ';padding:4px 8px';
+        rm.addEventListener('click', () => { this.doc.removeAudioDef(a.id); paint(); });
+        row.appendChild(rm);
+
+        list.appendChild(row);
+      }
+    };
+    this._repaintAudio = paint;
+    paint();
+
+    const add = document.createElement('button');
+    add.textContent = '+ Añadir ambiente';
+    add.style.cssText = Btn;
+    add.addEventListener('click', () => {
+      this.doc.addAudioDef({
+        src: this._audioFiles?.find((f) => f.includes('wind')) ?? this._audioFiles?.[0] ?? '/audio/wind.wav',
+        bus: 'ambience',
+        loop: true,
+        volume: 0.7,
+      });
+      paint();
+    });
+    panel.appendChild(add);
+
+    const note = document.createElement('div');
+    note.textContent = 'Música, NPC y acciones: edición pendiente (siguiente corte); el motor ya reproduce estos bucles en playtest.';
+    note.style.cssText = 'color:var(--text-muted,#6c7086);font-size:11px;line-height:1.5';
+    panel.appendChild(note);
+
+    panel.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeAudioPicker();
+    });
+
+    document.body.appendChild(panel);
+    this.audioPicker = panel;
+    this.audioPickerOpenedAt = performance.now();
+    document.addEventListener('click', this._onAudioDocClick);
+    requestAnimationFrame(() => panel.focus());
+
+    // Carga (una vez) la lista de ficheros sugeridos desde el manifest generado.
+    if (this._audioFiles === null) {
+      fetch('/audio/manifest.json')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { files?: string[] } | null) => {
+          if (Array.isArray(j?.files) && j.files.length) {
+            this._audioFiles = j.files;
+            this._repaintAudio?.();
+          }
+        })
+        .catch(() => { /* sin manifest: rutas a mano (ya es el fallback pintado) */ });
+    }
+  }
+
+  private _repaintAudio: (() => void) | null = null;
+
+  private _closeAudioPicker(): void {
+    this._audioPreview?.dispose();
+    this._audioPreview = null;
+    if (this.audioPicker) {
+      this.audioPicker.remove();
+      this.audioPicker = null;
+      this._repaintAudio = null;
+      if (typeof document !== 'undefined') document.removeEventListener('click', this._onAudioDocClick);
+    }
+  }
+
+  private _onAudioDocClick = (e: MouseEvent): void => {
+    const picker = this.audioPicker;
+    if (!picker) return;
+    if (performance.now() - this.audioPickerOpenedAt < 300) return;
+    if (!picker.contains(e.target as Node)) this._closeAudioPicker();
+  };
+
+  /**
+   * Vista previa: instancia un AudioEngine del motor con la def elegida y la
+   * reproduce 3 s (el clic del botón es el gesto que desbloquea el autoplay).
+   * Reutiliza el motor de audio del juego — cero lógica duplicada en el Studio.
+   */
+  private _previewAudio(defId: string): void {
+    const def = this.doc.audio.find((a) => a.id === defId);
+    if (!def || typeof AudioContext === 'undefined') return; // node/test o navegador sin Web Audio
+    this._audioPreview?.dispose();
+    const eng = new AudioEngine([{ ...def, spatial: undefined }]);
+    this._audioPreview = eng;
+    void eng.resume();
+    // Auto-apagado a los 3 s; si para entonces ya hay otra preview, no la toca.
+    setTimeout(() => {
+      eng.dispose();
+      if (this._audioPreview === eng) this._audioPreview = null;
+    }, 3000);
+  }
 
 
   // ── Selector de entidades (dropdown desde el icono Entidades) ──

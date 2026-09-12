@@ -95,7 +95,8 @@ function setActiveTool(id: ToolId): void {
   toolManager.setTool(id);
   layout.statusBar.setItem('tool', `Herramienta: ${id}`);
   toolActions.forEach((action, i) => layout.toolbar.setActive(i, action.id === id));
-  skyBtn.classList.remove('active'); // elegir una herramienta quita el badge del Cielo
+  skyBtn.classList.remove('active'); // elegir una herramienta quita los badges de Cielo/Audio
+  audioBtn.classList.remove('active');
 }
 
 toolActions.forEach((action) => {
@@ -132,10 +133,29 @@ const skyBtn = layout.toolbar.addAction({
 });
 toolGroup.appendChild(skyBtn);
 
-/** El Cielo muestra el mismo badge azul que las herramientas al seleccionarlo. */
+// ── Toolbar: audio (F4.6.a — MVP: bucles de ambiente) ──────────
+const audioBtn = layout.toolbar.addAction({
+  icon: 'volume-2', label: 'Audio', shortcut: '9',
+  onClick: () => {
+    markAudioActive();
+    const r = audioBtn.getBoundingClientRect();
+    toolManager.openAudioPicker(r.left, r.bottom);
+  },
+});
+toolGroup.appendChild(audioBtn);
+
+/** El Cielo y Audio se quitan mutuamente el badge azul al seleccionarse. */
 function markSkyActive(): void {
   toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
+  audioBtn.classList.remove('active');
   skyBtn.classList.add('active');
+}
+
+/** El Audio luce el mismo badge que las herramientas al seleccionarlo. */
+function markAudioActive(): void {
+  toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
+  skyBtn.classList.remove('active');
+  audioBtn.classList.add('active');
 }
 
 // ── Toolbar: mazmorras (junto a Entidades) ─────────────────────
@@ -273,6 +293,14 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     markSkyActive();
     toolManager.openSkyPicker();
+    return;
+  }
+
+  // Tecla 9: popover de audio (ambiente MVP; música/NPC/acciones, próximas fases)
+  if (key === '9' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    markAudioActive();
+    toolManager.openAudioPicker();
     return;
   }
 

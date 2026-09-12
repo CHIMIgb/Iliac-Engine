@@ -87,6 +87,13 @@ export class AdaptiveMusic {
     }
   }
 
+  /** Silencia los stems (salir del playtest); build() los vuelve a crear al reiniciar. */
+  halt() {
+    for (const v of this.voices) { try { v.source.stop(); } catch { /* sin start */ } }
+    this.voices = [];
+    this._built = false;
+  }
+
   dispose() {
     for (const v of this.voices) { try { v.source.stop(); } catch { /* sin start */ } }
     this.voices = [];

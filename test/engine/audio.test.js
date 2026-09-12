@@ -11,17 +11,21 @@ function fakeCtx() {
     linearRampToValueAtTime(x) { this.value = x; this.lastRamp = x; return this; },
     cancelScheduledValues() {},
   });
-  const node = (extra = {}) => ({ connect() {}, disconnect() {}, ...extra });
+  const node = (extra = {}) => ({ connect() {}, disconnect() { this.disconnected = true; }, ...extra });
   const sources = [];
   const ctx = {
     state: 'running', currentTime: 0, destination: node(), sources,
     resume: async () => {}, close: async () => {},
     createGain: () => node({ gain: param(1) }),
     createDynamicsCompressor: () => node({ threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() }),
-    createPanner: () => node({ positionX: param(), positionY: param(), positionZ: param() }),
+    createPanner: () => node({ positionX: param(), positionY: param(), positionZ: param(),
+      // Como Chrome: los parámetros de distancia son números llanos, no AudioParams
+      // (regresión jugada: escribir .value sobre un número lanzaba TypeError y
+      // congelaba el rAF del playtest).
+      panningModel: 'equalpower', distanceModel: 'inverse', refDistance: 1, maxDistance: 10000, rolloffFactor: 1 }),
     createBufferSource: () => {
-      const s = node({ buffer: null, loop: false, playbackRate: param(1), onended: null, starts: 0,
-        start() { this.starts++; }, stop() {}, __end() { this.onended?.(); } });
+      const s = node({ buffer: null, loop: false, playbackRate: param(1), onended: null, starts: 0, stops: 0,
+        start() { this.starts++; }, stop() { this.stops++; }, __end() { this.onended?.(); } });
       sources.push(s);
       return s;
     },
@@ -87,6 +91,11 @@ test('los defs loop:true arrancan TODOS a la vez como fuentes propias', async ()
   const loopSources = e.ctx.sources.filter((s) => s.loop);
   assert.equal(loopSources.length, 3);
   assert.ok(loopSources.every((s) => s.starts === 1 && s.buffer), 'cada stem/bucle con su buffer y start');
+  // _makePanner sobre nodo con props numéricas (Chrome): sin crash y valores aplicados.
+  const river = e.loops.find((l) => l.def.id === 'river');
+  assert.equal(river.panner.panningModel, 'HRTF');
+  assert.equal(river.panner.refDistance, 3, 'default aplicado como número llano');
+  assert.equal(river.panner.rolloffFactor, 1);
 });
 
 test('updateEmitters() sigue la posición del sprite (spatial.follow) y el listener mueve su oído', async () => {
@@ -113,45 +122,83 @@ test('duckMusic(true) baja Music ≈12 dB con rampa y duckMusic(false) lo recupe
   assert.ok(Math.abs(e.buses.music.gain.value - 1) < 1e-6, 'vuelve al nivel del slider');
 });
 
-// ── SFX one-shot con pool (sin fugas de fuentes) ──────────────
+// ── SFX one-shot: fuente nueva por disparo, buffer cacheado, sin fugas ──
 
-test('playSfx reutiliza voces del pool: onended libera la voz y el siguiente no crea fuente', async () => {
+test('playSfx dispara cada vez una fuente NUEVA (start doble está prohibido) y cachea el buffer', async () => {
   const e = await builtEngine();
+  let decoded = 0;
+  const realDecode = e._decode.bind(e);
+  e._decode = (src) => { decoded++; return realDecode(src); };
+
   assert.equal(e.playSfx('hit'), true);
-  await flush(); // el disparo se materializa al resolverse el (fake) buffer
-  const v0 = e._pools.get('hit')[0];
-  assert.ok(v0.busy, 'ocupada mientras suena');
-  assert.equal(v0.source.starts, 1);
-  assert.equal(e.playSfx('hit'), true);
+  assert.equal(e.playSfx('hit'), true); // simultáneos: dos fuentes, ninguna se re-usa
   await flush();
-  assert.equal(e._pools.get('hit').length, 2, '2ª simultánea: fuente nueva (no se pisa la primera)');
-  v0.source.__end(); // fin de la 1ª → libre
-  assert.equal(v0.busy, false, 'onended → busy=false (auto-destrucción lógica)');
-  e.playSfx('hit');
-  await flush();
-  assert.equal(e._pools.get('hit').length, 2, 'la 3ª reutiliza la liberada: el pool no crece');
+  const shotSources = e.ctx.sources.filter((s) => !s.loop);
+  assert.equal(shotSources.length, 2, 'una AudioBufferSourceNode nueva por disparo');
+  assert.ok(shotSources.every((s) => s.starts === 1), 'cada fuente se arranca exactamente una vez');
+  assert.equal(decoded, 1, 'el buffer se decodifica UNA vez (cache por src) y se reutiliza');
   assert.equal(e.playSfx('no-existe'), false);
+
+  // onended suelta las conexiones (sin acumular nodos vivos).
+  const gainDisconnected = [];
+  shotSources[0].__end();
+  assert.equal(shotSources[0].disconnected, true);
+  void gainDisconnected;
+});
+
+test('fail-safe: si el navegador lanza, el audio se silencia y nada propaga al frame', async () => {
+  const e = await builtEngine();
+  // Excepción dentro del .then del disparo → se traga, no lanza al llamante.
+  e.ctx.createBufferSource = () => { throw new Error('quirk del navegador'); };
+  assert.doesNotThrow(() => e.playSfx('hit'));
+  await flush();
+  // Excepción síncrona en el reloj del audio → setListener la atrapa y marca _dead.
+  Object.defineProperty(e.ctx, 'currentTime', { get() { throw new Error('reloj roto'); } });
+  assert.doesNotThrow(() => e.setListener(1, 2, 3, 0));
+  assert.equal(e._dead, true, 'tras el fallo, el subsistema queda apagado');
+  // Y a partir de ahí es no-op seguro (el bucle de juego del playtest no se rompe).
+  assert.doesNotThrow(() => e.setListener(4, 5, 6, 0));
+  assert.equal(e.playSfx('hit'), false, 'muerto → no intenta sonar');
 });
 
 test('variación anti-machine-gun: pitch ±6 % y volumen ±20 % aleatorizados', async () => {
   const e = await builtEngine();
   const real = Math.random;
+  const shot = async (r) => {
+    globalThis.Math.random = () => r;
+    e.playSfx('hit');
+    await flush();
+    const s = e.ctx.sources.filter((x) => !x.loop).at(-1);
+    // la última fuente creada lleva el gain conectado: lo leemos de su playbackRate
+    return s;
+  };
   try {
-    globalThis.Math.random = () => 0;   // extremo bajo del rango
-    e.playSfx('hit');
-    await flush();
-    let v = e._pools.get('hit')[0];
-    assert.ok(Math.abs(v.source.playbackRate.value - 0.94) < 1e-9);
-    assert.ok(Math.abs(v.gain.gain.value - 0.9 * 0.8) < 1e-9, 'vol base 0.9 × 0.8 mínimo');
-    globalThis.Math.random = () => 0.9999; // extremo alto
-    e.playSfx('hit');
-    await flush();
-    v = e._pools.get('hit')[1];
-    assert.ok(v.source.playbackRate.value > 1.05 && v.source.playbackRate.value <= 1.06);
-    assert.ok(v.gain.gain.value > 0.9 * 1.19);
+    const sLow = await shot(0);
+    assert.ok(Math.abs(sLow.playbackRate.value - 0.94) < 1e-9, 'pitch mínimo');
+    const sHigh = await shot(0.9999);
+    assert.ok(sHigh.playbackRate.value > 1.05 && sHigh.playbackRate.value <= 1.06, 'pitch máximo');
   } finally {
     globalThis.Math.random = real;
   }
+});
+
+// ── halt()/resume(): el playtest calla y vuelve a arrancar bucles ───
+
+test('halt() detiene y limpia los bucles; resume() los re-crea con fuentes nuevas', async () => {
+  const e = await builtEngine();
+  const loopSources = () => e.ctx.sources.filter((s) => s.loop);
+  assert.ok(loopSources().length >= 1, 'hay bucles sonando tras el primer resume');
+
+  e.halt();
+  assert.equal(e.loops.length, 0, 'halt descarta la lista de bucles');
+  assert.ok(loopSources().every((s) => s.stops >= 1), 'cada fuente de loop se detuvo');
+  assert.equal(e._started, false, 'halt permite re-arrancar');
+
+  await e.resume();
+  await flush();
+  const after = loopSources();
+  assert.ok(after.length > loopSources().length - after.length, 'resume re-creó los bucles');
+  assert.ok(after.every((s) => s.starts === 1), 'cada fuente nueva se arranca UNA vez (no rearanca las paradas)');
 });
 
 // ── integración Engine3D (datos → motor, sin WebGL) ────────────
