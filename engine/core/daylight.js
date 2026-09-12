@@ -63,8 +63,13 @@ export function sunElevation(hour, tiltDeg = 23.5) {
  */
 export function paletteFor(hour) {
   const elev = sunElevation(hour);
-  const day = clamp((elev + 4) / 12, 0, 1); // 0 noche, 1 día pleno
-  const dawn = smooth((elev + 4) / 8);      // transición amanecer/atardecer
+  // F4.7: día/noche con curva en S de 16° de crepúsculo (≈ 1 h real a 15°/h):
+  //  - elev ≥ +11° → día pleno (day 1, night 0).
+  //  - elev ≤  -5° → noche plena (day 0, night 1).
+  //  - entre medias la curva S hace que la noche (y con ella la aurora boreal,
+  //    la luna y las estrellas) APAREZCA POCO A POCO, no de golpe.
+  const day = smooth((elev + 5) / 16); // 0 noche, 1 día pleno
+  const dawn = smooth((elev + 4) / 8); // transición amanecer/atardecer
   const night = 1 - day;
 
   // Curvas de color del sol: ámbar al amanecer, blanco-cálido al mediodía,

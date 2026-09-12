@@ -10,6 +10,7 @@
  *  - Sky (esfera gigante con shader atmosférico) + sol/luna visibles (sprites)
  *  - estrellas nocturnas (Points) que aparecen de noche
  *  - aurora boreal (domo interior, GLSL procedural) colgando del polo norte
+ *  - con su propia DirectionalLight (resplandor nocturno del color elegido)
  *  - DirectionalLight como SOL (con shadow map PCF 2048) + luz hemisférica
  *
  * API simétrica a SkySystem: addTo(scene) / update(camera, hour, dt) / dispose().
@@ -42,6 +43,7 @@ export class SunSystem {
     this.hemi = null;        // HemisphereLight
     this.stars = null;       // Points con shader propio
     this.aurora = null;      // domo interior BackSide (aurora boreal, F4.7)
+    this.auroraLight = null; // DirectionalLight del resplandor auroral (F4.7)
     this.meshes = [];
     this.loaded = true;      // todo es procedural, no hay carga async
   }
@@ -325,6 +327,17 @@ export class SunSystem {
     this.moon = moon;
     this.group.add(moon);
 
+    // Luz de la aurora (F4.7): el resplandor del cielo norteño también ilumina
+    // la escena de noche. Sin sombras, del color elegido (auroraColor) y con
+    // intensidad derivada de auroraIntensity. Se ancla a la cámara en la
+    // BÓVEDA CELESTE LEJANA (como el sol, 500 u), no cerca del jugador: así su
+    // origen nunca es visible como un punto — las direccionales de Three no
+    // renderizan su posición, y al estar en el cielo coincide con la cortina.
+    const auroraLight = new THREE.DirectionalLight(0xffffff, 0);
+    auroraLight.castShadow = false;
+    this.auroraLight = auroraLight;
+    this.group.add(auroraLight);
+
     const hemi = new THREE.HemisphereLight(0x87ceeb, 0x2a3a2a, 0.7);
     this.hemi = hemi;
     this.group.add(hemi);
@@ -404,6 +417,15 @@ export class SunSystem {
     au.uIntensity.value = this.cfg.auroraIntensity;
     au.uColor.value = hexToRgb01(this.cfg.auroraColor);
     au.uTime.value = performance.now() * 0.001;
+
+    // La luz del resplandor auroral (DirectionalLight) sigue a la cortina
+    // también EN CALIENTE: color = auroraColor, intensidad = night × toggle ×
+    // auroraIntensity × 0.3 (resplandor de cielo, más tenue que la luna 0.55).
+    // Atenuada en interiores como sol/luna; la curva S del crepúsculo hace que
+    // se encienda gradualmente con la noche.
+    this.auroraLight.color.setHex(parseInt(this.cfg.auroraColor.slice(1), 16));
+    this.auroraLight.intensity =
+      p.night * (this.cfg.aurora ? 1 : 0) * this.cfg.auroraIntensity * 0.3 * indoorFactor;
   }
 
   /** Coloca sol y luna en la dirección celeste correspondiente a la hora. */
@@ -424,6 +446,17 @@ export class SunSystem {
       this.moon.target.position.copy(camera.position).addScaledVector(v, -10);
       this.moon.target.updateMatrixWorld();
       this.moon.updateMatrixWorld();
+    }
+
+    // La luz de la aurora se ancla a la cámara en la esfera celeste (500 u,
+    // como el sol): viaja desde el cielo norte-arriba hacia el jugador. Lejos y
+    // sin geometría → NO hay ningún "punto de origen" visible al mirar arriba.
+    if (this.auroraLight && camera) {
+      const v = new THREE.Vector3(0.35, 1.0, -0.75).normalize();
+      this.auroraLight.position.copy(camera.position).addScaledVector(v, dist);
+      this.auroraLight.target.position.copy(camera.position);
+      this.auroraLight.target.updateMatrixWorld();
+      this.auroraLight.updateMatrixWorld();
     }
   }
 

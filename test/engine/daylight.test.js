@@ -52,6 +52,21 @@ test('paletteFor: día más brillante que noche, niebla tiñe con la hora', () =
   assert.notEqual(dia.fogColor, noche.fogColor, 'la niebla cambia de color');
 });
 
+test('paletteFor: el crepúsculo es gradual, no binario (aurora/luna/estrellas aparecen poco a poco)', () => {
+  // Sol a +15° (17:00 aprox) = día pleno; a -30° (19:00) = noche plena; a 0°
+  // (18:00, puesta) = crepúsculo en pleno desarrollo (0 < night < 1).
+  const dia = paletteFor(17);
+  const crepusculo = paletteFor(18);
+  const noche = paletteFor(19);
+  assert.equal(dia.night, 0, 'a las 17 no hay factor nocturno');
+  assert.equal(noche.night, 1, 'a las 19 la noche es plena');
+  assert.ok(crepusculo.night > 0 && crepusculo.night < 1, 'a las 18 la noche está a medias');
+  assert.ok(crepusculo.night > dia.night && crepusculo.night < noche.night, 'la noche crece gradualmente');
+  // Y monótona en el rango: 17:30 < 18:00 < 18:30 (la aurora nunca parpadea).
+  assert.ok(paletteFor(17.5).night < paletteFor(18).night, 'el crepúsculo crece en dos pasos');
+  assert.ok(paletteFor(18).night < paletteFor(18.5).night, 'la noche sigue creciendo hacia las 18:30');
+});
+
 test('advanceHour: avanza según dayLengthSec y envuelve pasada la medianoche', () => {
   // 10 min por día = 600 s → 60 s avanzan 2.4 h.
   assert.ok(Math.abs(advanceHour(12, 60, 600) - 14.4) < 1e-9);
