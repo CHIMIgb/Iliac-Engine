@@ -55,16 +55,44 @@ export function validateProject(project) {
   const world = project.world;
   if (!world || typeof world !== 'object') return finish(errors, 'project.json inválido: falta "world"');
 
-  // Cielo lejano opcional (horizonte estilo Daggerfall): { set 0–30, frame? 0–31, base? }.
-  // `set` elige la carpeta SKY (horizonte); `frame` elige la franja del día.
+  // Cielo lejano (horizonte Daggerfall o cielo realista F4.7)
+  //  - classic: { set 0–30, frame? 0–31, base? } (el horizonte/set y la franja)
+  //  - realista: { style:'realista', hour? 0–24, dayLengthSec?, shadows?, sunTilt? }
+  //  - sin style o style:'classic' = comportamiento clásico (atrás compatible).
   if (world.sky != null) {
     if (typeof world.sky !== 'object') {
-      finish(errors, '"world.sky" debe ser un objeto { set, frame?, base? }');
+      finish(errors, '"world.sky" debe ser un objeto { set, frame?, base? } o { style:"realista", hour? }');
     } else {
       const s = world.sky;
-      if (!Number.isInteger(s.set) || s.set < 0 || s.set > 30) errors.push('"world.sky.set" debe ser un entero 0–30');
-      if (s.frame != null && (!Number.isInteger(s.frame) || s.frame < 0 || s.frame > 31)) errors.push('"world.sky.frame" debe ser un entero 0–31');
-      if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
+      const style = s.style ?? 'classic';
+      if (!['classic', 'realista'].includes(style)) {
+        errors.push('"world.sky.style" debe ser "classic" o "realista"');
+      } else if (style === 'realista') {
+        // hour 0–24: 24 = medianoche (el motor lo normaliza como 0).
+        if (s.hour != null && !(typeof s.hour === 'number' && s.hour >= 0 && s.hour <= 24)) {
+          errors.push('"world.sky.hour" debe ser un número 0–24');
+        }
+        // dayLengthSec 0 = reloj manual (solo avanza si > 0).
+        if (s.dayLengthSec != null && !(typeof s.dayLengthSec === 'number' && s.dayLengthSec >= 0)) {
+          errors.push('"world.sky.dayLengthSec" debe ser un número >= 0 (0 = manual, > 0 = avance automático)');
+        }
+        if (s.shadows != null && typeof s.shadows !== 'boolean') {
+          errors.push('"world.sky.shadows" debe ser booleano');
+        }
+        if (s.sunTilt != null && !(typeof s.sunTilt === 'number' && s.sunTilt >= 0 && s.sunTilt <= 90)) {
+          errors.push('"world.sky.sunTilt" debe ser un número 0–90 (grados de inclinación)');
+        }
+        if (s.set != null || s.frame != null) {
+          errors.push('"world.sky" realista no usa set/frame (úsalo solo con style:"classic")');
+        }
+      } else {
+        if (!Number.isInteger(s.set) || s.set < 0 || s.set > 30) errors.push('"world.sky.set" debe ser un entero 0–30');
+        if (s.frame != null && (!Number.isInteger(s.frame) || s.frame < 0 || s.frame > 31)) errors.push('"world.sky.frame" debe ser un entero 0–31');
+        if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
+        if (s.hour != null || s.dayLengthSec != null || s.shadows != null || s.sunTilt != null) {
+          errors.push('"world.sky" clásico no usa hour/dayLengthSec/shadows/sunTilt (reservados a style:"realista")');
+        }
+      }
     }
   }
 

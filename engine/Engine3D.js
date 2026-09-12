@@ -1,6 +1,6 @@
 import { Player } from './core/player.js';
 import { moveWithSectorCollision, updateVerticalSector } from './core/physics.js';
-import { buildSectorIndex } from './core/sector.js';
+import { buildSectorIndex, getSectorAtOrNearest } from './core/sector.js';
 import { validateProject } from './core/validate.js';
 import { AudioEngine } from './core/audio.js';
 import { AdaptiveMusic } from './core/music.js';
@@ -8,6 +8,7 @@ import { Renderer3D } from './three/Renderer3D.js';
 import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
 import { SkySystem, skySignature } from './three/SkySystem.js';
+import { SunSystem, sunSignature } from './three/SunSystem.js';
 
 const MAX_DT = 0.05; // 50 ms; evita que un frame largo desestabilice la física.
 
@@ -26,7 +27,9 @@ export class Engine3D {
     this.textures = null;
     this.sectorIndex = null;
     this.sky = null;
+    this.sun = null;
     this._skySig = skySignature(null);
+    this._sunSig = sunSignature(null);
     this.audio = null;   // AudioEngine (null si el proyecto no declara audio[])
     this.music = null;   // AdaptiveMusic (null si no hay project.music con layers)
     this._audioSig = null;
@@ -41,6 +44,7 @@ export class Engine3D {
     this.renderer = new Renderer3D(canvas, renderSettings);
     WorldMesh.build(this.renderer.scene, this.project, this.textures);
     await this._loadSky();
+    this._setupSun();
     this._setupAudio();
     this.loaded = true;
     return this;
@@ -71,28 +75,55 @@ export class Engine3D {
     }
   }
 
-  /**
-    * Carga el horizonte lejano (world.sky = { set: 0–30, frame?: 0–31, base? }).
+/**
+    * Carga el horizonte lejano. Según world.sky.style:
+    *  - classic (o ausente): telón Daggerfall 2D (SkySystem) — set/frame.
+    *  - realista: cielo 3D con sol/luna (SunSystem) — hour/dayLengthSec.
+    * El cambio de estilo descarta el sistema anterior (nunca conviven).
     * `set` elige la carpeta SKY; `frame` la franja del día. El frame se sincroniza
     * por separado (sin recargar las 32 texturas).
-   * Sin sky: limpia el anterior y deja el fondo de color actual (comportamiento
-   * histórico). Se dispara async desde setWorld al cambiar la firma del cielo.
-   * Carga el nuevo ANTES de tirar del viejo: cambiar de hora no deja parpadeo.
-   */
+    * Sin sky: limpia el anterior y deja el fondo de color actual.
+    * Se dispara async desde setWorld al cambiar la firma del cielo.
+    */
   async _loadSky() {
     const cfg = this.world.sky;
-    this._skySig = skySignature(cfg);
+    const style = cfg?.style ?? 'classic';
+    this._skySig = skySignature(style === 'classic' ? cfg : null);
     const old = this.sky;
     this.sky = null;
     if (this.renderer) this.renderer.sky = null;
-    if (cfg && Number.isInteger(cfg.set) && this.renderer) {
+    if (this.renderer && style === 'classic' && cfg && Number.isInteger(cfg.set)) {
       const sky = new SkySystem(cfg);
       await sky.load();
-      // El mundo pudo cambiar mientras se cargaban las texturas: descartar.
       if (skySignature(this.world.sky) !== this._skySig) { sky.dispose(); return; }
+      if ((this.world.sky?.style ?? 'classic') !== 'classic') { sky.dispose(); return; }
       sky.addTo(this.renderer.scene);
       this.sky = sky;
       this.renderer.sky = sky;
+    }
+    old?.dispose();
+  }
+
+  /**
+   * Gestiona el sistema de sol/luna (SunSystem) para sky.style === 'realista'.
+   * Se dispara en load() y en setWorld() al cambiar la firma del sol.
+   */
+  _setupSun() {
+    const style = this.world.sky?.style ?? 'classic';
+    const sig = sunSignature(this.world.sky);
+    if (sig === this._sunSig) return;
+    this._sunSig = sig;
+    const old = this.sun;
+    this.sun = null;
+    if (this.renderer) this.renderer.sun = null;
+    if (this.renderer && style === 'realista') {
+      const sun = new SunSystem(this.world.sky);
+      sun.addTo(this.renderer.scene);
+      this.sun = sun;
+      this.renderer.sun = sun;
+      this.renderer.setDefaultLights(false); // el sol sustituye las luces fijas
+    } else if (this.renderer) {
+      this.renderer.setDefaultLights(true);
     }
     old?.dispose();
   }
@@ -115,12 +146,17 @@ export class Engine3D {
     const prevWorld = this.world;
     this.project = project;
     this.world = project.world;
-    if (skySignature(this.world.sky) !== this._skySig) {
+    const style = this.world.sky?.style ?? 'classic';
+    if (skySignature(style === 'classic' ? this.world.sky : null) !== this._skySig) {
       void this._loadSky();
     } else if (this.sky && this.world.sky && this.sky.set === this.world.sky.set && this.sky.frame !== this.world.sky.frame) {
       // Mismo horizonte, distinta franja del día: swap instantáneo, sin recargar.
       this.sky.setFrame(this.world.sky.frame ?? 0);
+    } else if (this.sun && (this.world.sky?.style ?? 'classic') === 'realista' && this.sun.hour !== (this.world.sky?.hour ?? 12)) {
+      // Mismo cielo realista, cambió la hora: actualizar en caliente.
+      this.sun.hour = this.world.sky.hour ?? 12;
     }
+    this._setupSun();
     if (this.renderer && this.loaded) {
       if (!WorldMesh.applyHeightsIfOnlyChange(this.renderer.scene, prevWorld, this.world)) {
         WorldMesh.build(this.renderer.scene, this.project, this.textures);
@@ -145,6 +181,9 @@ export class Engine3D {
     this.sky?.dispose();
     this.sky = null;
     this._skySig = skySignature(null);
+    this.sun?.dispose();
+    this.sun = null;
+    this._sunSig = sunSignature(null);
     this.music?.dispose();
     this.music = null;
     this.audio?.dispose();
@@ -162,6 +201,19 @@ export class Engine3D {
   update(input, dt) {
     const safeDt = Math.min(dt, MAX_DT);
     if (!this.world.vertices || !this.world.sectors) return;
+    // El sistema solar avanza su reloj interno (si dayLengthSec está puesto)
+    // y ajusta luces; si el jugador está bajo un techo real, el sol se atenúa
+    // (comportamiento Daggerfall: interiores sin iluminación solar directa).
+    if (this.sun) {
+      const idx = this.sectorIndex || buildSectorIndex(this.world);
+      const sector = getSectorAtOrNearest(this.world, this.player.posX, this.player.posY, idx.vertexMap, this.player.currentSector);
+      // Interior = el sector tiene techo REAL (ceilTex distinto del cielo/los
+      // exteriores usan 'sky'; un techo de piedra/madera = casa/cueva). Data-driven:
+      // no hay heurística de altura adivinada en el motor.
+      const indoor = sector ? sector.ceilTex !== 'sky' : false;
+      this.sun.setIndoor(indoor);
+      this.sun.update(null, safeDt);
+    }
     const { dirX = 0, dirY = 0, speed = 0 } = input || {};
     if (dirX !== 0 || dirY !== 0) {
       moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
@@ -198,6 +250,7 @@ export class Engine3D {
   render() {
     if (!this.loaded) return;
     this.renderer.syncCamera(this.player);
+    if (this.sun) this.sun.update(this.renderer.camera, 0); // dt 0 en render: el reloj ya avanzó en update()
     this.renderer.render();
   }
 }

@@ -200,6 +200,10 @@ export class WorldMesh {
       if (!merged) continue;
       const mat = makeMaterial(textures, tex, fallbackColor, side);
       const mesh = new THREE.Mesh(merged, mat);
+      // Sombras dinámicas (F4.7): el mundo recibe y proyecta (el coste solo
+      // existe si el sol realista tiene castShadow; si no, son flags inertes).
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       WorldMesh._groupMeshes.set(key, mesh);
       scene.add(mesh);
     }

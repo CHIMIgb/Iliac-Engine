@@ -107,13 +107,23 @@ export interface EditableMeta {
   renderMode?: string;
 }
 
-/** Cielo lejano (horizonte Daggerfall). Sin sky = fondo de color actual. */
+/** Cielo lejano (horizonte Daggerfall o cielo realista F4.7). Sin sky = fondo de color actual. */
 export interface EditableSky {
-  /** Carpeta SKY00–SKY30 (el horizonte/escenario). */
-  set: number;
-  /** Franja del día 0–31 dentro del set (iluminación/hora del día). */
+  /** Estilo del cielo: 'classic' (telón 2D Daggerfall) o 'realista' (3D día/noche). */
+  style?: 'classic' | 'realista';
+  /** Carpeta SKY00–SKY30 (el horizonte/escenario). Solo classic. */
+  set?: number;
+  /** Franja del día 0–31 dentro del set (iluminación/hora del día). Solo classic. */
   frame?: number;
   base?: string;
+  /** Hora 0–24 (float) para el cielo realista. */
+  hour?: number;
+  /** Segundos por día solar: >0 = el tiempo avanza solo (autoplay). 0/faltante = fijo. */
+  dayLengthSec?: number;
+  /** True = el sol proyecta sombras (PCF 2048). Solo realista. */
+  shadows?: boolean;
+  /** Inclinación del eje de rotación solar en grados (23.5 por defecto). */
+  sunTilt?: number;
 }
 
 /** Definición de audio (project.audio, F4.5): una voz = una entrada. */

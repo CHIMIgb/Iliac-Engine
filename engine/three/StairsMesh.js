@@ -38,7 +38,10 @@ export function buildStairsMeshes(scene, world, textures) {
 
       const geo = createStepGeometry(baseX, baseZ, baseY, width, depth, stepRise);
       const mat = makeMaterial(textures, ramp.tex, 0xaaaaaa);
-      scene.add(new THREE.Mesh(geo, mat));
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true; // escaleras proyectan con sol realista (F4.7)
+      mesh.receiveShadow = true;
+      scene.add(mesh);
     }
   }
 }

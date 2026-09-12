@@ -26,7 +26,8 @@ export class Renderer3D {
     this._createRenderer();
     this._addLights(renderSettings);
     this._bindContextLost();
-    this.sky = null; // SkySystem asignado por Engine3D; actualiza en render()
+    this.sky = null;   // SkySystem asignado por Engine3D; actualiza en render()
+    this.sun = null;   // SunSystem (F4.7): el sol dicta luces, sombras y niebla
   }
 
   _defaultCreateRenderer(canvas) {
@@ -36,6 +37,10 @@ export class Renderer3D {
   _createRenderer() {
     this.renderer = this.createRenderer(this.canvas);
     this.renderer.setSize(this.canvas.width, this.canvas.height, false);
+    // Tipo de sombra del sol realista (F4.7) — se fija UNA vez al crear el
+    // renderer (PCF: PCFSoftShadowMap se deprecó en r167 y r185 lo eliminó;
+    // no reasignar por frame o el warning de Three se repite infinito).
+    if (this.renderer.shadowMap) this.renderer.shadowMap.type = THREE.PCFShadowMap;
   }
 
   _addLights(settings = {}) {
@@ -47,6 +52,15 @@ export class Renderer3D {
     const dir = new THREE.DirectionalLight(dirCfg.color, dirCfg.intensity);
     dir.position.set(...dirCfg.position);
     this.scene.add(dir);
+
+    // Luces fijas por defecto (modo clásico). El cielo realista (SunSystem) las
+    // sustituye por sol/luna dinámicos: setDefaultLights(false) al activarlo.
+    this._defaultLights = [ambient, dir];
+  }
+
+  /** Oculta las luces fijas cuando el sol realista toma el control. */
+  setDefaultLights(enabled) {
+    for (const l of this._defaultLights || []) l.visible = enabled;
   }
 
   // Manejo de webglcontextlost: Three.js necesita poder restaurar el contexto
@@ -83,6 +97,18 @@ export class Renderer3D {
     // El cielo sigue a la cámara real (orbit del editor o jugador): mismo
     // punto de enganche para ambos modos.
     this.sky?.update(this.camera);
+    this.sun?.update(this.camera, 0);
+    // Niebla: el cielo realista tiñe la niebla con la hora (daylight.js).
+    if (this.sun && this.scene.fog) {
+      const fogColor = this.sun.lastPalette?.fogColor;
+      if (fogColor != null) this.scene.fog.color.setHex(fogColor);
+    }
+    // Las sombras se activan dinámicamente si el sol existe con sombras.
+    // Guard: el shadowMap puede faltar en stubs de test (renderer falso).
+    // El TIPO ya se fijó en _createRenderer (PCF, no deprecado).
+    if (this.renderer.shadowMap) {
+      this.renderer.shadowMap.enabled = !!(this.sun && this.sun.sun?.castShadow);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

@@ -92,30 +92,37 @@ Clic en la grilla: `resolveTerrainPlacement()` comprueba las huellas rectangular
 
 ---
 
-## 8 · Cielo — horizonte lejano estilo Daggerfall (tecla 8)
+## 8 · Cielo — telón Daggerfall O cielo realista día/noche (tecla 8)
 
-`world.sky: { set: 0–30, frame?: 0–31, base?: '/sky/' }` (opcional; ausente = fondo de color, comportamiento histórico).
+El popover del Cielo tiene **dos pestañas: «Clásico» y «Realista»** (F4.7).
+
+### Pestaña «Clásico» — telón Daggerfall (comportamiento histórico intacto)
+
+`world.sky: { set: 0–30, frame?: 0–31, base?: '/sky/' }` (opcional; ausente = fondo de color).
 - **`set`** = carpeta `SKY00–SKY30`: el **horizonte/escenario** (paisaje distinto en cada carpeta).
-- **`frame`** = franja del día **0–31** dentro de esa carpeta (`0-{frame}.PNG` de la capa 0): cambia la iluminación/hora del mismo horizonte sin cambiar de escenario.
+- **`frame`** = franja del día **0–31** dentro de esa carpeta (`0-{frame}.PNG` de la capa 0): cambia la iluminación/hora del mismo horizonte.
 
-`engine/core/sky.js` contiene `SKY_SETS`, `SKY_FRAMES` y `skyFrameLabel()` para etiquetar las franjas.
+`engine/core/sky.js`: `SKY_SETS`, `SKY_FRAMES`, `skyFrameLabel()`.
 
-**Formato de assets:** cada `SKYnn.DAT` se extrae en 64 PNG: 2 capas × 32 fotogramas. El motor usa **capa 0** (`0-{frame}.PNG`) y **32 franjas por set**. La capa 1 y el scroll por giro quedan sin usar (decisión del usuario): el telón es fijo y no se deforma.
+**Cómo funciona (engine/three/SkySystem.js)** — telón 2D, NO skybox 3D (como el de 1996): una imagen plana siempre de frente a la cámara, fija al girar el yaw; `set` elige carpeta, `frame` la franja (independientes); Y-shear por UV (el horizonte se clava al borde inferior al levantar la vista); sin z-test, dibujado primero (renderOrder -3) → la geometría lo tapa.
 
-**Cómo funciona (engine/three/SkySystem.js) — telón 2D, NO skybox 3D** (igual que el Daggerfall de 1996):
-- UNA imagen plana (billboard) siempre de frente a la cámara, **fija**: girar el yaw no cambia el fotograma ni scrollea. Sigue el tiling horizontal (`repeat.x`) para FOV anchos.
-- `set` elige la carpeta SKY; `frame` elige la franja del día dentro de ella. Son independientes: cambiar `frame` solo cambia la iluminación, cambiar `set` carga las 32 franjas del nuevo horizonte.
-- Anclado a la horizontal del mundo: al cambiar el pitch la banda se desliza en pantalla lo justo para mantener el horizonte pegado al terreno ("Y-shearing" gratis). Su alto es la **proporción natural del fotograma** (ancho × 220/512): la imagen nunca se deforma ni se achata.
-- **Z-buffer**: el telón se dibuja con `depthTest:true` + `depthWrite:false` a profundidad fija (150): cualquier geometría más cercana lo tapa y él no tapa nunca el mapa.
-- `Engine3D._loadSky` carga las 32 franjas del set; cambiar solo `frame` hace **swap instantáneo** sin recargar texturas.
+**Assets no versionados:** `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/`).
 
-**Assets no versionados (copyright):** tras clonar, ejecutar en `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/` con rutas limpias `SKYnn/{capa}-{frame}.PNG`). El demo trae `sky: { set: 15 }` de serie.
+### Pestaña «Realista» — cielo 3D con sol, luna y sombras (F4.7)
 
-**UI (tecla 8, popover con DOS subherramientas):** botón Cielo (icono cloud de lucide) abre:
-- **«Horizonte»** — «— Sin cielo — / SKY00…SKY30». Elige el escenario; conserva la franja del día si existe.
-- **«Hora del día»** — «— Franja — / 00:00 · franja 0 / 00:45 · franja 1 / … / 23:15 · franja 31». Cambia la iluminación dentro del set activo; **NO cambia de horizonte**.
+`world.sky: { style: 'realista', hour?: 0–24, dayLengthSec?: >0, shadows?: bool, sunTilt?: 0–90 }`
+- **`hour`** — hora del día (float); el slider del popover la mueve con etiqueta HH:MM.
+- **`dayLengthSec`** — duración de un día solar completo en segundos; si está presente el reloj **avanza solo durante el playtest** (el editor queda fijo). Ausente/0 = hora manual.
+- **`shadows`** — sombras del sol: `DirectionalLight.castShadow` con `shadowMap` PCF 2048, caja ortográfica de 60 m que sigue al jugador. Al apagarlas sube FPS.
+- **`sunTilt`** — inclinación del eje de rotación (23.5° por defecto, como la eclíptica real).
 
-Ambos selects se sincronizan tras cada cambio.
+**Cómo funciona (F4.7):**
+- `engine/core/daylight.js` (lógica pura, sin Three): `sunDirection`/`moonDirection` (la luna es el anti-sol), `paletteFor` (curvas de color/intensidad de sol, ambiente, cielo y **niebla**), `advanceHour` (día solar), `hourLabel`.
+- `engine/three/SunSystem.js`: shader atmosférico oficial de Three (`three/addons/objects/Sky.js`) → atardeceres por dispersión Rayleigh; discos de **sol y luna** visibles (sprites opacos con alphaTest, `depthTest:false` + `renderOrder` negativo → se pintan DETRÁS del mundo: nunca se cuelan en interiores); **estrellas** (Points que se encienden de noche); `HemisphereLight` + `DirectionalLight`.
+- Interiores: si el sector del jugador tiene techo real (`ceilTex !== 'sky'`) el sol baja a ×0.25 y el ambiente sube — Daggerfall-style, sin lightmapping.
+- `Engine3D._setupSun()` (firma por `sunSignature`); el reloj avanza en `update()`; `Renderer3D` activa/desactiva sombras y tiñe la niebla con la hora.
+
+**UI (tecla 8):** pestaña Realista = slider **Hora 0–24** (+ HH:MM), select **Avance del día** (Fijo / 10′ / 20′ / 60′), checkbox **Sombras del sol**, input **Inclinación solar (0–90°)**. Todo escribe `doc.setSky`. Cambiar de pestaña conserva los datos del otro estilo.
 
 > **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa. La tecla **9** se reasignó a Audio.
 
@@ -161,6 +168,7 @@ Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · 
 | Datos del documento y mutaciones + `notify()` | `studio/src/editor/EditorState.ts` |
 | Picking con cámara + bucle de render + reload | `studio/src/viewport/EditorViewport.ts` |
 | Gizmos del editor (puntos, líneas, selección) | `studio/src/viewport/Overlay2D.ts` |
+| Cielo clásico (telón) y realista (día/noche): sun/moon/niebla | `engine/core/sky.js`, `engine/three/SkySystem.js`, `engine/core/daylight.js`, `engine/three/SunSystem.js` |
 | Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
 | Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |
 | Motor: alturas por vértice, BVH, mallas, slots y vía rápida | `engine/core/sector.js`, `engine/three/WorldMesh.js`, `engine/Engine3D.js` |

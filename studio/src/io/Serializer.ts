@@ -11,7 +11,7 @@
 
 import { validateProject } from '@engine/core/validate.js';
 import { EditorState } from '../editor/EditorState';
-import type { EditableTextures, EditableAudioDef, EditableMusicRef } from '../editor/types';
+import type { EditableTextures, EditableAudioDef, EditableMusicRef, EditableSky } from '../editor/types';
 
 export interface ProjectJson {
   meta: EditorState['meta'];
@@ -24,6 +24,7 @@ export interface ProjectJson {
     ramps: EditorState['world']['ramps'];
     sprites: EditorState['world']['sprites'];
     textures: EditorState['world']['textures'];
+    sky?: EditableSky | null;
   };
   audio?: EditableAudioDef[];
   music?: EditableMusicRef;

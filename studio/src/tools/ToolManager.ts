@@ -10,7 +10,7 @@
  */
 
 import type { EditorState } from '../editor/EditorState';
-import type { EditableAudioDef } from '../editor/types';
+import type { EditableAudioDef, EditableSky } from '../editor/types';
 import {
   pickVertex,
   pickWall,
@@ -36,6 +36,7 @@ import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
 import { snap } from './picking';
 import { SKY_FRAMES, skyFrameLabel } from '@engine/core/sky.js';
+import { hourLabel } from '@engine/core/daylight.js';
 import { AudioEngine } from '@engine/core/audio.js';
 
 export type ToolId = 'select' | 'move' | 'vertex' | 'wall' | 'height' | 'entity' | 'terrain';
@@ -644,11 +645,11 @@ export class ToolManager {
   private skyPickerOpenedAt = 0;
 
   /**
-   * Abre el popover de Cielo (tecla 8) con DOS subherramientas INDEPENDIENTES:
-   *  - «Horizonte»: elige la carpeta SKY00–SKY30 (el escenario/horizonte).
-   *  - «Hora del día»: elige la franja 0–31 dentro del set (la iluminación del
-   *    día). Cambiar la hora NO cambia el horizonte, solo la franja del set.
-   * Ambas escriben en `doc.setSky` y se sincronizan tras cada cambio.
+   * Abre el popover de Cielo (tecla 8). Dos estilos en pestañas:
+   *  - «Clásico» (Daggerfall): elige carpeta SKY00–SKY30 + franja del día.
+   *  - «Realista» (F4.7): cielo 3D con hora 0–24, avance automático opcional,
+   *    sombras y inclinación solar. Escribe { style:'realista', ... } en doc.
+   * Ambos escriben en `doc.setSky` y se sincronizan tras cada cambio.
    */
   openSkyPicker(clientX?: number, clientY?: number): void {
     this._closeSkyPicker();
@@ -658,34 +659,41 @@ export class ToolManager {
     panel.tabIndex = 0;
     panel.className = 'terrain-popover';
     panel.style.cssText =
-      'position:fixed;z-index:60;min-width:220px;display:flex;flex-direction:column;gap:8px;' +
+      'position:fixed;z-index:60;min-width:260px;display:flex;flex-direction:column;gap:8px;' +
       'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
       'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
       'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
     if (clientX !== undefined && clientY !== undefined) {
-      panel.style.left = `${Math.min(clientX, window.innerWidth - 250)}px`;
-      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 160)}px`;
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 290)}px`;
+      panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 260)}px`;
     } else {
       panel.style.left = '50%';
       panel.style.top = '50%';
     }
 
+    const title = document.createElement('div');
+    title.textContent = 'Cielo';
+    title.style.cssText = 'font:600 13px Inter,sans-serif;color:var(--text-primary,#cdd6f4)';
+    panel.appendChild(title);
+
     const SEL_CSS =
-      'padding:5px 8px;border-radius:4px;font:12px "JetBrains Mono",monospace;' +
+      'width:100%;padding:5px 8px;border-radius:4px;font:11px "JetBrains Mono",monospace;' +
       'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
       'color:var(--text-primary,#cdd6f4)';
-    const cur = this.doc.world.sky;
-    const skyName = (n: number): string => `SKY${String(n).padStart(2, '0')}`;
-    /** Añade una fila label+select al popover y devuelve el select. */
-    const mkRow = (title: string): HTMLSelectElement => {
+    const TAB_CSS =
+      'flex:1;padding:4px 6px;border-radius:4px;border:1px solid var(--border-default,#313244);' +
+      'background:var(--bg-surface,#313244);color:var(--text-muted,#6c7086);font:600 11px Inter,sans-serif;cursor:pointer';
+    const TAB_ON =
+      'background:var(--bg-active,#585b70);color:var(--text-primary,#cdd6f4);border-color:var(--accent-primary,#89b4fa)';
+
+    const mkRow = (titleText: string): HTMLElement => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px';
       const t = document.createElement('div');
-      t.textContent = title;
+      t.textContent = titleText;
       t.style.cssText = 'font:600 11px Inter,sans-serif;color:var(--text-secondary,#a6adc8)';
-      panel.appendChild(t);
-      const s = document.createElement('select');
-      s.style.cssText = SEL_CSS;
-      panel.appendChild(s);
-      return s;
+      wrap.appendChild(t);
+      return wrap;
     };
     const opt = (sel: HTMLSelectElement, value: string, text: string): void => {
       const o = document.createElement('option');
@@ -694,17 +702,116 @@ export class ToolManager {
       sel.appendChild(o);
     };
 
+    // ── Pestañas Clásico | Realista ─────────────────────────────
+    const tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;gap:4px';
+    const tabClassic = document.createElement('button');
+    tabClassic.textContent = 'Clásico';
+    tabClassic.style.cssText = TAB_CSS;
+    const tabReal = document.createElement('button');
+    tabReal.textContent = 'Realista';
+    tabReal.style.cssText = TAB_CSS;
+    tabBar.appendChild(tabClassic);
+    tabBar.appendChild(tabReal);
+    panel.appendChild(tabBar);
+
+    // Sección Clásico: horizonte + franja (comportamiento histórico intacto).
+    const classicSec = document.createElement('div');
+    classicSec.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+    const horizonWrap = mkRow('Horizonte');
+    const horizonSel = document.createElement('select');
+    horizonSel.style.cssText = SEL_CSS;
+    opt(horizonSel, '', '— Sin cielo (fondo de color) —');
+    for (let i = 0; i <= 30; i++) opt(horizonSel, String(i), `SKY${String(i).padStart(2, '0')} — horizonte ${i}`);
+    horizonWrap.appendChild(horizonSel);
+    classicSec.appendChild(horizonWrap);
+
+    const hourWrap = mkRow('Hora del día');
+    const hourSel = document.createElement('select');
+    hourSel.style.cssText = SEL_CSS;
+    opt(hourSel, '', '— Franja —');
+    for (let f = 0; f < SKY_FRAMES; f++) opt(hourSel, String(f), `${skyFrameLabel(f)} · franja ${f}`);
+    hourWrap.appendChild(hourSel);
+    classicSec.appendChild(hourWrap);
+
+    // Sección Realista: hora, avance, sombras, inclinación.
+    const realSec = document.createElement('div');
+    realSec.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+    const hourRealWrap = mkRow('Hora del día');
+    const hourRow = document.createElement('div');
+    hourRow.style.cssText = 'display:flex;gap:8px;align-items:center';
+    const hourRange = document.createElement('input');
+    hourRange.type = 'range';
+    hourRange.min = '0';
+    hourRange.max = '24';
+    hourRange.step = '0.05';
+    hourRange.style.cssText = 'flex:1;accent-color:var(--accent-primary,#89b4fa)';
+    const hourVal = document.createElement('span');
+    hourVal.style.cssText = 'font:11px "JetBrains Mono",monospace;color:var(--text-primary,#cdd6f4);min-width:44px;text-align:right';
+    hourRow.appendChild(hourRange);
+    hourRow.appendChild(hourVal);
+    hourRealWrap.appendChild(hourRow);
+    realSec.appendChild(hourRealWrap);
+
+    const dayWrap = mkRow('Avance del día (playtest)');
+    const daySel = document.createElement('select');
+    daySel.style.cssText = SEL_CSS;
+    opt(daySel, '0', 'Fijo (manual)');
+    opt(daySel, '600', '10 min por día');
+    opt(daySel, '1200', '20 min por día');
+    opt(daySel, '3600', '60 min por día');
+    dayWrap.appendChild(daySel);
+    realSec.appendChild(dayWrap);
+
+    const shadowWrap = mkRow('Sombras del sol');
+    const shadowChk = document.createElement('input');
+    shadowChk.type = 'checkbox';
+    shadowChk.style.cssText = 'accent-color:var(--accent-primary,#89b4fa)';
+    shadowWrap.appendChild(shadowChk);
+    realSec.appendChild(shadowWrap);
+
+    const tiltWrap = mkRow('Inclinación solar (grados)');
+    const tiltInput = document.createElement('input');
+    tiltInput.type = 'number';
+    tiltInput.min = '0';
+    tiltInput.max = '90';
+    tiltInput.step = '0.5';
+    tiltInput.style.cssText = SEL_CSS;
+    tiltWrap.appendChild(tiltInput);
+    realSec.appendChild(tiltWrap);
+
+    panel.appendChild(classicSec);
+    panel.appendChild(realSec);
+
+    // ── Sincronización con el documento ─────────────────────────
+    const curReal = (): NonNullable<EditableSky> => {
+      const s = this.doc.world.sky;
+      return s && s.style === 'realista'
+        ? s
+        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5 };
+    };
     const sync = (): void => {
       const s = this.doc.world.sky;
-      horizonSel.value = s ? String(s.set) : '';
-      hourSel.value = s && s.frame != null ? String(s.frame) : '';
+      const isReal = (s?.style ?? 'classic') === 'realista';
+      tabClassic.style.cssText = TAB_CSS + (isReal ? '' : TAB_ON);
+      tabReal.style.cssText = TAB_CSS + (isReal ? TAB_ON : '');
+      classicSec.style.display = isReal ? 'none' : 'flex';
+      realSec.style.display = isReal ? 'flex' : 'none';
+      if (isReal) {
+        hourRange.value = String(s?.hour ?? 12);
+        hourVal.textContent = hourLabel(s?.hour ?? 12);
+        daySel.value = String(s?.dayLengthSec ?? 0);
+        shadowChk.checked = s?.shadows ?? true;
+        tiltInput.value = String(s?.sunTilt ?? 23.5);
+      } else {
+        horizonSel.value = s && s.set != null ? String(s.set) : '';
+        hourSel.value = s && s.frame != null ? String(s.frame) : '';
+      }
     };
 
-    // Subherramienta 1: elige el horizonte/escenario (carpeta SKY00–SKY30).
-    const horizonSel = mkRow('Horizonte');
-    opt(horizonSel, '', '— Sin cielo (fondo de color) —');
-    for (let i = 0; i <= 30; i++) opt(horizonSel, String(i), `${skyName(i)} — horizonte ${i}`);
-    horizonSel.value = cur ? String(cur.set) : '';
+    // Clásico
     horizonSel.addEventListener('change', () => {
       if (horizonSel.value === '') {
         this.doc.setSky(null);
@@ -712,23 +819,17 @@ export class ToolManager {
       } else {
         const set = Number(horizonSel.value);
         this.doc.setSky({ set, frame: this.doc.world.sky?.frame ?? 0 });
-        this.cb.onNotice?.(`Horizonte ${skyName(set)}`, 'success');
+        this.cb.onNotice?.(`Horizonte SKY${String(set).padStart(2, '0')}`, 'success');
       }
       sync();
     });
-
-    // Subherramienta 2: franja del día 0–31 dentro del set seleccionado.
-    const hourSel = mkRow('Hora del día');
-    opt(hourSel, '', '— Franja —');
-    for (let f = 0; f < SKY_FRAMES; f++) opt(hourSel, String(f), `${skyFrameLabel(f)} · franja ${f}`);
-    hourSel.value = cur && cur.frame != null ? String(cur.frame) : '';
     hourSel.addEventListener('change', () => {
       const f = hourSel.value === '' ? null : Number(hourSel.value);
       const s = this.doc.world.sky;
       if (f == null) {
         if (s) this.doc.setSky({ set: s.set });
         this.cb.onNotice?.('Franja retirada (mantiene franja 0)', 'success');
-      } else if (s) {
+      } else if (s && s.style !== 'realista') {
         this.doc.setSky({ set: s.set, frame: f });
         this.cb.onNotice?.(`Hora ${skyFrameLabel(f)} · franja ${f}`, 'success');
       } else {
@@ -737,6 +838,37 @@ export class ToolManager {
       }
       sync();
     });
+
+    // Modo realista: cada control fusiona sobre el objeto realista actual.
+    const setReal = (patch: Partial<EditableSky>): void => {
+      this.doc.setSky({ ...curReal(), ...patch });
+      sync();
+    };
+    hourRange.addEventListener('input', () => {
+      const h = Number(hourRange.value);
+      hourVal.textContent = hourLabel(h);
+      setReal({ hour: h });
+    });
+    daySel.addEventListener('change', () => setReal({ dayLengthSec: Number(daySel.value) || undefined }));
+    shadowChk.addEventListener('change', () => setReal({ shadows: shadowChk.checked }));
+    tiltInput.addEventListener('change', () => setReal({ sunTilt: Number(tiltInput.value) || 23.5 }));
+
+    tabClassic.addEventListener('click', () => {
+      const s = this.doc.world.sky;
+      // Cambiar a clásico conserva el set/frame previos si existían.
+      this.doc.setSky(s && s.style === 'classic'
+        ? { set: s.set, frame: s.frame }
+        : { set: this.doc.world.sky?.set ?? s?.set ?? 0, frame: this.doc.world.sky?.frame ?? 0 });
+      this.cb.onNotice?.('Cielo clásico (Daggerfall)', 'info');
+      sync();
+    });
+    tabReal.addEventListener('click', () => {
+      this.doc.setSky({ ...curReal() });
+      this.cb.onNotice?.('Cielo realista (día/noche)', 'info');
+      sync();
+    });
+
+    sync();
 
     panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._closeSkyPicker();

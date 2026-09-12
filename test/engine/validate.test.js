@@ -68,6 +68,60 @@ test('validateProject advierte pero no falla sin walls', () => {
   assert.ok(r.warnings.some((w) => w.includes('walls')));
 });
 
+test('validateProject acepta cielo realista F4.7 válido', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', hour: 12.5, dayLengthSec: 1200, shadows: true, sunTilt: 23.5 };
+  const r = validateProject(p);
+  assert.equal(r.valid, true, JSON.stringify(r.errors));
+  assert.equal(r.errors.length, 0);
+});
+
+test('validateProject acepta hora 24 (medianoche) y dayLengthSec 0 (manual)', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', hour: 24, dayLengthSec: 0 };
+  const r = validateProject(p);
+  assert.equal(r.valid, true, JSON.stringify(r.errors));
+});
+
+test('validateProject acepta cielo clásico SIN style (retrocompatibilidad)', () => {
+  const p = validProject();
+  p.world.sky = { set: 15, frame: 17 };
+  const r = validateProject(p);
+  assert.equal(r.valid, true, JSON.stringify(r.errors));
+});
+
+test('validateProject rechaza hour fuera de rango en realista', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', hour: 25 };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('hour')));
+});
+
+test('validateProject rechaza mezclar set/frame con estilo realista', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', set: 3 };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('no usa set/frame')));
+});
+
+test('validateProject rechaza estilo desconocido', () => {
+  const p = validProject();
+  p.world.sky = { style: 'fantasia' };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('style')));
+});
+
+test('validateProject rechaza campos de realista en estilo clásico', () => {
+  const p = validProject();
+  p.world.sky = { set: 3, hour: 12 };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('no usa hour')));
+});
+
 test('Engine3D lanza error claro con project inválido', async () => {
   const { Engine3D } = await import('../../engine/Engine3D.js');
   assert.throws(() => new Engine3D({ world: {} }), /project.json inválido/);

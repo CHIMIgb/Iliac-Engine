@@ -22,6 +22,25 @@ declare module '@engine/core/sky.js' {
   export function skyHourForSet(set: number): number;
 }
 
+declare module '@engine/core/daylight.js' {
+  export function sunDirection(hour: number, tiltDeg?: number): { x: number; y: number; z: number };
+  export function moonDirection(hour: number, tiltDeg?: number): { x: number; y: number; z: number };
+  export function sunElevation(hour: number, tiltDeg?: number): number;
+  export function paletteFor(hour: number): {
+    sunColor: number;
+    sunIntensity: number;
+    ambientColor: number;
+    ambientIntensity: number;
+    skyColor: number;
+    groundColor: number;
+    fogColor: number;
+    night: number;
+  };
+  export function advanceHour(hour: number, dt: number, dayLengthSec: number): number;
+  /** Etiqueta "HH:MM" para una hora float 0–24. */
+  export function hourLabel(hour: number): string;
+}
+
 declare module '@engine/core/noise.js' {
   export function createNoise(seed?: number): unknown;
   export function fbm2(
