@@ -124,6 +124,12 @@ export interface EditableSky {
   shadows?: boolean;
   /** Inclinación del eje de rotación solar en grados (23.5 por defecto). */
   sunTilt?: number;
+  /** Multiplicador de la intensidad del sol (0.1–3, 1 = curva base). */
+  sunIntensity?: number;
+  /** Luz lunar nocturna 0–1 (la luna ilumina de noche). */
+  moonIntensity?: number;
+  /** True = estrellas visibles de noche. */
+  stars?: boolean;
 }
 
 /** Definición de audio (project.audio, F4.5): una voz = una entrada. */

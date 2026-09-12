@@ -23,14 +23,19 @@ const DEG = Math.PI / 180;
 
 export class SunSystem {
   /**
-   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number}} cfg
+   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number, sunIntensity?:number, moonIntensity?:number, stars?:boolean}} cfg
    */
   constructor(cfg = {}) {
-    this.cfg = { hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, ...cfg };
+    this.cfg = {
+      hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5,
+      sunIntensity: 0.85, moonIntensity: 0.55, stars: true,
+      ...cfg,
+    };
     this.hour = this.cfg.hour;
     this._indoor = false;
     this.group = null;       // raíz de este sistema (se añade a la escena)
-    this.sun = null;         // DirectionalLight
+    this.sun = null;         // DirectionalLight (sol, con sombras)
+    this.moon = null;        // DirectionalLight (luna, sin sombras, F4.7)
     this.hemi = null;        // HemisphereLight
     this.meshes = [];
     this.loaded = true;      // todo es procedural, no hay carga async
@@ -102,28 +107,59 @@ export class SunSystem {
     this.group.add(moon);
   }
 
-  /** Estrellas nocturnas: Points opacos con alphaTest; se "apagan" con tamaño 0. */
+  /** Estrellas nocturnas: Points con shader propio (parpadeo por estrella). */
   _addStars() {
+    // Posiciones en radio 1 (hemisferio superior). update() las escala al far
+    // de la cámara real (×0.8): si se generaran a radio fijo (p.ej. 900) y el
+    // proyecto usa far 500 quedarían TODAS recortadas por el plano lejano.
     const N = 400;
     const positions = new Float32Array(N * 3);
+    const seeds = new Float32Array(N); // fase de parpadeo distinta por estrella
     for (let i = 0; i < N; i++) {
-      // Hemisferio superior, distribuido uniformemente.
       const phi = Math.random() * Math.PI * 2;
       const theta = Math.acos(Math.random()); // 0..π/2 hacia arriba
-      positions[i * 3] = Math.sin(theta) * Math.cos(phi) * 900;
-      positions[i * 3 + 1] = Math.cos(theta) * 900;
-      positions[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * 900;
+      positions[i * 3] = Math.sin(theta) * Math.cos(phi);
+      positions[i * 3 + 1] = Math.cos(theta);
+      positions[i * 3 + 2] = Math.sin(theta) * Math.sin(phi);
+      seeds[i] = Math.random();
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0, // 0 = invisible; lo enciende la noche (_applyPalette)
+    geo.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
+    // Shader opaco con alphaTest (igual que los discos sol/luna): se pinta en
+    // el pase OPACO (renderOrder -2, detrás del mundo) y las paredes lo tapan.
+    // El parpadeo modula el ALPHA: con alphaTest 0.5 cada estrella aparece y
+    // desaparece según su fase (sin blending, que colaría el cielo en casas).
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uSize: { value: 0 }, // 0 = invisible; lo enciende la noche (_applyPalette)
+      },
+      vertexShader: `
+        attribute float seed;
+        uniform float uSize;
+        varying float vSeed;
+        void main() {
+          vSeed = seed;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uSize; // tamaño FIJO en píxeles (1 px de noche)
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying float vSeed;
+        void main() {
+          // Tintineo: onda senoidal por fase aleatoria, con suelo 0.35 para
+          // que nunca se apaguen del todo; alphaTest 0.5 recorta lo tenue.
+          float tw = 0.35 + 0.65 * (0.5 + 0.5 * sin(uTime * 2.0 + vSeed * 6.2831));
+          gl_FragColor = vec4(1.0, 1.0, 1.0, tw);
+        }
+      `,
       alphaTest: 0.5,
       transparent: false,
       depthTest: false,
       depthWrite: false,
-      fog: false,
     });
     this.stars = new THREE.Points(geo, mat);
     this.stars.renderOrder = -2;
@@ -150,6 +186,14 @@ export class SunSystem {
     this.sun = sun;
     this.group.add(sun);
 
+    // Luz de la luna (F4.7): una DirectionalLight fría SIN sombras que solo
+    // ilumina de noche (la enciende _applyPalette según moonIntensity). La
+    // luna es el anti-sol, así que su luz llega desde la dirección opuesta.
+    const moon = new THREE.DirectionalLight(0x8fa8ff, 0);
+    moon.castShadow = false;
+    this.moon = moon;
+    this.group.add(moon);
+
     const hemi = new THREE.HemisphereLight(0x87ceeb, 0x2a3a2a, 0.7);
     this.hemi = hemi;
     this.group.add(hemi);
@@ -175,7 +219,10 @@ export class SunSystem {
     }
     this._applyPalette();
     if (camera) {
-      this._placeCelestial();
+      // Escala las estrellas al alcance visual real de la cámara (×0.8 del
+      // far): siempre dentro del view frustum, por lejos que llegue el far.
+      this.stars.scale.setScalar(Math.max(10, camera.far * 0.8));
+      this._placeCelestial(camera);
       this._syncShadows(camera);
     }
   }
@@ -185,12 +232,17 @@ export class SunSystem {
     const p = paletteFor(this.hour);
     this.lastPalette = p;
     const indoorFactor = this._indoor ? 0.25 : 1; // interiores: sol tímido
+    // F4.7: sunIntensity multiplica el sol (configurable desde el editor).
     this.sun.color.setHex(p.sunColor);
-    this.sun.intensity = p.sunIntensity * indoorFactor;
+    this.sun.intensity = p.sunIntensity * this.cfg.sunIntensity * indoorFactor;
 
     this.hemi.color.setHex(p.skyColor);
     this.hemi.groundColor.setHex(p.groundColor);
     this.hemi.intensity = p.ambientIntensity * (this._indoor ? 1.4 : 1);
+
+    // F4.7: la luna ilumina de noche (anti-solar). El día no aporta nada.
+    // En interiores se atenúa igual que el sol (Daggerfall-style).
+    this.moon.intensity = p.night * this.cfg.moonIntensity * indoorFactor;
 
     // Shader (Sky): la posición del sol dirige el atardecer/color del cielo.
     const dir = sunDirection(this.hour, this.cfg.sunTilt);
@@ -198,18 +250,35 @@ export class SunSystem {
 
     // Estrellas: se "encienden" de noche cambiando el tamaño (con material
     // opaco, la opacidad no se ve; tamaño 0 = punto inexistente en raster).
-    this.stars.material.size = p.night * 3;
+    // F4.7: el toggle stars las oculta por completo. Tamaño exacto de 1 px (el
+    // vertex shader usa uSize directamente como gl_PointSize) y parpadeo por
+    // tiempo real — el shader modula el alpha por fase, así que el alphaTest
+    // recorta las estrellas tenues: eso es el tintineo.
+    this.stars.visible = this.cfg.stars;
+    const uni = this.stars.material.uniforms;
+    uni.uSize.value = p.night * 1.0;
+    uni.uTime.value = performance.now() * 0.001;
   }
 
   /** Coloca sol y luna en la dirección celeste correspondiente a la hora. */
-  /** Coloca sol y luna en la dirección celeste correspondiente a la hora. */
-  _placeCelestial() {
+  _placeCelestial(camera) {
     const dist = 500; // los sprites viven en la esfera del cielo
     const sd = sunDirection(this.hour, this.cfg.sunTilt);
     this.sunSprite.position.set(sd.x * dist, sd.y * dist, sd.z * dist);
 
     // La luna es el anti-sol.
     this.moonSprite.position.set(-sd.x * dist, -sd.y * dist, -sd.z * dist);
+
+    // La luz lunar (DirectionalLight) se ancla a la cámara como el sol, pero
+    // con el rayo invertido: el sol viaja desde -sd hacia +sd (con sombras),
+    // la luna entra desde la dirección lunar (anti-solar).
+    if (this.moon && camera) {
+      const v = new THREE.Vector3(sd.x, sd.y, sd.z);
+      this.moon.position.copy(camera.position).addScaledVector(v, 20);
+      this.moon.target.position.copy(camera.position).addScaledVector(v, -10);
+      this.moon.target.updateMatrixWorld();
+      this.moon.updateMatrixWorld();
+    }
   }
 
   /** La cámara de sombras sigue al jugador (box ortográfica centrada en él). */

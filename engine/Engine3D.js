@@ -153,8 +153,16 @@ export class Engine3D {
       // Mismo horizonte, distinta franja del día: swap instantáneo, sin recargar.
       this.sky.setFrame(this.world.sky.frame ?? 0);
     } else if (this.sun && (this.world.sky?.style ?? 'classic') === 'realista' && this.sun.hour !== (this.world.sky?.hour ?? 12)) {
-      // Mismo cielo realista, cambió la hora: actualizar en caliente.
+      // Mismo cielo realista, cambió la hora: actualizar en caliente solo la hora.
       this.sun.hour = this.world.sky.hour ?? 12;
+    }
+    if (this.sun && (this.world.sky?.style ?? 'classic') === 'realista') {
+      // F4.7: ajustes en caliente (sin reconstruir el SunSystem): intensidad
+      // del sol, luz de luna y estrellas se aplican en _applyPalette leyendo cfg.
+      const s = this.world.sky;
+      if (s.sunIntensity != null) this.sun.cfg.sunIntensity = s.sunIntensity;
+      if (s.moonIntensity != null) this.sun.cfg.moonIntensity = s.moonIntensity;
+      if (s.stars != null) this.sun.cfg.stars = s.stars;
     }
     this._setupSun();
     if (this.renderer && this.loaded) {

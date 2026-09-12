@@ -782,6 +782,46 @@ export class ToolManager {
     tiltWrap.appendChild(tiltInput);
     realSec.appendChild(tiltWrap);
 
+    // F4.7: intensidad del sol, luz lunar y estrellas (ajustes configurables).
+    const sunIWrap = mkRow('Intensidad del sol');
+    const sunIRow = document.createElement('div');
+    sunIRow.style.cssText = 'display:flex;gap:8px;align-items:center';
+    const sunIRange = document.createElement('input');
+    sunIRange.type = 'range';
+    sunIRange.min = '0.1';
+    sunIRange.max = '3';
+    sunIRange.step = '0.05';
+    sunIRange.style.cssText = 'flex:1;accent-color:var(--accent-primary,#89b4fa)';
+    const sunIVal = document.createElement('span');
+    sunIVal.style.cssText = 'font:11px "JetBrains Mono",monospace;color:var(--text-primary,#cdd6f4);min-width:44px;text-align:right';
+    sunIRow.appendChild(sunIRange);
+    sunIRow.appendChild(sunIVal);
+    sunIWrap.appendChild(sunIRow);
+    realSec.appendChild(sunIWrap);
+
+    const moonIWrap = mkRow('Luz de la luna');
+    const moonIRow = document.createElement('div');
+    moonIRow.style.cssText = 'display:flex;gap:8px;align-items:center';
+    const moonIRange = document.createElement('input');
+    moonIRange.type = 'range';
+    moonIRange.min = '0';
+    moonIRange.max = '1';
+    moonIRange.step = '0.05';
+    moonIRange.style.cssText = 'flex:1;accent-color:var(--accent-primary,#89b4fa)';
+    const moonIVal = document.createElement('span');
+    moonIVal.style.cssText = 'font:11px "JetBrains Mono",monospace;color:var(--text-primary,#cdd6f4);min-width:44px;text-align:right';
+    moonIRow.appendChild(moonIRange);
+    moonIRow.appendChild(moonIVal);
+    moonIWrap.appendChild(moonIRow);
+    realSec.appendChild(moonIWrap);
+
+    const starsWrap = mkRow('Estrellas de noche');
+    const starsChk = document.createElement('input');
+    starsChk.type = 'checkbox';
+    starsChk.style.cssText = 'accent-color:var(--accent-primary,#89b4fa)';
+    starsWrap.appendChild(starsChk);
+    realSec.appendChild(starsWrap);
+
     panel.appendChild(classicSec);
     panel.appendChild(realSec);
 
@@ -790,7 +830,7 @@ export class ToolManager {
       const s = this.doc.world.sky;
       return s && s.style === 'realista'
         ? s
-        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5 };
+        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, sunIntensity: 0.85, moonIntensity: 0.55, stars: true };
     };
     const sync = (): void => {
       const s = this.doc.world.sky;
@@ -805,6 +845,11 @@ export class ToolManager {
         daySel.value = String(s?.dayLengthSec ?? 0);
         shadowChk.checked = s?.shadows ?? true;
         tiltInput.value = String(s?.sunTilt ?? 23.5);
+        sunIRange.value = String(s?.sunIntensity ?? 0.85);
+        sunIVal.textContent = `×${Number(sunIRange.value).toFixed(2)}`;
+        moonIRange.value = String(s?.moonIntensity ?? 0.55);
+        moonIVal.textContent = `${Math.round(Number(moonIRange.value) * 100)}%`;
+        starsChk.checked = s?.stars ?? true;
       } else {
         horizonSel.value = s && s.set != null ? String(s.set) : '';
         hourSel.value = s && s.frame != null ? String(s.frame) : '';
@@ -852,6 +897,15 @@ export class ToolManager {
     daySel.addEventListener('change', () => setReal({ dayLengthSec: Number(daySel.value) || undefined }));
     shadowChk.addEventListener('change', () => setReal({ shadows: shadowChk.checked }));
     tiltInput.addEventListener('change', () => setReal({ sunTilt: Number(tiltInput.value) || 23.5 }));
+    sunIRange.addEventListener('input', () => {
+      sunIVal.textContent = `×${Number(sunIRange.value).toFixed(2)}`;
+      setReal({ sunIntensity: Number(sunIRange.value) });
+    });
+    moonIRange.addEventListener('input', () => {
+      moonIVal.textContent = `${Math.round(Number(moonIRange.value) * 100)}%`;
+      setReal({ moonIntensity: Number(moonIRange.value) });
+    });
+    starsChk.addEventListener('change', () => setReal({ stars: starsChk.checked }));
 
     tabClassic.addEventListener('click', () => {
       const s = this.doc.world.sky;

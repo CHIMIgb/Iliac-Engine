@@ -82,6 +82,16 @@ export function validateProject(project) {
         if (s.sunTilt != null && !(typeof s.sunTilt === 'number' && s.sunTilt >= 0 && s.sunTilt <= 90)) {
           errors.push('"world.sky.sunTilt" debe ser un número 0–90 (grados de inclinación)');
         }
+        // F4.7 ajustes: intensidad del sol, luz lunar nocturna y estrellas.
+        if (s.sunIntensity != null && !(typeof s.sunIntensity === 'number' && s.sunIntensity >= 0.1 && s.sunIntensity <= 3)) {
+          errors.push('"world.sky.sunIntensity" debe ser un número 0.1–3 (multiplicador del sol)');
+        }
+        if (s.moonIntensity != null && !(typeof s.moonIntensity === 'number' && s.moonIntensity >= 0 && s.moonIntensity <= 1)) {
+          errors.push('"world.sky.moonIntensity" debe ser un número 0–1 (luz lunar nocturna)');
+        }
+        if (s.stars != null && typeof s.stars !== 'boolean') {
+          errors.push('"world.sky.stars" debe ser booleano');
+        }
         if (s.set != null || s.frame != null) {
           errors.push('"world.sky" realista no usa set/frame (úsalo solo con style:"classic")');
         }
@@ -89,8 +99,9 @@ export function validateProject(project) {
         if (!Number.isInteger(s.set) || s.set < 0 || s.set > 30) errors.push('"world.sky.set" debe ser un entero 0–30');
         if (s.frame != null && (!Number.isInteger(s.frame) || s.frame < 0 || s.frame > 31)) errors.push('"world.sky.frame" debe ser un entero 0–31');
         if (s.base != null && typeof s.base !== 'string') errors.push('"world.sky.base" debe ser una ruta');
-        if (s.hour != null || s.dayLengthSec != null || s.shadows != null || s.sunTilt != null) {
-          errors.push('"world.sky" clásico no usa hour/dayLengthSec/shadows/sunTilt (reservados a style:"realista")');
+        if (s.hour != null || s.dayLengthSec != null || s.shadows != null || s.sunTilt != null ||
+            s.sunIntensity != null || s.moonIntensity != null || s.stars != null) {
+          errors.push('"world.sky" clásico no usa hour/dayLengthSec/shadows/sunTilt/sunIntensity/moonIntensity/stars (reservados a style:"realista")');
         }
       }
     }

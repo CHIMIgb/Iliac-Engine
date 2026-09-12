@@ -110,19 +110,22 @@ El popover del Cielo tiene **dos pestañas: «Clásico» y «Realista»** (F4.7)
 
 ### Pestaña «Realista» — cielo 3D con sol, luna y sombras (F4.7)
 
-`world.sky: { style: 'realista', hour?: 0–24, dayLengthSec?: >0, shadows?: bool, sunTilt?: 0–90 }`
+`world.sky: { style: 'realista', hour?: 0–24, dayLengthSec?: >0, shadows?: bool, sunTilt?: 0–90, sunIntensity?: 0.1–3, moonIntensity?: 0–1, stars?: bool }`
 - **`hour`** — hora del día (float); el slider del popover la mueve con etiqueta HH:MM.
 - **`dayLengthSec`** — duración de un día solar completo en segundos; si está presente el reloj **avanza solo durante el playtest** (el editor queda fijo). Ausente/0 = hora manual.
 - **`shadows`** — sombras del sol: `DirectionalLight.castShadow` con `shadowMap` PCF 2048, caja ortográfica de 60 m que sigue al jugador. Al apagarlas sube FPS.
 - **`sunTilt`** — inclinación del eje de rotación (23.5° por defecto, como la eclíptica real).
+- **`sunIntensity`** — multiplicador de la intensidad del sol (0.85 por defecto = un poco atenuado sobre la curva base; 0.1–3 en el slider).
+- **`moonIntensity`** — luz lunar nocturna 0–1 (0.55 por defecto). La luna (anti-solar) tiene su propia `DirectionalLight` fría, sin sombras, que solo ilumina de noche.
+- **`stars`** — true = estrellas visibles de noche (default true).
 
 **Cómo funciona (F4.7):**
 - `engine/core/daylight.js` (lógica pura, sin Three): `sunDirection`/`moonDirection` (la luna es el anti-sol), `paletteFor` (curvas de color/intensidad de sol, ambiente, cielo y **niebla**), `advanceHour` (día solar), `hourLabel`.
-- `engine/three/SunSystem.js`: shader atmosférico oficial de Three (`three/addons/objects/Sky.js`) → atardeceres por dispersión Rayleigh; discos de **sol y luna** visibles (sprites opacos con alphaTest, `depthTest:false` + `renderOrder` negativo → se pintan DETRÁS del mundo: nunca se cuelan en interiores); **estrellas** (Points que se encienden de noche); `HemisphereLight` + `DirectionalLight`.
+- `engine/three/SunSystem.js`: shader atmosférico oficial de Three (`three/addons/objects/Sky.js`) → atardeceres por dispersión Rayleigh; discos de **sol y luna** visibles (sprites opacos con alphaTest, `depthTest:false` + `renderOrder` negativo → se pintan DETRÁS del mundo: nunca se cuelan en interiores); **estrellas** (Points que se encienden de noche); dos `DirectionalLight` (sol con sombras + luna nocturna) + `HemisphereLight`.
 - Interiores: si el sector del jugador tiene techo real (`ceilTex !== 'sky'`) el sol baja a ×0.25 y el ambiente sube — Daggerfall-style, sin lightmapping.
-- `Engine3D._setupSun()` (firma por `sunSignature`); el reloj avanza en `update()`; `Renderer3D` activa/desactiva sombras y tiñe la niebla con la hora.
+- `Engine3D._setupSun()` (firma por `sunSignature`); el reloj avanza en `update()`; **los ajustes sol/luna/estrellas se aplican EN CALIENTE vía `setWorld`** (sin reconstruir el sistema); `Renderer3D` activa/desactiva sombras y tiñe la niebla con la hora.
 
-**UI (tecla 8):** pestaña Realista = slider **Hora 0–24** (+ HH:MM), select **Avance del día** (Fijo / 10′ / 20′ / 60′), checkbox **Sombras del sol**, input **Inclinación solar (0–90°)**. Todo escribe `doc.setSky`. Cambiar de pestaña conserva los datos del otro estilo.
+**UI (tecla 8):** pestaña Realista = slider **Hora 0–24** (+ HH:MM), select **Avance del día** (Fijo / 10′ / 20′ / 60′), checkbox **Sombras del sol**, input **Inclinación solar (0–90°)**, slider **Intensidad del sol (×0.1–3)**, slider **Luz de la luna (0–100%)**, checkbox **Estrellas de noche**. Todo escribe `doc.setSky`. Cambiar de pestaña conserva los datos del otro estilo.
 
 > **Retirado:** la herramienta «Pantalla» (tecla 9, resolución interna del playtest) y el efecto CRT existieron y se eliminaron por decisión del usuario: el editor vuelve a render nativo a pantalla completa. La tecla **9** se reasignó a Audio.
 

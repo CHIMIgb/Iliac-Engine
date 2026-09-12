@@ -83,6 +83,30 @@ test('validateProject acepta hora 24 (medianoche) y dayLengthSec 0 (manual)', ()
   assert.equal(r.valid, true, JSON.stringify(r.errors));
 });
 
+test('validateProject acepta ajustes F4.7 en realista (sol/luna/estrellas)', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', sunIntensity: 0.85, moonIntensity: 0.35, stars: true };
+  const r = validateProject(p);
+  assert.equal(r.valid, true, JSON.stringify(r.errors));
+});
+
+test('validateProject rechaza ajustes F4.7 fuera de rango en realista', () => {
+  const p = validProject();
+  p.world.sky = { style: 'realista', sunIntensity: 5, moonIntensity: 2 };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('sunIntensity')));
+  assert.ok(r.errors.some((e) => e.includes('moonIntensity')));
+});
+
+test('validateProject rechaza ajustes F4.7 en estilo clásico', () => {
+  const p = validProject();
+  p.world.sky = { set: 3, stars: false };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('no usa')));
+});
+
 test('validateProject acepta cielo clásico SIN style (retrocompatibilidad)', () => {
   const p = validProject();
   p.world.sky = { set: 15, frame: 17 };
