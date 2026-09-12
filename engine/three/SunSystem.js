@@ -81,27 +81,32 @@ export class SunSystem {
 
   /** Disco del sol y de la luna (bilboards siempre de frente a la cámara). */
   _addCelestialBodies() {
-    // Disco del sol: sprite amarillo brillante. OPAQUE con alphaTest (los
-    // bordes transparentes se descartan): se pinta en el pase opaco (renderOrder
-    // -1 = detrás del mundo) y los muros lo tapan cuando está oculto — un sprite
-    // transparente normal se dibujaría DESPUÉS del mundo y se colaría en las casas.
+    // Sol: GLOW ADITIVO sin disco duro. La textura es un degradado radial suave
+    // (pico de alfa en el centro → 0 en el borde) y el material es
+    // TRANSPARENTE + AdditiveBlending SIN alphaTest: nada de recorte duro, el
+    // sol es un halo difuso sin el círculo naranja de bordes definidos.
+    // renderOrder -1 + depthTest true lo dibujan ANTES del mundo (que luego lo
+    // tapa en interiores) — un sprite aditivo con renderOrder 0 se colaría.
     const sunMat = new THREE.SpriteMaterial({
-      map: this._makeDiskTexture(0xffddaa, 0.95),
-      alphaTest: 0.5,
-      transparent: false,
-      depthTest: false,
+      map: this._makeGlowTexture(0xffddaa),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: true,
       depthWrite: false,
       fog: false,
     });
     const sun = new THREE.Sprite(sunMat);
     sun.renderOrder = -1;
-    sun.scale.set(14, 14, 1);
+    sun.scale.set(6, 6, 1); // sol pequeño: glow contenido
     this.sunSprite = sun;
     this.group.add(sun);
 
-    // Disco de la luna: gris-blanco frío.
+    // Disco de la luna: superficie procedural con cráteres (billboard — a
+    // 500 u un sprite de frente se ve idéntico a una esfera 3D y es mucho más
+    // barato). Mismo pase opaco que el sol original: alphaTest + renderOrder -1
+    // = detrás del mundo y tapada por los muros en interiores.
     const moonMat = new THREE.SpriteMaterial({
-      map: this._makeDiskTexture(0xddddff, 0.7),
+      map: this._makeMoonTexture(),
       alphaTest: 0.5,
       transparent: false,
       depthTest: false,
@@ -110,7 +115,7 @@ export class SunSystem {
     });
     const moon = new THREE.Sprite(moonMat);
     moon.renderOrder = -1;
-    moon.scale.set(9, 9, 1);
+    moon.scale.set(16, 16, 1); // luna grande: disco visible de noche
     this.moonSprite = moon;
     this.group.add(moon);
   }
@@ -486,6 +491,50 @@ export class SunSystem {
     this.group = null;
   }
 
+  /**
+   * Textura procedimental de LUNA: disco gris con degradado (más claro al
+   * centro, funde a transparente en el borde) y ~26 cráteres con relieve
+   * (degradado de sombra interior por cráter). Sin assets externos.
+   */
+  _makeMoonTexture() {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const r = size / 2;
+    // Disco base: brillo al centro, oscurece al borde, funde a nada al final.
+    const base = ctx.createRadialGradient(r, r, 0, r, r, r);
+    base.addColorStop(0, '#e9e9f2');
+    base.addColorStop(0.75, '#c9c9dd');
+    base.addColorStop(0.98, '#9a9ab5');
+    base.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = base;
+    ctx.beginPath();
+    ctx.arc(r, r, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Cráteres: círculos con sombra interna (gris oscuro al centro del cráter,
+    // funde al color de la superficie) → dan relieve sin iluminación externa.
+    for (let i = 0; i < 26; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = Math.sqrt(Math.random()) * r * 0.85;
+      const x = r + Math.cos(ang) * rad;
+      const y = r + Math.sin(ang) * rad;
+      const cr = 4 + Math.random() * 20;
+      const grad = ctx.createRadialGradient(x, y, cr * 0.2, x, y, cr);
+      grad.addColorStop(0, '#8f8fb0');
+      grad.addColorStop(1, '#c9c9dd');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, cr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   /** Textura circular radial para un sprite (sol/luna). */
   _makeDiskTexture(color, alpha) {
     const size = 128;
@@ -498,6 +547,32 @@ export class SunSystem {
     grad.addColorStop(0, col);
     grad.addColorStop(0.7, col);
     grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Textura GLOW para el sol: degradado radial suave, pico de alfa en el
+   * centro y caída a 0 en el borde. Sin mesetas ni recortes: con
+   * AdditiveBlending y sin alphaTest el resultado es un halo difuso, nunca un
+   * disco con bordes definidos.
+   */
+  _makeGlowTexture(color) {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const r = size / 2;
+    const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+    const col = '#' + color.toString(16).padStart(6, '0');
+    grad.addColorStop(0.0, col); // pico en el centro
+    grad.addColorStop(0.6, col); // se mantiene intenso hasta el 60 %
+    grad.addColorStop(1.0, 'rgba(0,0,0,0)'); // funde a nada en el borde
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
     const tex = new THREE.CanvasTexture(canvas);
