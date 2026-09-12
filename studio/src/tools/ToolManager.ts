@@ -844,6 +844,18 @@ export class ToolManager {
     auroraWrap.appendChild(auroraRow);
     realSec.appendChild(auroraWrap);
 
+    // Color de la aurora (F4.7): picker nativo del navegador + etiqueta hex.
+    const auroraColorRow = mkRow('Color aurora');
+    const auroraColorInput = document.createElement('input');
+    auroraColorInput.type = 'color';
+    auroraColorInput.value = '#7dffb0';
+    auroraColorInput.style.cssText = 'flex:0 0 28px;height:22px;padding:0;border:1px solid var(--border-default,#313244);border-radius:4px;background:var(--bg-surface,#313244);cursor:pointer';
+    const auroraColorHex = document.createElement('span');
+    auroraColorHex.style.cssText = 'font:11px "JetBrains Mono",monospace;color:var(--text-primary,#cdd6f4);min-width:64px;text-align:right';
+    auroraColorRow.appendChild(auroraColorInput);
+    auroraColorRow.appendChild(auroraColorHex);
+    realSec.appendChild(auroraColorRow);
+
     panel.appendChild(classicSec);
     panel.appendChild(realSec);
 
@@ -852,7 +864,7 @@ export class ToolManager {
       const s = this.doc.world.sky;
       return s && s.style === 'realista'
         ? s
-        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, sunIntensity: 0.85, moonIntensity: 0.55, stars: true, aurora: true, auroraIntensity: 1 };
+        : { style: 'realista' as const, hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5, sunIntensity: 0.85, moonIntensity: 0.55, stars: true, aurora: true, auroraIntensity: 1, auroraColor: '#7dffb0' };
     };
     const sync = (): void => {
       const s = this.doc.world.sky;
@@ -875,6 +887,8 @@ export class ToolManager {
         auroraChk.checked = s?.aurora ?? true;
         auroraRange.value = String(s?.auroraIntensity ?? 1);
         auroraVal.textContent = `×${Number(auroraRange.value).toFixed(1)}`;
+        auroraColorInput.value = s?.auroraColor ?? '#7dffb0';
+        auroraColorHex.textContent = auroraColorInput.value.toUpperCase();
       } else {
         horizonSel.value = s && s.set != null ? String(s.set) : '';
         hourSel.value = s && s.frame != null ? String(s.frame) : '';
@@ -935,6 +949,10 @@ export class ToolManager {
     auroraRange.addEventListener('input', () => {
       auroraVal.textContent = `×${Number(auroraRange.value).toFixed(1)}`;
       setReal({ auroraIntensity: Number(auroraRange.value) });
+    });
+    auroraColorInput.addEventListener('input', () => {
+      auroraColorHex.textContent = auroraColorInput.value.toUpperCase();
+      setReal({ auroraColor: auroraColorInput.value });
     });
 
     tabClassic.addEventListener('click', () => {

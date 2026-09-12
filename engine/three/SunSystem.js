@@ -24,14 +24,14 @@ const DEG = Math.PI / 180;
 
 export class SunSystem {
   /**
-   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number, sunIntensity?:number, moonIntensity?:number, stars?:boolean, aurora?:boolean, auroraIntensity?:number}} cfg
+   * @param {{hour?:number, dayLengthSec?:number, shadows?:boolean, sunTilt?:number, sunIntensity?:number, moonIntensity?:number, stars?:boolean, aurora?:boolean, auroraIntensity?:number, auroraColor?:string}} cfg
    */
   constructor(cfg = {}) {
     this.cfg = {
       hour: 12, dayLengthSec: 0, shadows: true, sunTilt: 23.5,
       sunIntensity: 0.85, moonIntensity: 0.55, stars: true,
-      // F4.7 aurora boreal: cortina de luz verde/cian/wiolita en el polo norte.
-      aurora: true, auroraIntensity: 1,
+      // F4.7 aurora boreal: cortina de luz en el polo norte, color configurable.
+      aurora: true, auroraIntensity: 1, auroraColor: '#7dffb0',
       ...cfg,
     };
     this.hour = this.cfg.hour;
@@ -174,14 +174,15 @@ export class SunSystem {
   }
 
   /**
-   * Aurora boreal (F4.7): cortina de luz verde→cian→violeta en el polo norte.
+   * Aurora boreal (F4.7): cortina de luz en el polo norte, color configurable.
    *
    * Un domo interior (radio 1, escalado al far real en update()) con un shader
    * procedural GLSL (adaptado del Shadertoy "Auroras" de nimitz, XtGGRt): cada
    * fragmento marcha un rayo por el cielo y acumula densidad de "cortina" con
    * ruido triangular (_triNoise2d, 5 octavas) → bandas verticales ondeando con
-   * el tiempo. La paleta (verde→cian→violeta) sale de una onda senoidal sobre
-   * la altura de cada paso.
+   * el tiempo. La paleta natural (verde→cian→violeta) sale de una onda senoidal
+   * sobre la altura de cada paso; el color del usuario (`auroraColor`, uColor)
+   * se mezcla al 65 % manteniendo la forma de las bandas.
    *
    * El domo usa BLENDING ADITIVO + depthTest: la aurora suma luz sobre el cielo
    * nocturno y queda oculta tras los muros (el mundo escribe depth); se ve a
@@ -199,6 +200,7 @@ export class SunSystem {
         uTime: { value: 0 },
         uNight: { value: 0 },
         uIntensity: { value: this.cfg.auroraIntensity },
+        uColor: { value: hexToRgb01(this.cfg.auroraColor) },
       },
       vertexShader: `
         varying vec3 vWorldPos;
@@ -211,6 +213,7 @@ export class SunSystem {
         uniform float uTime;
         uniform float uNight;
         uniform float uIntensity;
+        uniform vec3 uColor;
         varying vec3 vWorldPos;
 
         // Ruido triangular (nimitz): barato y con bandas naturales para la cortina.
@@ -239,7 +242,7 @@ export class SunSystem {
             rz += tri(p.x + tri(p.y))*z;
             p *= -M2;
           }
-          return clamp(1.0/pow(rz*29.0, 1.3), 0.0, .55);
+          return clamp(1.0/pow(rz*29.0, 1.3), 0.0, .7);
         }
 
         // Ray-march liviano de las cortinas por la dirección del cielo.
@@ -254,21 +257,28 @@ export class SunSystem {
             vec2 p = bpos.zx;
             float rzt = triNoise2d(p, 0.06);
             vec4 col2 = vec4(0., 0., 0., rzt);
-            col2.rgb = (sin(1. - vec3(2.15, -.5, 1.2) + i*0.043)*.5 + .5)*rzt;
+            // Paleta natural (senoidal por paso) MEZCLADA 65 % con el color del
+            // usuario (auroraColor): la forma de las bandas se conserva, el
+            // tono dominante es el elegido.
+            vec3 natural = (sin(1. - vec3(2.15, -.5, 1.2) + i*0.043)*.5 + .5)*rzt;
+            col2.rgb = mix(natural, uColor*rzt, 0.65);
             avgCol = mix(avgCol, col2, .5);
-            col += avgCol*exp2(-i*0.065 - 2.5)*smoothstep(0., 5., i);
+            // Ganancia elevada (exp2 menos agresivo + clamp del ruido a .7):
+            // la cortina se ve MÁS MARCADA, incluso cerca del horizonte.
+            col += avgCol*exp2(-i*0.05 - 1.9)*smoothstep(0., 5., i);
           }
-          col *= (clamp(rd.y*15. + .4, 0., 1.));
+          col *= (clamp(rd.y*12. + .35, 0., 1.));
           return col;
         }
 
         void main(){
           // Dirección del rayo: del fragmento (en el domo del cielo) a la cámara.
           vec3 rd = normalize(vWorldPos - cameraPosition);
-          // Aurora solo hacia el polo norte del mundo (-Z) y por encima del
-          // horizonte: cerca del horizonte norte la cortina se ve de canto.
+          // Aurora solo hacia el polo norte del mundo (-Z): cerca del horizonte
+          // norte la cortina se ve de canto y BAJA hasta casi el propio horizonte
+          // (smoothstep arranca en 0.005 → el efecto se ve más lejos y más abajo).
           float north = clamp(dot(vec3(0., 0., -1.), normalize(vec3(rd.x, 0., rd.z))), 0., 1.);
-          float sky = smoothstep(0.02, 0.25, rd.y); // solo sobre horizonte
+          float sky = smoothstep(0.005, 0.12, rd.y); // solo sobre horizonte
           vec4 c = aurora(vec3(0.), rd);
           float alpha = c.a * uNight * uIntensity * north * sky;
           vec3 rgb = c.rgb * uIntensity * uNight * north * sky;
@@ -384,13 +394,15 @@ export class SunSystem {
     uni.uTime.value = performance.now() * 0.001;
 
     // Aurora boreal: se enciende de noche (uNight), con su intensidad propia
-    // (slider del editor) y una animación siempre viva (uTime real). El destino
-    // `aurora` combina alpha y rgb (blending aditivo) → translúcida sin brillar
-    // de día (uNight 0 apaga el producto).
+    // (slider del editor), una animación siempre viva (uTime real) y el color
+    // elegido (auroraColor, picker del editor). El destino `aurora` combina
+    // alpha y rgb (blending aditivo) → translúcida sin brillar de día (uNight 0
+    // apaga el producto).
     this.aurora.visible = this.cfg.aurora;
     const au = this.aurora.material.uniforms;
     au.uNight.value = p.night;
     au.uIntensity.value = this.cfg.auroraIntensity;
+    au.uColor.value = hexToRgb01(this.cfg.auroraColor);
     au.uTime.value = performance.now() * 0.001;
   }
 
@@ -461,6 +473,16 @@ export class SunSystem {
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
+}
+
+/** Hex `#rrggbb` → tres componentes 0–1 (para el uniform uColor de la aurora). */
+export function hexToRgb01(hex) {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.slice(0, 2), 16) / 255,
+    g: parseInt(h.slice(2, 4), 16) / 255,
+    b: parseInt(h.slice(4, 6), 16) / 255,
+  };
 }
 
 /** Firma para el motor: estilo realista = este sistema.

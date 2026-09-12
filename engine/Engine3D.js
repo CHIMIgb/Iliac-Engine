@@ -9,6 +9,7 @@ import { WorldMesh } from './three/WorldMesh.js';
 import { loadTextures } from './three/textures.js';
 import { SkySystem, skySignature } from './three/SkySystem.js';
 import { SunSystem, sunSignature } from './three/SunSystem.js';
+import { CompassOverlay } from './three/CompassOverlay.js';
 
 const MAX_DT = 0.05; // 50 ms; evita que un frame largo desestabilice la física.
 
@@ -32,6 +33,7 @@ export class Engine3D {
     this._sunSig = sunSignature(null);
     this.audio = null;   // AudioEngine (null si el proyecto no declara audio[])
     this.music = null;   // AdaptiveMusic (null si no hay project.music con layers)
+    this.compass = null; // CompassOverlay (brújula HUD, opcional: solo si se activa)
     this._audioSig = null;
     if (this.world.vertices && this.world.sectors) {
       this.sectorIndex = buildSectorIndex(this.world);
@@ -166,6 +168,7 @@ export class Engine3D {
       if (s.stars != null) this.sun.cfg.stars = s.stars;
       if (s.aurora != null) this.sun.cfg.aurora = s.aurora;
       if (s.auroraIntensity != null) this.sun.cfg.auroraIntensity = s.auroraIntensity;
+      if (s.auroraColor != null) this.sun.cfg.auroraColor = s.auroraColor;
     }
     this._setupSun();
     if (this.renderer && this.loaded) {
@@ -187,8 +190,24 @@ export class Engine3D {
     this.renderer.resize(width, height);
   }
 
+  /**
+   * Muestra/oculta la brújula HUD (rosa N/E/S/O en la esquina inferior derecha).
+   * La rota el yaw del jugador en render(); el norte del mundo (-Z de Three)
+   * coincide con el polo de la aurora boreal. Overlay opcional: null hasta que
+   * se activa, y se dibuja solo si el yaw cambió (cero coste por frame).
+   */
+  setCompass(on) {
+    if (on && !this.compass) this.compass = new CompassOverlay();
+    if (!on && this.compass) {
+      this.compass.dispose();
+      this.compass = null;
+    }
+  }
+
   dispose() {
     if (!this.renderer) return;
+    this.compass?.dispose();
+    this.compass = null;
     this.sky?.dispose();
     this.sky = null;
     this._skySig = skySignature(null);
@@ -263,5 +282,6 @@ export class Engine3D {
     this.renderer.syncCamera(this.player);
     if (this.sun) this.sun.update(this.renderer.camera, 0); // dt 0 en render: el reloj ya avanzó en update()
     this.renderer.render();
+    if (this.compass) this.compass.update(this.player.yaw);
   }
 }

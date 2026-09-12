@@ -134,6 +134,8 @@ export interface EditableSky {
   aurora?: boolean;
   /** Multiplicador de la intensidad de la aurora (0.1–3, 1 = base). */
   auroraIntensity?: number;
+  /** Color de la aurora en hex "#rrggbb" (default "#7dffb0", el verde natural). */
+  auroraColor?: string;
 }
 
 /** Definición de audio (project.audio, F4.5): una voz = una entrada. */

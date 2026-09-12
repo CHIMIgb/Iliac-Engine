@@ -166,6 +166,8 @@ export class EditorViewport {
       // Al salir del playtest los bucles de audio se callan (halt del motor:
       // resume() del próximo playtest los vuelve a crear y arrancar).
       this.engine?.stopAudio?.();
+      // La brújula HUD es solo para el modo juego (playtest).
+      this.engine?.setCompass?.(false);
     }
     // Al entrar en juego (Playtest / F5) la cámara pasa a primera persona con
     // el ratón capturado; Esc libera el puntero y Playtest vuelve al editor.
@@ -174,6 +176,8 @@ export class EditorViewport {
       // El audio exige gesto del usuario: la entrada a playtest (clic/F5) lo desbloquea.
       void this.engine?.resumeAudio?.();
       this._stepAccum = 0; // reinicia el contador de pasos del playtest
+      // Brújula HUD (rosa N/E/S/O): el norte del mundo coincide con la aurora.
+      this.engine?.setCompass?.(true);
     }
   }
 
