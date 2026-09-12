@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RayCast Studio — Demo Audio (F4.5)</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../../node_modules/three/build/three.module.js"
+    }
+  }
+  </script>
+  <style>
+    body { margin: 0; background: #111; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: monospace; position: relative; }
+    canvas { image-rendering: pixelated; border: 2px solid #333; }
+    #help { position: absolute; left: 12px; bottom: 12px; color: #cdd6f4; background: rgba(24,24,37,0.85);
+      border: 1px solid #313244; padding: 10px 14px; font-size: 12px; line-height: 1.6; max-width: 34em; }
+    #help b { color: #89b4fa; }
+    #hud { position: absolute; right: 12px; top: 12px; color: #a6e3a1; background: rgba(24,24,37,0.85);
+      border: 1px solid #313244; padding: 6px 10px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="screen"></canvas>
+  <div id="help">
+    <b>Demo Audio Engine</b> — clic para capturar el ratón y desbloquear el sonido.<br>
+    WASD/flechas: caminar (pasos con variación) · acercarse al río/antorcha: sonido 3D<br>
+    <b>1/2/3</b>: intensidad musical (calma / +percusión / +tensión) · <b>F</b>: puerta · <b>H</b>: impacto · <b>V</b>: voz (baja la música) · <b>M</b>: silenciar música
+  </div>
+  <div id="hud">intensidad: <span id="int">0</span></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

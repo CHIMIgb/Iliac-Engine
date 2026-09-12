@@ -5,7 +5,8 @@
  * reproducibles/verificables sin importar Daggerfall.
  *
  * Uso:  cd studio && npm run setup:audio
- * Salida (NO versionadas, ver .gitignore):  studio/public/audio/*.wav  y  demo/audio/*.wav
+ * Salida (NO versionadas, ver .gitignore):  assets/audio/*.wav
+ * (la demo de audio los referencia como ../../assets/audio/…)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const SR = 22050; // 22 kHz mono: suficiente para retro, archivos ligeros
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
-const dests = [path.join(repo, 'studio', 'public', 'audio'), path.join(repo, 'demo', 'audio')];
+const destDir = path.join(repo, 'assets', 'audio');
 
 // ── WAV writer (16-bit PCM mono) ───────────────────────────────
 function wav(samples) {
@@ -176,15 +177,10 @@ const tracks = {
   'sfx-voice.wav': sfx.voice(),
 };
 
-for (const dir of dests) {
-  fs.mkdirSync(dir, { recursive: true });
-  for (const [name, samples] of Object.entries(tracks)) {
-    fs.writeFileSync(path.join(dir, name), wav(samples));
-  }
-  // Manifiesto = DATO que la herramienta de Audio del Studio lee para sugerir
-  // ficheros (nada de listas hardcodeadas en el TS). Rutas absolutas del sitio
-  // de Studio; el directorio de la demo reescribe el prefijo a su ruta relativa.
-  const base = dir.includes('studio') ? '/audio/' : '../../demo/audio/';
-  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ files: Object.keys(tracks).map((f) => `${base}${f}`) }, null, 2));
-  console.log(`[setup:audio] ${Object.keys(tracks).length} WAVs + manifest.json escritos en ${dir}`);
+fs.mkdirSync(destDir, { recursive: true });
+for (const [name, samples] of Object.entries(tracks)) {
+  fs.writeFileSync(path.join(destDir, name), wav(samples));
 }
+// Sin manifest: la herramienta de Audio del Studio lista assets/audio/ vía el
+// middleware de Vite (/assets/audio/list). Nada hardcodeado en el TS.
+console.log(`[setup:audio] ${Object.keys(tracks).length} WAVs escritos en ${destDir}`);

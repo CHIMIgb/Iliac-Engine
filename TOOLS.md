@@ -138,11 +138,14 @@ El popover del Cielo tiene **dos pestañas: «Clásico» y «Realista»** (F4.7)
 
 ## 9 · Audio — herramienta de sonido (tecla 9)
 
-Escribe `project.audio[]` y `project.music`. **MVP actual: solo AMBIENTE** (bucles `bus:'ambience'`, `loop:true`). Música, NPC y acciones quedan **documentados y pendientes de editor** (el motor ya los consume de datos: `layers` para stems, `spatial.follow` para bucles de NPC, `variations` para SFX).
+Escribe `project.audio[]` y `project.music`. **El Studio arranca SIN audio precargado** (el mapa por defecto `doc.audio = []`): todo sonido se añade desde aquí. **MVP actual: solo AMBIENTE** (bucles `bus:'ambience'`, `loop:true`). Música, NPC y acciones quedan **documentados y pendientes de editor** (el motor ya los consume de datos: `layers` para stems, `spatial.follow` para bucles de NPC, `variations` para SFX).
 
-**Popover** (icono `volume-2`): lista de ambientes, cada uno con `archivo ▾ · volumen · Probar · ×`; botón «+ Añadir ambiente».
+**Popover** (icono `volume-2`): lista de ambientes, cada uno con `ruta · volumen · Probar · Cambiar · ×`; botones «Añadir sonidos» y «Cargar sonidos». Modal compacta (260–340 px): las rutas largas se truncan con puntos suspensivos (tooltip = ruta completa). **Nunca hay un archivo seleccionado por defecto.**
 
-- **Archivos sugeridos** = `fetch('/audio/manifest.json)` (dato que emite `npm run setup:audio`); si no existe el manifiesto, la ruta se escribe a mano. **Nada hardcodeado en el TS** (regla de no hardcodear).
+- **Añadir sonidos**: abre el diálogo del sistema para elegir el audio que se añade como ambiente. Si el archivo elegido ya está en `assets/audio/` se usa su ruta servida (`/assets/audio/<nombre>`); si no, se sube al vuelo y se usa.
+- **Cambiar** (por fila): mismo diálogo, cambia el audio de ese ambiente.
+- **Cargar sonidos**: abre el explorador de archivos (`<input type="file" multiple>`) y sube cada audio elegido al **dev server**, que lo guarda en `assets/audio/` del repo (el navegador no puede escribir disco; el middleware `assetsMiddleware` de `vite.config.ts` hace de puente: `POST /assets/audio/upload` escribe el archivo, `GET /assets/audio/list` devuelve la lista). Formatos: wav, mp3, mp4, ogg, oga, flac, m4a, aac, webm. Máx. 50 MB. La validación (nombre saneado, base64, tamaño, anti-traversal) vive en `studio/src/io/assetServer.ts` (lógica pura testeada).
+- **Eliminar** (`×`): quita el ambiente y **la modal permanece abierta** (`stopPropagation` para que el clic no llegue al cierre por clic-fuera).
 - **Preview**: «Probar» instancia un `AudioEngine` efímero del motor y suena 3 s (el clic es el gesto que desbloquea el autoplay) → cero lógica de audio duplicada en el Studio.
 - **Ciclo en playtest**: al entrar (`F5`/Playtest) `EditorViewport` llama `engine.resumeAudio()` → los `loop:true` arrancan en bucle; al salir, `engine.stopAudio()` (`AudioEngine.halt()`) los calla y el siguiente `resume()` los re-crea. Sin `audio[]` en el proyecto, todo es no-op (el audio es **opcional y nunca rompe el frame**).
 

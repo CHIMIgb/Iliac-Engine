@@ -1006,16 +1006,17 @@ export class ToolManager {
 
   private audioPicker: HTMLElement | null = null;
   private audioPickerOpenedAt = 0;
-  /** Lista de ficheros sugeridos (manifest generado por setup:audio; nulo = ruta libre). */
+  /** Lista de audios disponibles en `assets/audio/` (lista del middleware; nulo = ruta libre). */
   private _audioFiles: string[] | null = null;
   /** Motor de audio efímero de la preview (se apaga al cambiar de preview o cerrar). */
   private _audioPreview: AudioEngine | null = null;
 
   /**
    * Abre el popover de Audio (tecla 9). Lista los bucles de ambiente del doc
-   * (archivo + volumen + quitar), permite añadir nuevos, y un Preview de 3 s.
-   * Los ficheros sugeridos vienen de /audio/manifest.json (dato, no código);
-   * si no existe el manifiesto, la ruta se escribe a mano.
+   * (ruta + volumen + Probar + Cambiar + quitar). El archivo se elige SIEMPRE
+   * con el diálogo del sistema: «Añadir sonidos» abre assets/audio/ y elige un
+   * audio de ahí (si no está en la carpeta, se sube antes: `POST /assets/audio/upload`);
+   * «Cambiar» reutiliza el mismo diálogo por fila. Sin archivo por defecto.
    */
   openAudioPicker(clientX?: number, clientY?: number): void {
     this._closeAudioPicker();
@@ -1025,12 +1026,12 @@ export class ToolManager {
     panel.tabIndex = 0;
     panel.className = 'terrain-popover';
     panel.style.cssText =
-      'position:fixed;z-index:60;min-width:300px;display:flex;flex-direction:column;gap:8px;' +
+      'position:fixed;z-index:60;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:8px;' +
       'padding:10px 12px;border-radius:8px;background:var(--bg-panel,#181825);' +
       'border:1px solid var(--border-default,#313244);color:var(--text-primary,#cdd6f4);' +
       'font:12px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45)';
     if (clientX !== undefined && clientY !== undefined) {
-      panel.style.left = `${Math.min(clientX, window.innerWidth - 330)}px`;
+      panel.style.left = `${Math.min(clientX, window.innerWidth - 320)}px`;
       panel.style.top = `${Math.min(clientY + 4, window.innerHeight - 260)}px`;
     } else {
       panel.style.left = '50%';
@@ -1046,56 +1047,58 @@ export class ToolManager {
     list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
     panel.appendChild(list);
 
-    const SEL_CSS =
-      'flex:1;min-width:0;padding:5px 8px;border-radius:4px;font:11px "JetBrains Mono",monospace;' +
+    const ROW_CSS = 'display:flex;gap:4px;align-items:center';
+    // Ruta truncada con puntos suspensivos (title = ruta completa).
+    const SRC_CSS =
+      'flex:1;min-width:0;padding:3px 6px;border-radius:4px;font:10px "JetBrains Mono",monospace;' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
       'background:var(--bg-input,#11111b);border:1px solid var(--border-default,#313244);' +
-      'color:var(--text-primary,#cdd6f4)';
-    const Btn = 'padding:4px 8px;border-radius:4px;border:1px solid var(--border-default,#313244);' +
-      'background:var(--bg-surface,#313244);color:var(--text-primary,#cdd6f4);font:11px Inter,sans-serif;cursor:pointer';
+      'color:var(--text-secondary,#a6adc8)';
+    const Btn = 'padding:3px 6px;border-radius:4px;border:1px solid var(--border-default,#313244);' +
+      'background:var(--bg-surface,#313244);color:var(--text-primary,#cdd6f4);font:11px Inter,sans-serif;cursor:pointer;flex-shrink:0';
 
     const ambs = (): EditableAudioDef[] => this.doc.audio.filter((a) => (a.bus ?? 'sfx') === 'ambience');
+
+    // Diálogo single: elegir un audio para añadir ambiente o cambiar el de una def.
+    // Al elegir: si el archivo ya está en assets/audio/ se usa su ruta directa;
+    // si no, se sube (upload) y se usa. Nunca hay selección por defecto.
+    let pickTarget: string | null = null;
+    const pickInput = document.createElement('input');
+    pickInput.type = 'file';
+    pickInput.multiple = false;
+    pickInput.accept = '.wav,.mp3,.mp4,.ogg,.oga,.flac,.m4a,.aac,.webm,audio/*';
+    pickInput.style.display = 'none';
+    pickInput.addEventListener('change', () => {
+      const f = pickInput.files?.[0];
+      pickInput.value = ''; // permite re-elegir el mismo archivo
+      if (!f) return;
+      void this._pickAudioFile(f, pickTarget);
+    });
+    panel.appendChild(pickInput);
 
     const paint = (): void => {
       list.textContent = '';
       const defs = ambs();
       if (defs.length === 0) {
         const empty = document.createElement('div');
-        empty.textContent = 'Sin ambientes: añade uno con el botón de abajo.';
-        empty.style.cssText = 'color:var(--text-muted,#6c7086)';
+        empty.textContent = 'Sin sonidos: usa «Añadir sonidos» para elegir un audio de assets/audio/.';
+        empty.style.cssText = 'color:var(--text-muted,#6c7086);font-size:11px;line-height:1.4';
         list.appendChild(empty);
       }
       for (const a of defs) {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:6px;align-items:center';
+        row.style.cssText = ROW_CSS;
 
-        if (this._audioFiles) {
-          const sel = document.createElement('select');
-          sel.style.cssText = SEL_CSS;
-          const cur = this._audioFiles.includes(a.src) ? a.src : '';
-          const opts = cur === '' ? ['', ...this._audioFiles] : this._audioFiles;
-          for (const f of opts) {
-            const o = document.createElement('option');
-            o.value = f;
-            o.textContent = f === '' ? '— elegir archivo —' : f.split('/').pop() ?? f;
-            sel.appendChild(o);
-          }
-          sel.value = cur;
-          sel.addEventListener('change', () => {
-            if (sel.value) this.doc.updateAudioDef(a.id, { src: sel.value });
-            this._repaintAudio = paint;
-            paint();
-          });
-          row.appendChild(sel);
-        } else {
-          // Sin manifiesto: ruta libre escrita sobre el def.
-          const inp = document.createElement('input');
-          inp.type = 'text';
-          inp.value = a.src;
-          inp.placeholder = '/audio/wind.wav';
-          inp.style.cssText = SEL_CSS;
-          inp.addEventListener('change', () => this.doc.updateAudioDef(a.id, { src: inp.value }));
-          row.appendChild(inp);
-        }
+        // Archivos que ya no existen en assets/audio/: fila en rojo para avisar.
+        const missing = a.src.startsWith('/assets/audio/') && !this._audioFiles?.includes(a.src);
+
+        const src = document.createElement('div');
+        src.textContent = a.src;
+        src.title = missing ? `${a.src}\n(ya no existe en assets/audio/)` : a.src;
+        src.style.cssText = missing
+          ? `${SRC_CSS};color:var(--accent-danger,#f38ba8);border-color:var(--accent-danger,#f38ba8)`
+          : SRC_CSS;
+        row.appendChild(src);
 
         const vol = document.createElement('input');
         vol.type = 'range';
@@ -1104,20 +1107,36 @@ export class ToolManager {
         vol.step = '0.05';
         vol.value = String(a.volume ?? 1);
         vol.title = 'Volumen';
-        vol.style.cssText = 'width:70px;accent-color:var(--accent-primary,#89b4fa)';
+        vol.style.cssText = 'width:56px;flex-shrink:0;accent-color:var(--accent-primary,#89b4fa)';
         vol.addEventListener('input', () => this.doc.updateAudioDef(a.id, { volume: Number(vol.value) }));
         row.appendChild(vol);
 
         const prev = document.createElement('button');
         prev.textContent = 'Probar';
+        prev.title = 'Escuchar 3 s';
         prev.style.cssText = Btn;
         prev.addEventListener('click', () => this._previewAudio(a.id));
         row.appendChild(prev);
 
+        const chg = document.createElement('button');
+        chg.textContent = 'Cambiar';
+        chg.title = 'Elegir otro archivo con el explorador';
+        chg.style.cssText = Btn;
+        chg.addEventListener('click', () => {
+          pickTarget = a.id;
+          pickInput.click();
+        });
+        row.appendChild(chg);
+
         const rm = document.createElement('button');
         rm.textContent = '×';
-        rm.style.cssText = Btn + ';padding:4px 8px';
-        rm.addEventListener('click', () => { this.doc.removeAudioDef(a.id); paint(); });
+        rm.title = 'Quitar este ambiente';
+        rm.style.cssText = Btn + ';padding:3px 8px';
+        rm.addEventListener('click', (e) => {
+          e.stopPropagation(); // la modal permanece abierta
+          this.doc.removeAudioDef(a.id);
+          paint();
+        });
         row.appendChild(rm);
 
         list.appendChild(row);
@@ -1127,21 +1146,42 @@ export class ToolManager {
     paint();
 
     const add = document.createElement('button');
-    add.textContent = '+ Añadir ambiente';
+    add.textContent = 'Añadir sonidos';
+    add.title = 'Abre el explorador para elegir un sonido y añadirlo como ambiente';
     add.style.cssText = Btn;
     add.addEventListener('click', () => {
-      this.doc.addAudioDef({
-        src: this._audioFiles?.find((f) => f.includes('wind')) ?? this._audioFiles?.[0] ?? '/audio/wind.wav',
-        bus: 'ambience',
-        loop: true,
-        volume: 0.7,
-      });
-      paint();
+      pickTarget = null;
+      pickInput.click();
     });
     panel.appendChild(add);
 
+    // Botón «Cargar sonidos»: abre el explorador de archivos y sube al dev
+    // server los audios elegidos → se guardan en assets/audio/ (el navegador
+    // no puede escribir disco; el middleware de Vite hace de puente).
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.accept = '.wav,.mp3,.mp4,.ogg,.oga,.flac,.m4a,.aac,.webm,audio/*';
+    fileInput.style.display = 'none';
+    fileInput.addEventListener('change', () => {
+      const files = fileInput.files;
+      if (!files || files.length === 0) return;
+      void this._uploadAudioFiles(Array.from(files));
+      fileInput.value = ''; // permite re-elegir el mismo archivo
+    });
+    panel.appendChild(fileInput);
+
+    const upload = document.createElement('button');
+    upload.textContent = 'Cargar sonidos';
+    upload.title = 'Abre el explorador de archivos y guarda el audio en assets/audio/';
+    upload.style.cssText = Btn;
+    upload.addEventListener('click', () => fileInput.click());
+    panel.appendChild(upload);
+
     const note = document.createElement('div');
-    note.textContent = 'Música, NPC y acciones: edición pendiente (siguiente corte); el motor ya reproduce estos bucles en playtest.';
+    note.textContent =
+      'Los sonidos viven en assets/audio/. «Cargar sonidos» añade archivos ahí; «Añadir sonidos» elige uno como ambiente. ' +
+      'Música, NPC y acciones: edición pendiente; el motor ya reproduce estos bucles en playtest.';
     note.style.cssText = 'color:var(--text-muted,#6c7086);font-size:11px;line-height:1.5';
     panel.appendChild(note);
 
@@ -1155,18 +1195,88 @@ export class ToolManager {
     document.addEventListener('click', this._onAudioDocClick);
     requestAnimationFrame(() => panel.focus());
 
-    // Carga (una vez) la lista de ficheros sugeridos desde el manifest generado.
-    if (this._audioFiles === null) {
-      fetch('/audio/manifest.json')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j: { files?: string[] } | null) => {
-          if (Array.isArray(j?.files) && j.files.length) {
-            this._audioFiles = j.files;
-            this._repaintAudio?.();
-          }
-        })
-        .catch(() => { /* sin manifest: rutas a mano (ya es el fallback pintado) */ });
+    // Refresca SIEMPRE la lista de assets/audio/ al abrir (sin cache obsoleta:
+    // si se borraron archivos desde la última vez, aquí se enteran los defs).
+    this._refreshAudioFiles();
+  }
+
+  /**
+   * Sube una lista de archivos de audio elegidos en el explorador al dev server,
+   * que los escribe en `assets/audio/` (middleware de Vite). Luego refresca la
+   * lista del popover. Reporta por toast el resultado por archivo.
+   */
+  private _uploadAudioFiles(files: File[]): Promise<{ name: string; ok: boolean; err?: string }[]> {
+    const reads: Promise<{ name: string; ok: boolean; err?: string }>[] = [];
+    for (const f of files) {
+      reads.push(
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error(`No se pudo leer ${f.name}`));
+          reader.readAsDataURL(f);
+        }).then(
+          (data) =>
+            fetch('/assets/audio/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: f.name, data }),
+            })
+              .then((r) => r.json() as Promise<{ success: boolean; error?: string }>)
+              .then((r) => ({ name: f.name, ok: r.success, err: r.error })),
+        ),
+      );
     }
+    return Promise.all(reads).then((results) => {
+      const oks = results.filter((r) => r.ok).length;
+      const fails = results.filter((r) => !r.ok);
+      if (oks > 0) {
+        this.cb.onNotice?.(`${oks} audio(s) guardado(s) en assets/audio/`, 'success');
+        this._refreshAudioFiles();
+      }
+      if (fails.length > 0) {
+        this.cb.onNotice?.(
+          `No se guardaron: ${fails.map((f) => `${f.name} (${f.err ?? 'formato no admitido'})`).join(', ')}`,
+          'error',
+        );
+      }
+      return results;
+    });
+  }
+
+  /**
+   * Refresca `_audioFiles` con la lista actual de `assets/audio/` y repinta el
+   * popover si cambió.
+   */
+  private _refreshAudioFiles(): void {
+    fetch('/assets/audio/list')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { files?: string[] } | null) => {
+        if (Array.isArray(j?.files) && j.files.length) {
+          this._audioFiles = j.files.map((f) => `/assets/audio/${f}`);
+        }
+        this._repaintAudio?.();
+      })
+      .catch(() => { /* sin dev server: el popover sigue mostrando rutas escritas */ });
+  }
+
+  /**
+   * Elegido un archivo con el diálogo (Añadir sonidos / Cambiar): si ya está
+   * en `assets/audio/` se usa su ruta servida tal cual; si no, se sube primero.
+   * Con `targetId === null` añade un ambiente nuevo; con id, cambia el src de
+   * esa def. Nunca elige un archivo por defecto.
+   */
+  private async _pickAudioFile(file: File, targetId: string | null): Promise<void> {
+    const src = `/assets/audio/${file.name}`;
+    if (!this._audioFiles?.includes(src)) {
+      const results = await this._uploadAudioFiles([file]);
+      if (!results[0]?.ok) {
+        this.cb.onNotice?.(`No se pudo usar ${file.name}: ${results[0]?.err ?? 'formato no admitido'}`, 'error');
+        return;
+      }
+    }
+    if (targetId) this.doc.updateAudioDef(targetId, { src });
+    else this.doc.addAudioDef({ src, bus: 'ambience', loop: true, volume: 0.7 });
+    this._repaintAudio?.();
   }
 
   private _repaintAudio: (() => void) | null = null;

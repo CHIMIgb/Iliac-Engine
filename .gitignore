@@ -14,5 +14,4 @@ studio/public/sky/
 demo/sky/
 
 # Audio procedural de F4.5 (setup:audio) — regenerable, no versionar
-studio/public/audio/
-demo/audio/
+# (los WAV viven en assets/audio/, ya cubierto por la regla `assets/`)
