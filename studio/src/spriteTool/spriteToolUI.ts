@@ -89,8 +89,9 @@ export class SpriteToolUI {
   private step3PreviewImg: HTMLImageElement;
   private step3FramesGrid: HTMLDivElement;
   private step3Status: HTMLDivElement;
-  private addFrameSelect: HTMLSelectElement;
   private addFrameBtn: HTMLButtonElement;
+  private addFrameMenu: HTMLDivElement;
+  private addFrameMenuOpen = false;
   private step3NameInput: HTMLInputElement;
   private step3FpsInput: HTMLInputElement;
   private step3LoopInput: HTMLInputElement;
@@ -405,22 +406,23 @@ export class SpriteToolUI {
     framesTitle.textContent = 'Frames (arrastra para reordenar)';
     this.step3FramesGrid = document.createElement('div');
     this.step3FramesGrid.className = 'sprite-tool__frames sprite-tool__frames--dnd';
-    // Añadir un frame de la hoja que aún no esté en la anim (7d).
+    // Añadir un frame de la hoja que aún no esté en la anim (7d): menú
+    // desplegable con thumbs numerados (previsualización al elegir).
     const addFrameRow = document.createElement('div');
     addFrameRow.className = 'sprite-tool__add-frame';
-    this.addFrameSelect = document.createElement('select');
-    this.addFrameSelect.className = 'sprite-tool__input sprite-tool__select';
-    this.addFrameSelect.title = 'Frames de la hoja aún no usados en esta animación';
     this.addFrameBtn = document.createElement('button');
     this.addFrameBtn.className = 'btn btn--secondary btn--sm';
-    this.addFrameBtn.textContent = 'Añadir';
+    this.addFrameBtn.textContent = 'Añadir frame';
     this.addFrameBtn.disabled = true;
-    this.addFrameBtn.addEventListener('click', () => this.addFrameFromActive());
-    addFrameRow.append(this.addFrameSelect, this.addFrameBtn);
+    this.addFrameBtn.addEventListener('click', () => this.toggleAddFrameMenu());
+    this.addFrameMenu = document.createElement('div');
+    this.addFrameMenu.className = 'sprite-tool__add-frame-menu';
+    this.addFrameMenu.hidden = true;
+    addFrameRow.append(this.addFrameBtn);
     this.step3Status = document.createElement('div');
     this.step3Status.className = 'sprite-tool__cut-status';
 
-    animMain.append(previewRow, framesTitle, this.step3FramesGrid, addFrameRow, this.step3Status);
+    animMain.append(previewRow, framesTitle, this.step3FramesGrid, addFrameRow, this.addFrameMenu, this.step3Status);
 
     // Puente hasta el Entity Builder (6.4): asignar la anim a un sprite del mundo.
     this.assignRow = document.createElement('div');
@@ -905,7 +907,7 @@ export class SpriteToolUI {
       this.step3Status.classList.add('sprite-tool__cut-status--warn');
       this.step3AnimsList.textContent = '';
       this.step3FramesGrid.textContent = '';
-      this.renderAddFrameRow();
+      this.renderAddFrameMenu();
       this.step3PreviewImg.hidden = true;
       return;
     }
@@ -916,7 +918,7 @@ export class SpriteToolUI {
     this.step3LoopInput.checked = spec.loop;
     this.renderAnimsList();
     this.renderActiveFrames();
-    this.renderAddFrameRow();
+    this.renderAddFrameMenu();
     this.updatePreviewImage();
   }
 
@@ -986,41 +988,64 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
-  /** Rellena el select de "Añadir frame" con los frames de la hoja sin usar (7d). */
-  private renderAddFrameRow(): void {
-    const spec = this.animSpecs[this.activeAnim];
-    this.addFrameSelect.textContent = '';
-    if (!spec) {
-      this.addFrameBtn.disabled = true;
-      return;
-    }
-    const available = availableFrames(spec.frameIndices, this.cutFrames.length)
-      .map((i) => ({ f: this.cutFrames[i], i }))
-      .filter((x) => x.f !== undefined) as { f: CutFrame; i: number }[];
-    if (available.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '— todos los frames ya están en la animación —';
-      this.addFrameSelect.appendChild(opt);
-      this.addFrameBtn.disabled = true;
-      return;
-    }
-    for (const { f, i } of available) {
-      const opt = document.createElement('option');
-      opt.value = String(i);
-      opt.textContent = `${f.key} — ${f.w}×${f.h}`;
-      this.addFrameSelect.appendChild(opt);
-    }
-    this.addFrameBtn.disabled = false;
+  /** Alterna la visibilidad del menú de "Añadir frame". */
+  private toggleAddFrameMenu(): void {
+    this.addFrameMenuOpen = !this.addFrameMenuOpen;
+    this.renderAddFrameMenu();
   }
 
-  /** Añade al final de la anim activa el frame elegido del select (7d). */
-  private addFrameFromActive(): void {
+  /**
+   * Construye el menú de "Añadir frame" (7d): thumbs de los frames de la
+   * hoja sin usar, numerados 1-based igual que al cortar, y con
+   * previsualización. Click en un thumb → se añade al final de la anim.
+   */
+  private renderAddFrameMenu(): void {
     const spec = this.animSpecs[this.activeAnim];
-    if (!spec) return;
-    const i = parseInt(this.addFrameSelect.value, 10);
-    if (Number.isNaN(i) || spec.frameIndices.includes(i)) return;
+    this.addFrameMenu.textContent = '';
+    if (!spec) {
+      this.addFrameBtn.disabled = true;
+      this.addFrameMenu.hidden = true;
+      return;
+    }
+    const idcs = availableFrames(spec.frameIndices, this.cutFrames.length);
+    this.addFrameBtn.disabled = idcs.length === 0;
+    if (!this.addFrameMenuOpen) {
+      this.addFrameMenu.hidden = true;
+      return;
+    }
+    if (idcs.length === 0) {
+      const msg = document.createElement('div');
+      msg.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
+      msg.textContent = 'Todos los frames de la hoja ya están en la animación.';
+      this.addFrameMenu.appendChild(msg);
+      this.addFrameMenu.hidden = false;
+      return;
+    }
+    for (const i of idcs) {
+      const frame = this.cutFrames[i];
+      if (!frame) continue;
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'sprite-tool__thumb sprite-tool__thumb--pick';
+      const img = document.createElement('img');
+      img.src = frame.dataUrl;
+      img.alt = frame.key;
+      img.title = `${frame.key} — ${frame.w}×${frame.h}`;
+      const label = document.createElement('span');
+      label.textContent = String(i + 1); // numeración de celda, igual que al cortar
+      cell.append(img, label);
+      cell.addEventListener('click', () => this.addFrameFromActive(i));
+      this.addFrameMenu.appendChild(cell);
+    }
+    this.addFrameMenu.hidden = false;
+  }
+
+  /** Añade al final de la anim activa el frame elegido y cierra el menú (7d). */
+  private addFrameFromActive(i: number): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec || spec.frameIndices.includes(i)) return;
     spec.frameIndices.push(i);
+    this.addFrameMenuOpen = false;
     this.renderStep3();
   }
 

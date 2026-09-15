@@ -405,6 +405,10 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
     de la hoja (`cutFrames`) que NO están en la anim activa (label `key — WxH`) +
     botón Añadir → `push` al final (después se reordena con drag & drop). Si no hay
     disponibles: opción "— todos los frames ya están en la animación —".
+  - *Ajuste UX (solicitud del usuario):* el select nativo no muestra imágenes → se
+    sustituyó por un **menú desplegable con thumbs** (botón "Añadir frame" → panel con
+    miniaturas numeradas 1‑based igual que al cortar la hoja, previsualización + click
+    para añadir al final).
   - Sin cambios en `animator.ts` (reorderFrames sigue; buildAnimDef ya garantiza ≥2).
 - **Verificación 7d:** typecheck + Studio (195) + motor (187) verdes; manual: quitar
   frames hasta el mínimo 2 y comprobar el aviso, añadir desde la hoja.
