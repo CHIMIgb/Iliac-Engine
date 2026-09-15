@@ -414,3 +414,75 @@ Sistema de iconos basado en **lucide** (SVG inline, 16×16 y 20×20).
 - **Naming:** BEM simplificado: `.panel`, `.panel__header`, `.panel--collapsed`, `.btn`, `.btn--primary`, `.btn--sm`.
 - **Responsive:** el Studio se usa en desktop (1280px+). No se optimiza para mobile (el Level Editor en tablet no tiene sentido).
 - **Accesibilidad:** ARIA labels en botones/inputs, focus visible, contraste WCAG AA mínimo.
+
+---
+
+## 10. Evolución UI: Tweakpane — look & feel técnico (decidido 2026-09-15)
+
+> **Estado: ⏳ PENDIENTE — se implementa DESPUÉS de cerrar `SPRITE_TOOL_PLAN.md` (F5 completo,
+> fases D/E).** Vinculado en ROADMAP §12. No tocar componentes existentes hasta entonces.
+
+### 10.1 Decisión
+
+Sustituir los componentes de UI existentes y parte de la UX actual por el lenguaje visual de
+**Tweakpane** (https://tweakpane.github.io/docs/) para lograr el **look & feel técnico y
+profesional de un motor 3D**: sobrio, oscuro, **muy compacto** y **orientado a datos**
+(referencias: Blender, Unity).
+
+- **Tweakpane** se adopta como librería para paneles de parámetros / inspector (propiedades).
+- El **resto de componentes vanilla** (botones, modales, tabs, toasts, tooltips, menús) **se
+  inspira en su estilo** — misma densidad, radios, bordes y tratamientos — para que todo el
+  Studio se sienta cohesivo, como una herramienta profesional.
+- No cambia la arquitectura framework-agnostic (vanilla JS): Tweakpane es una librería de
+  paneles, no un framework de UI.
+
+### 10.2 Principios de estilo Tweakpane (para aplicar a TODO el Studio)
+
+| Principio | Detalle |
+|-----------|---------|
+| **Border-radius bajo** | Esquinas rectas: `2px`–`4px`, nunca `8px+` en controles. |
+| **Bordes sutiles** | Separadores casi del color del fondo; sin bordes de alto contraste. Divisores `border-divider`. |
+| **Tipografía compacta** | `11px`–`12px` (ya definidos en §3) para maximizar superficie de trabajo. |
+| **Inputs fundidos** | Campos numéricos con `bg-input` (`#11111b`), sin bordes gruesos ni blancos. Foco con borde fino `accent-primary`. |
+| **Alta densidad** | Controles apilados verticalmente, espaciado `space-2`/`space-3`; paneles colapsables por sección. |
+| **Orientado a datos** | Valores en `JetBrains Mono`; cada panel = un grupo de parámetros con su folder. |
+
+### 10.3 Integración de tema (Tweakpane lee los tokens de DESIGN.md)
+
+En lugar de duplicar colores, se inyectan los tokens existentes en las variables `--tp-*`:
+
+```css
+:root {
+  /* Tweakpane lee los colores del DESIGN.md */
+  --tp-base-background-color: var(--bg-panel);
+  --tp-base-shadow-color: rgba(0, 0, 0, 0.4);
+  --tp-button-background-color: var(--bg-surface);
+  --tp-button-background-color-hover: var(--bg-hover);
+  --tp-button-background-color-active: var(--bg-active);
+  --tp-button-foreground-color: var(--text-primary);
+  --tp-label-foreground-color: var(--text-secondary);
+  --tp-input-background-color: var(--bg-input);
+  --tp-input-foreground-color: var(--text-primary);
+  --tp-base-font-family: 'Inter', sans-serif;
+
+  /* Acento principal (azul de accent-primary) */
+  --tp-container-background-color-active: var(--accent-primary);
+  --tp-container-background-color-focus: var(--border-focus);
+}
+```
+
+### 10.4 Guía para actualizar componentes existentes al estilo Tweakpane
+
+- **Botones:** `border-radius: 2px`; fondos `bg-surface`/`bg-hover`/`bg-active`, texto
+  `text-primary`; estado activo con acento.
+- **Inputs:** fondo `bg-input` sin borde grueso; foco con borde `1px solid border-focus`.
+- **Tabs:** separador inferior sutil `border-divider`; activo con acento de 2px (como hoy).
+- **Paneles:** header colapsable estilo *folder* de Tweakpane (chevrón + título 11px semibold).
+- **Modales:** radio bajo (`4px`), sombra suave, header compacto.
+- **Density general:** revisar paddings para que todo quepa en menos espacio (gap `4px`–`8px`).
+
+### 10.5 Qué NO cambia
+
+Paleta Catppuccin Mocha (tokens de §2), tipografías de §3, escala 4px de §4, layout de
+paneles, atajos de teclado §6, iconos lucide §5.9, ni la arquitectura del Studio. Solo cambia
+el **lenguaje visual y la densidad** de los componentes, y la UX de paneles de parámetros.
