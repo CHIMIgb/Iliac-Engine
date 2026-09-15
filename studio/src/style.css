@@ -889,3 +889,131 @@ html, body, #app {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* --- Sprite Tool · Paso 3 (Animar) --- */
+.sprite-tool__anim-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.sprite-tool__anim-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sprite-tool__anim-side-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sprite-tool__anim-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.sprite-tool__anim-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.sprite-tool__anim-item:hover {
+  background: var(--bg-hover);
+}
+
+.sprite-tool__anim-item.active {
+  border-color: var(--accent-primary);
+  background: var(--bg-surface);
+}
+
+.sprite-tool__anim-name {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sprite-tool__anim-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sprite-tool__anim-item .btn--icon {
+  flex-shrink: 0;
+}
+
+.sprite-tool__anim-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sprite-tool__preview-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.sprite-tool__preview-frame {
+  width: 128px;
+  height: 128px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.sprite-tool__preview-ctl {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.sprite-tool__field-name {
+  width: 140px;
+}
+
+.sprite-tool__fps {
+  width: 64px;
+}
+
+.sprite-tool__frames--dnd {
+  max-height: 120px;
+}
+
+.sprite-tool__dnd {
+  cursor: grab;
+  user-select: none;
+}
+
+.sprite-tool__dnd.dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.sprite-tool__dnd.over {
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
+  box-shadow: 0 0 0 1px var(--border-focus);
+}

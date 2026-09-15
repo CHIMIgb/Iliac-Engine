@@ -17,6 +17,8 @@ import { showToast } from '../ui/Toast';
 import { assetIdFromFileName, cropRegion, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
+import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, clampFps, MIN_FPS, MAX_FPS } from './animator';
+import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { PixelImage, Rect } from './types';
 
 const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Sprites'] as const;
@@ -73,6 +75,27 @@ export class SpriteToolUI {
   private controlsManual: HTMLDivElement;
 
   private stepEls: HTMLButtonElement[] = [];
+
+  // ── Estado del Paso 3 (Animar) ──────────────────────────────────
+  private step3: HTMLDivElement;
+  private animSpecs: AnimSpec[] = [];
+  private activeAnim = 0;
+  // Preview de reproducción (▶/⏸), acumulador de tiempo para avanzar frames.
+  private previewRunning = false;
+  private previewElapsed = 0;
+  private rafId = 0;
+  private lastTs = 0;
+  private step3AnimsList: HTMLDivElement;
+  private step3PreviewImg: HTMLImageElement;
+  private step3FramesGrid: HTMLDivElement;
+  private step3Status: HTMLDivElement;
+  private step3NameInput: HTMLInputElement;
+  private step3FpsInput: HTMLInputElement;
+  private step3LoopInput: HTMLInputElement;
+  private step3PlayBtn: HTMLButtonElement;
+  private saveBtn: HTMLButtonElement;
+  /** Conectado en 7c: guarda texturas + anims en el proyecto real. */
+  onSaveRequested: ((out: SpriteAnimsOutput) => void) | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -287,7 +310,98 @@ export class SpriteToolUI {
 
     this.step2.append(cutHeader, this.controlsAuto, this.controlsManual, this.cutStatus, canvasWrap, this.cutBtn, this.framesGrid);
 
-    body.append(this.step1, this.step2);
+    // ── Paso 3: Animar ────────────────────────────────────────────
+    this.step3 = document.createElement('div');
+    this.step3.className = 'sprite-tool__step';
+    this.step3.hidden = true;
+
+    const animLayout = document.createElement('div');
+    animLayout.className = 'sprite-tool__anim-layout';
+
+    // Columna izquierda: lista de animaciones.
+    const animSide = document.createElement('div');
+    animSide.className = 'sprite-tool__anim-side';
+    const animTitle = document.createElement('div');
+    animTitle.className = 'sprite-tool__label';
+    animTitle.textContent = 'Animaciones';
+    const newAnimBtn = document.createElement('button');
+    newAnimBtn.className = 'btn btn--secondary btn--sm';
+    newAnimBtn.textContent = '＋ Nueva anim';
+    newAnimBtn.addEventListener('click', () => this.addAnim());
+    const animSideHeader = document.createElement('div');
+    animSideHeader.className = 'sprite-tool__anim-side-header';
+    animSideHeader.append(animTitle, newAnimBtn);
+    this.step3AnimsList = document.createElement('div');
+    this.step3AnimsList.className = 'sprite-tool__anim-list';
+    animSide.append(animSideHeader, this.step3AnimsList);
+
+    // Columna derecha: preview + frames.
+    const animMain = document.createElement('div');
+    animMain.className = 'sprite-tool__anim-main';
+
+    const previewRow = document.createElement('div');
+    previewRow.className = 'sprite-tool__preview-row';
+    this.step3PreviewImg = document.createElement('img');
+    this.step3PreviewImg.className = 'sprite-tool__preview-frame';
+    this.step3PreviewImg.alt = 'frame';
+    this.step3PreviewImg.hidden = true;
+    const previewCtl = document.createElement('div');
+    previewCtl.className = 'sprite-tool__preview-ctl';
+    this.step3PlayBtn = document.createElement('button');
+    this.step3PlayBtn.className = 'btn btn--secondary btn--sm';
+    this.step3PlayBtn.textContent = '▶';
+    this.step3PlayBtn.title = 'Reproducir / pausar (también con espacio)';
+    this.step3PlayBtn.addEventListener('click', () => this.togglePreview());
+    const stepBtn = document.createElement('button');
+    stepBtn.className = 'btn btn--secondary btn--sm';
+    stepBtn.title = 'Avanza un frame';
+    stepBtn.appendChild(Icon('skip-forward', 14));
+    stepBtn.addEventListener('click', () => this.stepFrame());
+
+    const nameLbl = this.labeled('Nombre');
+    this.step3NameInput = this.textInput('idle', 'nombre de la animación');
+    this.step3NameInput.addEventListener('input', () => this.renameActiveAnim());
+    const fpsLbl = this.labeled('fps');
+    this.step3FpsInput = document.createElement('input');
+    this.step3FpsInput.className = 'sprite-tool__input sprite-tool__fps';
+    this.step3FpsInput.type = 'number';
+    this.step3FpsInput.min = String(MIN_FPS);
+    this.step3FpsInput.max = String(MAX_FPS);
+    this.step3FpsInput.value = String(8);
+    this.step3FpsInput.addEventListener('input', () => this.applyActiveAnim());
+    const loopLbl = document.createElement('label');
+    loopLbl.className = 'sprite-tool__checkbox';
+    this.step3LoopInput = document.createElement('input');
+    this.step3LoopInput.type = 'checkbox';
+    this.step3LoopInput.checked = true;
+    const loopText = document.createElement('span');
+    loopText.textContent = 'loop';
+    loopLbl.append(this.step3LoopInput, loopText);
+    this.step3LoopInput.addEventListener('change', () => this.applyActiveAnim());
+
+    const fpsField = document.createElement('label');
+    fpsField.className = 'sprite-tool__number';
+    fpsField.append(fpsLbl, this.step3FpsInput);
+    const nameField = document.createElement('label');
+    nameField.className = 'sprite-tool__number sprite-tool__field-name';
+    nameField.append(nameLbl, this.step3NameInput);
+
+    previewCtl.append(this.step3PlayBtn, stepBtn, nameField, fpsField, loopLbl);
+    previewRow.append(this.step3PreviewImg, previewCtl);
+
+    const framesTitle = document.createElement('div');
+    framesTitle.className = 'sprite-tool__label';
+    framesTitle.textContent = 'Frames (arrastra para reordenar)';
+    this.step3FramesGrid = document.createElement('div');
+    this.step3FramesGrid.className = 'sprite-tool__frames sprite-tool__frames--dnd';
+    this.step3Status = document.createElement('div');
+    this.step3Status.className = 'sprite-tool__cut-status';
+
+    animMain.append(previewRow, framesTitle, this.step3FramesGrid, this.step3Status);
+    animLayout.append(animSide, animMain);
+    this.step3.append(animLayout);
+
+    body.append(this.step1, this.step2, this.step3);
     modal.appendChild(body);
 
     // Pie
@@ -302,15 +416,17 @@ export class SpriteToolUI {
     this.nextBtn.className = 'btn btn--primary';
     this.nextBtn.textContent = 'Siguiente → Paso 3 (Animar)';
     this.nextBtn.disabled = true;
-    this.nextBtn.addEventListener('click', () => {
-      // El animador (Paso 3) llega en la Fase B.
-      showToast('Paso 3 «Animar» — pendiente de la Fase B', 'info');
-    });
+    this.nextBtn.addEventListener('click', () => this.goToAnimate());
+    this.saveBtn = document.createElement('button');
+    this.saveBtn.className = 'btn btn--primary';
+    this.saveBtn.textContent = 'Guardar en el proyecto';
+    this.saveBtn.disabled = true;
+    this.saveBtn.addEventListener('click', () => this.handleSave());
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn btn--secondary';
     closeBtn.textContent = 'Cerrar';
     closeBtn.addEventListener('click', () => this.close());
-    footer.append(this.continueBtn, this.nextBtn, closeBtn);
+    footer.append(this.continueBtn, this.nextBtn, this.saveBtn, closeBtn);
     modal.appendChild(footer);
 
     this.overlay.appendChild(modal);
@@ -339,12 +455,30 @@ export class SpriteToolUI {
     return { el: label, input };
   }
 
+  /** Etiqueta suelta (span con la clase de label). */
+  private labeled(text: string): HTMLSpanElement {
+    const span = document.createElement('span');
+    span.className = 'sprite-tool__label';
+    span.textContent = text;
+    return span;
+  }
+
+  /** Input de texto con la clase estándar. */
+  private textInput(placeholder: string, title: string): HTMLInputElement {
+    const input = document.createElement('input');
+    input.className = 'sprite-tool__input';
+    input.placeholder = placeholder;
+    input.title = title;
+    return input;
+  }
+
   open(): void {
     document.body.appendChild(this.overlay);
     document.addEventListener('keydown', this.onKey);
   }
 
   close(): void {
+    this.stopPreview();
     this.overlay.remove();
     document.removeEventListener('keydown', this.onKey);
     // Liberar recursos del preview y del bitmap original.
@@ -359,14 +493,25 @@ export class SpriteToolUI {
   };
 
   private setStep(i: number): void {
-    // Solo los pasos ya implementados son navegables.
-    if (i > 1) {
+    // Paso 3 solo está disponible con frames recortados; el resto siempre.
+    if (i === 2 && this.cutFrames.length === 0) {
+      this.nextBtn.disabled = true;
+      return;
+    }
+    if (i > 2) {
       showToast('Ese paso llega en una fase posterior', 'info');
       return;
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
     this.step1.hidden = i !== 0;
     this.step2.hidden = i !== 1;
+    this.step3.hidden = i !== 2;
+    if (i === 2) {
+      this.renderStep3();
+      this.previewElapsed = 0;
+    } else {
+      this.stopPreview();
+    }
   }
 
   /** Carga un archivo de imagen: extrae PixelImage + ImageBitmap para el preview. */
@@ -529,6 +674,9 @@ export class SpriteToolUI {
     this.cutFrames = frames;
     this.renderFrames();
     this.nextBtn.disabled = frames.length === 0;
+    this.initAnimsIfNeeded();
+    this.stepEls[2]!.disabled = frames.length === 0;
+    this.saveBtn.disabled = true;
     showToast(`${frames.length} frames recortados`, 'success');
   }
 
@@ -561,6 +709,280 @@ export class SpriteToolUI {
       label.textContent = f.key;
       cell.append(img, label);
       this.framesGrid.appendChild(cell);
+    }
+  }
+
+  // ── Paso 3: Animar ──────────────────────────────────────────────
+
+  /** Activa el Paso 3 (Animar). */
+  private goToAnimate(): void {
+    if (this.cutFrames.length === 0) return;
+    this.initAnimsIfNeeded();
+    this.setStep(2);
+  }
+
+  /**
+   * Crea la plantilla idle/walk/attack/death si no hay anims o si los
+   * índices apuntan fuera de los frames recortados (hoja re-cortada).
+   */
+  private initAnimsIfNeeded(): void {
+    const n = this.cutFrames.length;
+    if (n === 0) return;
+    const needsRegen =
+      this.animSpecs.length === 0 ||
+      this.animSpecs.some((s) => s.frameIndices.some((i) => i >= n));
+    if (needsRegen) {
+      this.animSpecs = defaultAnimTemplate(n);
+      this.activeAnim = 0;
+    }
+  }
+
+  /** Añade una animación nueva con nombre libre y los dos primeros frames. */
+  private addAnim(): void {
+    const n = this.cutFrames.length;
+    if (n === 0) return;
+    let i = 1;
+    const taken = new Set(this.animSpecs.map((s) => s.name));
+    let name = 'anim_1';
+    while (taken.has(name)) {
+      i++;
+      name = `anim_${i}`;
+    }
+    this.animSpecs.push({
+      name,
+      frameIndices: [0, n > 1 ? 1 : 0],
+      fps: 8,
+      loop: true,
+    });
+    this.selectAnim(this.animSpecs.length - 1);
+  }
+
+  /** Selecciona una animación y refresca el editor/preview. */
+  private selectAnim(i: number): void {
+    this.activeAnim = i;
+    this.stopPreview();
+    this.previewElapsed = 0;
+    this.renderStep3();
+  }
+
+  /** Renombra la animación activa (nombres únicos; si hay duplicado revierte). */
+  private renameActiveAnim(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return;
+    const name = this.step3NameInput.value.trim() || spec.name;
+    const dup = this.animSpecs.some((s, j) => j !== this.activeAnim && s.name === name);
+    if (dup) {
+      this.step3NameInput.value = spec.name;
+      showToast('Ese nombre ya existe', 'warning');
+      return;
+    }
+    spec.name = name;
+    this.renderAnimsList();
+  }
+
+  /** Aplica fps/loop (y nombre ya validado) de los inputs a la anim activa. */
+  private applyActiveAnim(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return;
+    spec.fps = clampFps(parseInt(this.step3FpsInput.value, 10) || 8);
+    spec.loop = this.step3LoopInput.checked;
+    this.step3FpsInput.value = String(spec.fps);
+    this.renderAnimsList();
+  }
+
+  /** Elimina la animación activa (mantiene la plantilla ≥1 si hay más). */
+  private removeAnim(i: number): void {
+    if (this.animSpecs.length <= 1) {
+      showToast('Deja al menos una animación', 'warning');
+      return;
+    }
+    this.animSpecs.splice(i, 1);
+    if (this.activeAnim >= this.animSpecs.length) this.activeAnim = this.animSpecs.length - 1;
+    this.stopPreview();
+    this.previewElapsed = 0;
+    this.renderStep3();
+  }
+
+  /** Repinta la lista lateral de animaciones. */
+  private renderAnimsList(): void {
+    this.step3AnimsList.textContent = '';
+    this.animSpecs.forEach((spec, i) => {
+      const row = document.createElement('div');
+      row.className = 'sprite-tool__anim-item' + (i === this.activeAnim ? ' active' : '');
+      const name = document.createElement('span');
+      name.className = 'sprite-tool__anim-name';
+      name.textContent = spec.name;
+      const badge = document.createElement('span');
+      badge.className = 'sprite-tool__anim-badge';
+      badge.textContent = `${spec.frameIndices.length} frames`;
+      const del = document.createElement('button');
+      del.className = 'btn btn--icon btn--sm';
+      del.title = `Eliminar «${spec.name}»`;
+      del.appendChild(Icon('trash', 12));
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeAnim(i);
+      });
+      row.append(name, badge, del);
+      row.addEventListener('click', () => this.selectAnim(i));
+      this.step3AnimsList.appendChild(row);
+    });
+  }
+
+  /** Índice del frame que se muestra en el preview (según tiempo transcurrido). */
+  private previewFrameIndex(): number {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec || spec.frameIndices.length === 0) return 0;
+    const raw = Math.floor(this.previewElapsed * (spec.fps || 0.0001));
+    // fps válido (clamp 1–60) → mod (loop) o clamp (sin loop).
+    if (spec.loop) {
+      return raw % spec.frameIndices.length;
+    }
+    return Math.min(spec.frameIndices.length - 1, raw);
+  }
+
+  /** Frame actual en dataURL (o vacío si no hay). */
+  private currentPreviewDataUrl(): string {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return '';
+    const idx = this.previewFrameIndex();
+    const frame = this.cutFrames[spec.frameIndices[idx] ?? -1];
+    return frame ? frame.dataUrl : '';
+  }
+
+  /** Repinta el editor completo del Paso 3. */
+  private renderStep3(): void {
+    this.saveBtn.disabled = this.animSpecs.length === 0;
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) {
+      this.step3Status.textContent = 'Sin animaciones: pulsa «＋ Nueva anim».';
+      this.step3Status.classList.add('sprite-tool__cut-status--warn');
+      this.step3AnimsList.textContent = '';
+      this.step3FramesGrid.textContent = '';
+      this.step3PreviewImg.hidden = true;
+      return;
+    }
+    this.step3Status.classList.remove('sprite-tool__cut-status--warn');
+    this.step3Status.textContent = `Animación «${spec.name}» — ${spec.frameIndices.length} frames`;
+    this.step3NameInput.value = spec.name;
+    this.step3FpsInput.value = String(spec.fps);
+    this.step3LoopInput.checked = spec.loop;
+    this.renderAnimsList();
+    this.renderActiveFrames();
+    this.updatePreviewImage();
+  }
+
+  /** Thumbs de la anim activa con drag & drop HTML5 nativo (reordenar). */
+  private renderActiveFrames(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    this.step3FramesGrid.textContent = '';
+    if (!spec) return;
+    spec.frameIndices.forEach((frameIdx, pos) => {
+      const frame = this.cutFrames[frameIdx];
+      if (!frame) return;
+      const cell = document.createElement('div');
+      cell.className = 'sprite-tool__thumb sprite-tool__dnd';
+      cell.draggable = true;
+      const img = document.createElement('img');
+      img.src = frame.dataUrl;
+      img.alt = frame.key;
+      img.title = `${frame.key} — ${pos + 1}º de ${spec.frameIndices.length}`;
+      img.dataset.pos = String(pos);
+      const label = document.createElement('span');
+      label.textContent = String(pos + 1);
+      cell.append(img, label);
+
+      cell.addEventListener('dragstart', (e) => {
+        e.dataTransfer?.setData('text/plain', String(pos));
+        cell.classList.add('dragging');
+      });
+      cell.addEventListener('dragend', () => cell.classList.remove('dragging'));
+      cell.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        cell.classList.add('over');
+      });
+      cell.addEventListener('dragleave', () => cell.classList.remove('over'));
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('over');
+        const from = parseInt(e.dataTransfer?.getData('text/plain') ?? '', 10);
+        if (!Number.isNaN(from) && spec) {
+          spec.frameIndices = reorderFrames(spec.frameIndices, from, pos);
+          this.renderActiveFrames();
+          this.updatePreviewImage();
+        }
+      });
+      this.step3FramesGrid.appendChild(cell);
+    });
+  }
+
+  /** Actualiza el <img> del preview con el frame activo. */
+  private updatePreviewImage(): void {
+    const url = this.currentPreviewDataUrl();
+    if (url) {
+      this.step3PreviewImg.src = url;
+      this.step3PreviewImg.hidden = false;
+    } else {
+      this.step3PreviewImg.hidden = true;
+    }
+  }
+
+  /** ▶ / ⏸ del preview. */
+  private togglePreview(): void {
+    if (this.previewRunning) this.stopPreview();
+    else this.startPreview();
+  }
+
+  private startPreview(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec || spec.frameIndices.length === 0) return;
+    this.previewRunning = true;
+    this.step3PlayBtn.textContent = '⏸';
+    this.previewElapsed = 0;
+    this.lastTs = performance.now();
+    this.rafId = requestAnimationFrame(this.tick);
+  }
+
+  private stopPreview(): void {
+    this.previewRunning = false;
+    this.step3PlayBtn.textContent = '▶';
+    cancelAnimationFrame(this.rafId);
+  }
+
+  private tick = (ts: number): void => {
+    if (!this.previewRunning) return;
+    const dt = Math.min(0.1, Math.max(0, (ts - this.lastTs) / 1000));
+    this.lastTs = ts;
+    this.previewElapsed += dt;
+    this.updatePreviewImage();
+    this.rafId = requestAnimationFrame(this.tick);
+  };
+
+  /** Avanza un frame manualmente (deteniendo la reproducción en curso). */
+  private stepFrame(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec || spec.frameIndices.length === 0) return;
+    this.stopPreview();
+    const cur = this.previewFrameIndex();
+    const next = spec.loop
+      ? (cur + 1) % spec.frameIndices.length
+      : Math.min(spec.frameIndices.length - 1, cur + 1);
+    this.previewElapsed = next / clampFps(spec.fps);
+    this.updatePreviewImage();
+  }
+
+  /** Construye la salida y la envía (7b: valida; 7c: conecta el guardado). */
+  private handleSave(): void {
+    const out = buildSpriteAnims(this.assetId, this.cutFrames.length, this.animSpecs);
+    if (out.errors.length > 0) {
+      showToast(`Animación inválida: ${out.errors[0]}`, 'error');
+      return;
+    }
+    this.saveBtn.disabled = false;
+    if (this.onSaveRequested) {
+      this.onSaveRequested(out);
+    } else {
+      showToast('Guardado real pendiente (siguiente paso)', 'info');
     }
   }
 }
