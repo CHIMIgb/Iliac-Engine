@@ -186,7 +186,8 @@ studio/src/
 │   Preview: [▶/⏸] fps─── loop[✓] [step]                        │
 │   Anims: idle/walk/attack/death (+nueva) con rango/fps/loop    │
 │   [Guardar en el proyecto]  → textures + spriteAnims          │
-│ TAB Sprites ─ biblioteca de PNG individuales (sin slicer)     │
+│ TAB Biblioteca ─ sprites guardados + sus anims (ver §Fase D)  │  ⚠ actualizado 2026-09-15:
+│   "Sprites" (sueltos) se ELIMINA; pasa a "Biblioteca" (ver Fase D) │  los sueltos viven en el Paso 3
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -447,6 +448,97 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     se crearon (git log vacío); el Sprite Tool nació con la arquitectura nueva
 >     `spriteTool/`. No hay slicer viejo que eliminar.
 >   - ROADMAP §12 → Fase C realizada.
+>
+> - **Fase D — Biblioteca (decidida por el usuario el 2026-09-15, a implementar mañana):**
+>   - **La tab "Sprites" actual SE ELIMINA** y se sustituye por la tab **"Biblioteca"**
+>     (STEPS[3] = 'Biblioteca'). Se eliminan `renderSpritesStep`, `spritesGrid` y su
+>     wiring (habilitar/deshabilitar la tab en `addLooseFiles`/`loadFile`, click para añadir).
+>   - **Los `looseFrames` se mantienen intactos internamente** (el Paso 3 los sigue
+>     usando: botón "Añadir frames desde archivo…" y menú "Añadir frame"); solo cambia
+>     el contenido de la pestaña.
+>   - La pestaña es una **vista transversal de "guardado de cosas utilizadas"**:
+>     lista los sprites que ya se guardaron en el proyecto (thumb real del frame +
+>     `assetId`) y, por cada sprite, sus **animaciones guardadas** (nombre, fps, loop,
+>     nº de frames, mini-thumbs de cada frame desde las texturas del proyecto).
+>   - **2 acciones (y nada más; no editar anims aquí, eso vive en el Paso 3):**
+>     1. **Reasignar** una anim guardada a otro sprite del mundo (reutiliza el puente
+>        `onAssignSprite` del Paso 3).
+>     2. **Cargar al animador** una anim guardada: reconstruye sus frames desde las
+>        texturas guardadas (dataURL → `PixelImage`), los añade como `looseFrames`
+>        (guardia de keys duplicadas), copia la anim en `animSpecs` y salta al Paso 3
+>        para duplicarla/editarla.
+>   - **D1 — acceso al proyecto:** pasar a la Sprite Tool una snapshot de
+>     `textures` + `spriteAnims` guardadas (revisar `EditorState`/`Serializer` en
+>     `main.ts`; si no hay nada guardado → estado vacío con mensaje). La herramienta
+>     recibe un nuevo callback/field opcional (p. ej. `onProjectSnapshot`).
+>   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
+>     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
+>   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
+>     mini-thumbs (frames desde `world.textures`).
+>   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
+>     `onAssignSprite`/`spriteSelect` existente.
+>   - **D5 — cargar al animador:** helper puro en `frames.ts`
+>     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
+>     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y
+>     `this.setStep(2)`.
+>   - **Aceptación:** tab "Biblioteca" lista guardados con thumbs reales; reasignar
+>     una anim a otro sprite; cargar una anim al animador y editarla/duplicarla; el tab
+>     "Sprites" viejo ya no existe; `studio:test` + `studio:typecheck` verdes; commit
+>     por sub-paso (D1→D2→D3→D4→D5) y validación del usuario entre sub-pasos.
+>
+> - **Fase E — Colocar animaciones de sprites en entidades del editor (Entity Builder
+>   mínimo, 6.4; decidida por el usuario el 2026-09-15 — mismo bloque que Fase D):**
+>   - **Objetivo:** hoy el puente F5→6.4 solo ASIGNA una anim a un sprite YA EXISTENTE
+>     (`onAssignSprite` → `doc.assignSpriteAnim(spriteId, anim)`). No hay forma de
+>     **colocar un sprite/entidad nuevo** con su anim (tex + anim) desde el editor.
+>     Esta fase crea ese flujo: **colocar, seleccionar, reasignar y arrastrar** anims
+>     a entidades, con **billboard garantizado en todas**.
+>   - **Modelo ya listo:** `EditableSprite` tiene `billboard?` (default `true` en
+>     `addSprite`), `anim?`, `entityType/entityName/collisionType/collisionBox`;
+>     `world.spriteAnims` guarda las anims (`{ frames: string[], fps?, loop? }`);
+>     el motor renderiza TODOS los sprites del mundo como billboard 2D sobre 3D
+>     (`engine/three/SpriteSystem.js`, estilo Doom).
+>   - **E1 — `addSprite` con anim + puente de colocación:** [MODIFICAR]
+>     `EditorState.addSprite(...)` para aceptar `anim?`; [MODIFICAR] `main.ts`:
+>     nuevo callback `spriteTool.onPlaceSprite(opts)` → crea un sprite nuevo en el
+>     punto de colocación (centro del viewport / sector activo), lo selecciona en el
+>     editor y le asigna tex+anim.
+>   - **E2 — Botón "Colocar en el mundo ▾":** en la Sprite Tool (Paso 3 junto a
+>     "Asignar anim activa" y en la Biblioteca de la Fase D) → lista de anims
+>     guardadas; al elegir una se crea la entidad (tex del frame + anim +
+>     `billboard: true`). El sprite aparece en el viewport (marcador 2D en
+>     `Overlay2D` + preview 3D) y queda seleccionado para mover/escalar con las
+>     herramientas existentes (ToolManager ya soporta selección kind `sprite`).
+>   - **E3 — Inspector de sprite en el editor:** al seleccionar un sprite, panel con
+>     sus propiedades editables: tex, **anim (dropdown con TODAS las anims de
+>     `world.spriteAnims`)**, scale, pos, collisionType/collisionBox (reutilizar el
+>     panel de propiedades existente; añadir solo lo que falte).
+>   - **E4 — Reasignar anim a cualquier sprite** (generaliza el puente actual):
+>     el "Asignar anim activa" deja de usar SOLO la anim activa y pasa a un
+>     dropdown de anims guardadas (se coordina con el botón "Asignar a sprite…" de la
+>     Fase D-Biblioteca). `assignSpriteAnim` ya acepta cualquier nombre.
+>   - **E5 — Billboarding garantizado (requisito del usuario):** [MODIFICAR]
+>     `validate.js` para exigir `billboard !== false` en todo sprite de entidad (o
+>     documentar que el motor fuerza billboard); `addSprite` ya pone `billboard: true`
+>     por defecto → TODAS las entidades colocadas son billboard; test motor que
+>     verifique que cualquier sprite/entidad con anim se renderiza orientada a cámara.
+>   - **E6 — Drag & drop (estándar UX):** arrastrar una anim guardada (de la
+>     Biblioteca o del catálogo de anims) sobre el viewport → crea una entidad con esa
+>     anim en la posición del cursor (coordenada 2D/3D del drop); reposicionar luego
+>     con la herramienta de mover existente.
+>   - **E7 — Tests:** `EditorState.addSprite` con anim + billboard true; selector de
+>     anims del inspector; validate con sprite.anim inexistente → error; regresión
+>     SpriteSystem del motor (anim + billboard).
+>   - **Aceptación:** desde la Sprite Tool se coloca un sprite NUEVO con su anim;
+>     aparece en viewport (2D + 3D billboard) y en playtest anima orientado a cámara
+>     desde cualquier ángulo; el Inspector permite cambiarle la anim con dropdown de
+>     todas las guardadas; drag & drop de una anim al viewport crea la entidad; todas
+>     las entidades respetan billboard (validate lo exige); suites verdes; commit y
+>     validación por sub-paso.
+>
+> - **Después de cerrar SPRITE_TOOL_PLAN.md (fases D/E) → Evolución UI del Studio con
+>   Tweakpane (look & feel técnico):** documentado en `DESIGN.md` §10 y vinculado en
+>   ROADMAP §12. Reemplaza componentes existentes + parte de la UX actual.
 - [MODIFICAR] `studio/src/spriteTool/frames.ts`:
   - NUEVO `frameKeyFromFile(assetId, fileName)` → `{assetId}_{nombre_sanitizado_sin_ext}`
     (reutiliza la sanitización existente: minúsculas + `[A-Za-z0-9._-]`).
