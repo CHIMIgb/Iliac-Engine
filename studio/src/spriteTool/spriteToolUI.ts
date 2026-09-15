@@ -96,6 +96,7 @@ export class SpriteToolUI {
   // Paso 4 (Biblioteca, Fase D): sprites + animaciones guardados en el proyecto.
   private step4: HTMLDivElement;
   private libraryGrid: HTMLDivElement;
+  private footer: HTMLElement;
   private addFrameBtn: HTMLButtonElement;
   private addFrameMenu: HTMLDivElement;
   private addFrameMenuOpen = false;
@@ -498,9 +499,11 @@ export class SpriteToolUI {
     body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
 
-    // Pie
+    // Pie (solo visible en los pasos de corte/animación; la Biblioteca es
+    // lectura exclusiva de lo guardado, sin acciones de corte ni animación).
     const footer = document.createElement('div');
     footer.className = 'modal__footer';
+    this.footer = footer;
     this.continueBtn = document.createElement('button');
     this.continueBtn.className = 'btn btn--primary';
     this.continueBtn.textContent = 'Continuar → Paso 2 (Cortar)';
@@ -598,6 +601,9 @@ export class SpriteToolUI {
     this.step2.hidden = i !== 1;
     this.step3.hidden = i !== 2;
     this.step4.hidden = i !== 3;
+    // La Biblioteca no es un paso del flujo de corte/animación: no muestra
+    // el footer (Continuar/Animar/Guardar) ni sus acciones.
+    this.footer.hidden = i === 3;
     this.stopPreview();
     if (i === 2) {
       this.renderStep3();
