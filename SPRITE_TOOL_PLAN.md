@@ -467,10 +467,12 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >        texturas guardadas (dataURL → `PixelImage`), los añade como `looseFrames`
 >        (guardia de keys duplicadas), copia la anim en `animSpecs` y salta al Paso 3
 >        para duplicarla/editarla.
->   - **D1 — acceso al proyecto:** pasar a la Sprite Tool una snapshot de
->     `textures` + `spriteAnims` guardadas (revisar `EditorState`/`Serializer` en
->     `main.ts`; si no hay nada guardado → estado vacío con mensaje). La herramienta
->     recibe un nuevo callback/field opcional (p. ej. `onProjectSnapshot`).
+>   - **D1 — acceso al proyecto:** ✅ **realizado 2026-09-16** —
+>     `getSpriteLibrarySnapshot()` en `EditorState` (foto ligera con copia de
+>     `textures` + `spriteAnims`); `SpriteLibrarySnapshot` en `spriteTool/types.ts`;
+>     callback `onProjectSnapshot` + `getProjectSnapshot()` en `SpriteToolUI`; wiring en
+>     main.ts al abrir el modal; test en `serializer.test.ts`. Typecheck + suite verde
+>     (211).
 >   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
 >     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
 >   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con

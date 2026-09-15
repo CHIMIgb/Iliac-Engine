@@ -196,6 +196,7 @@ const spriteBtn = layout.toolbar.addAction({
     spriteTool.setWorldSprites(
       doc.world.sprites.map((s) => ({ id: s.id, label: `${s.id} (${s.tex})` })),
     );
+    spriteTool.onProjectSnapshot = () => doc.getSpriteLibrarySnapshot();
     spriteTool.open();
   },
 });

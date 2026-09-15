@@ -164,4 +164,18 @@ describe('Sprite Tool · guardado (F5 Fase B)', () => {
     expect(restored.world.spriteAnims?.['idle']?.frames).toEqual(['guard_f0', 'guard_f1']);
     expect(restored.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBe('idle');
   });
+
+  it('getSpriteLibrarySnapshot (Fase D1) expone texturas + anims guardadas', () => {
+    const s = new EditorState();
+    // Sin nada guardado: snapshot vacío, no null.
+    expect(s.getSpriteLibrarySnapshot()).toEqual({ textures: {}, spriteAnims: {} });
+    s.setWorldTextures({ guard_f0: '/assets/sprites/guard_f0.png' });
+    s.setSpriteAnims({ idle: { frames: ['guard_f0', 'guard_f0'], fps: 4, loop: true } });
+    const snap = s.getSpriteLibrarySnapshot();
+    expect(snap.textures['guard_f0']).toBe('/assets/sprites/guard_f0.png');
+    expect(snap.spriteAnims['idle']).toEqual({ frames: ['guard_f0', 'guard_f0'], fps: 4, loop: true });
+    // El snapshot es una foto: mutar el mundo después no altera el objeto devuelto.
+    snap.spriteAnims['idle']!.frames.push('x');
+    expect(s.world.spriteAnims?.['idle']?.frames).toEqual(['guard_f0', 'guard_f0']);
+  });
 });
