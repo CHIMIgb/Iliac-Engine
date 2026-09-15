@@ -6,6 +6,8 @@
 > Este documento es la **fuente de verdad del esquema**: de aquí se generará `server/db/schema.prisma` cuando exista backend.
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
+>
+> **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 
 ---
 
@@ -14,10 +16,10 @@
 | Principio | Descripción |
 |-----------|-------------|
 | **DB = fuente única de verdad** | Todo dato de usuario, proyecto, asset y publicación se persiste en Postgres vía Prisma. |
-| **El juego completo en el proyecto** | El `project.json` v2 (texturas, sprites, mapa, entidades, ajustes, todo) se guarda entero en `proyecto.data` (JSONB). No existe "mapa local sólo en el navegador". |
-| **Assets: metadatos en DB, bytes en filesystem** | Cada archivo registrado en tabla `asset` (ruta, mime, tamaño, hash). Los **bytes** van al filesystem de blobs del servidor; la **ruta** se guarda en `asset.ruta`. El `project.json` referencia assets por su `id`/path. |
+| **El juego completo en el proyecto** | El `project.json` **v3** (vértices, sectores, paredes, rampas, sprites, texturas, animaciones, audio, cielo, ajustes — todo el juego) se guarda entero en `proyecto.data` (JSONB). No existe "mapa local sólo en el navegador". |
+| **Assets: metadatos en DB, bytes en filesystem** | Cada archivo registrado en tabla `asset` (ruta, mime, tamaño, hash). Los **bytes** van al filesystem de blobs del servidor; la **ruta** se guarda en `asset.ruta`. El `project.json` referencia assets por su ruta/clave (ej. `world.textures["guard_f0"]` → ruta del blob). |
+| **Propiedad en cascada** | Todo cuelga de un `usuario`: `proyecto.propietario_id` y `asset.propietario_id`. Un asset con `proyecto_id` nulo pertenece a la biblioteca personal del usuario (compartible entre juegos). Nunca hay datos huérfanos. |
 | **Estado del proyecto** | Vive en `proyecto.estado`: `EN_DESARROLLO` o `PUBLICADO`. Transición controlada por la API. |
-| **Propiedad** | Todo proyecto/asset pertenece a un `usuario`. Nunca hay datos huérfanos. |
 
 ---
 
@@ -119,7 +121,7 @@ INSERT INTO rol (id, nombre, descripcion) VALUES
 | `nombre` | `TEXT` | NOT NULL | Título del juego |
 | `slug` | `TEXT` | unique, nullable | URL amigable (galería) |
 | `estado` | `ENUM` | NOT NULL, default `EN_DESARROLLO` | `EN_DESARROLLO` \| `PUBLICADO` |
-| `schema_version` | `INT` | NOT NULL, default `2` | Versión del `project.json` |
+| `schema_version` | `INT` | NOT NULL, default `3` | Versión del `project.json` (v3 = sectores poligonales) |
 | `render_mode` | `TEXT` | NOT NULL, default `retro` | `retro` \| `3d` |
 | `data` | `JSONB` | NOT NULL | **`project.json` v2 COMPLETO**: `meta`, `settings`, `textures`, `sprites`, `map`, `entities`, `...` |
 | `thumbnail_path` | `TEXT` | nullable | Portada del juego |
@@ -127,18 +129,55 @@ INSERT INTO rol (id, nombre, descripcion) VALUES
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | |
 
-**`data` (JSONB)** guarda íntegramente el `project.json`, que incluye:
-- `settings` (resolución, playerStart, piso/techo, minimapa)
-- `textures[]` (id, src/ruta, flags)
-- `sprites[]` (posición, textura, flags)
-- `map` (size, grid / sectores, zonas)
-- `entities[]` (tipo, sprite, posición, comportamiento)
-- `items[]`, `spells[]`, `npc[]`, `dialogue[]`, `quests[]`, `economy[]`, `progression[]`
-- `blueprints[]` (visual scripting)
-- `localization` (es/en)
-- y cualquier dato futuro del juego
+**`data` (JSONB)** guarda íntegramente el `project.json` **schema v3** — el juego completo:
+- `meta` (nombre, `schemaVersion: 3`, renderMode)
+- `camera` (posX, posY, posZ, yaw?, pitch?)
+- `render` (fov, near/far, backgroundColor, luces, niebla)
+- `world` → el mundo en sí (vértices, sectores, paredes, rampas, sprites, texturas, cielo, anims; ver §3.4.1)
+- `audio[]` (id, src, bus, loop, volume, spatial, variations, layers) y `music` (id, intensity, bpm) — F4.5
+- `blueprints[]` (visual scripting, futuro)
+- sistemas RPG: `items[]`, `spells[]`, `npc[]`, `dialogue[]`, `quests[]`, `economy[]`, `progression[]` — futuro
+- `localization` (es/en) — futuro
+
+Cualquier dato nuevo del juego se añade dentro de este JSONB **sin migrar tablas**: las columnas de metadatos (`nombre`, `estado`, `render_mode`) solo sirven para listar, filtrar y publicar.
 
 > **Filosofía:** el `project.json` ES el juego. Almacenado como JSONB en Postgres, cualquier herramienta o motor lo lee completo desde la DB. Las consultas de filtrado/búsqueda usan las columnas de metadatos (`nombre`, `estado`, `render_mode`); el contenido vive en `data`.
+
+### 3.4.1 El árbol de `proyecto.data` (schema v3) — lo que añadió el Sprite Tool (F5)
+
+Estructura real del `project.json` v3 tal como lo escriben las herramientas y lo lee el motor:
+
+```jsonc
+{
+  "meta":   { "name": "Mi juego", "schemaVersion": 3, "renderMode": "3d" },
+  "camera": { "posX": 5, "posY": 5, "posZ": 0.6, "yaw": 0.78, "pitch": 0 },
+  "render": { "fov": 70, "backgroundColor": 0x000000, "fog": { "color": 0x000000, "density": 0.01 } },
+  "world": {
+    "vertices":   [{ "id": "v0", "x": 0, "y": 0 }],
+    "sectors":    [{ "id": "s0", "vertexIds": ["v0","v1","v2","v3"], "floorH": 0, "ceilH": 3, "floorTex": "floor", "ceilTex": "ceil", "wallTex": "wall" }],
+    "walls":      [{ "id": "w0", "a": "v0", "b": "v1", "sectorFront": "s0", "sectorBack": null, "tex": "wall" }],
+    "ramps":      [{ "id": "r0", "type": "stairs", "pos": { "x": 2, "y": 2 }, "direction": { "x": 1, "y": 0 }, "width": 4, "rise": 3, "run": 6, "steps": 8 }],
+    "sprites":    [{ "id": "sp1", "tex": "guard_f0", "pos": { "x": 10, "y": 10, "z": 0 }, "scale": 1, "billboard": true, "anim": "guard_idle", "entityType": "npc" }],
+    "textures":   { "wall": 0x887766, "floor": "/assets/textures/floor.png" },   // string = ruta de asset, number = color puro
+    "sky":        { "style": "realista", "hour": 14, "dayLengthSec": 120, "shadows": true },
+    "spriteAnims": { "guard_idle": { "frames": ["guard_f0","guard_f1","guard_f2","guard_f3"], "fps": 4, "loop": true } }
+  },
+  "audio":  [{ "id": "door", "src": "/assets/audio/door.ogg", "bus": "sfx", "loop": false }],
+  "music":  { "id": "tema", "intensity": 0, "bpm": 120 }
+}
+```
+
+**Qué añadió el Sprite Tool (F5, Fases A–D ya cerradas):**
+
+| Pieza | Dónde vive | Tipo de dato |
+|-------|-----------|--------------|
+| Frames recortados / sueltos | `world.textures[key]` | `string` = dataURL o ruta del asset (`/assets/sprites/guard_f0.png`) |
+| Colores puros (sin archivo) | `world.textures[key]` | `number` (0xRRGGBB) — **no** generan fila `asset` |
+| Animaciones de sprites | `world.spriteAnims[name]` | `{ frames: string[], fps?, loop? }` — los frames son claves de `world.textures` |
+| Sprite animado | `world.sprites[].anim` | id de anim en `world.spriteAnims`; `billboard` (default true) garantiza render 2D orientado a cámara |
+| Entidades | `world.sprites[]` + `entityType/entityName/collisionType/collisionBox` | el editor trata entidad y sprite como el mismo objeto |
+| Audio | `audio[].src`, `variations[]`, `layers[]` | rutas a assets `tipo: audio` |
+| Cielo | `world.sky` | `style: "classic"` (telón Daggerfall) o `"realista"` (día/noche F4.7) |
 
 ### 3.5 `asset` — cada archivo del juego
 
@@ -155,7 +194,11 @@ INSERT INTO rol (id, nombre, descripcion) VALUES
 | `hash` | `TEXT` | nullable | Hash de contenido (deduplicación) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
 
-**Regla:** los **bytes** viven en el filesystem de blobs; `asset.ruta` los localiza. El `proyecto.data` referencia el asset por `id` o ruta. Así no se infla la DB con binarios y se puede servir por HTTP estático.
+**Regla:** los **bytes** viven en el filesystem de blobs; `asset.ruta` los localiza. El `proyecto.data` referencia el asset por ruta/clave (ej. `world.textures["guard_f0"]` → `/assets/sprites/guard_f0.png`). Así no se infla la DB con binarios y se puede servir por HTTP estático.
+
+**Sprite Tool (F5):** los frames recortados/sueltos que la herramienta sube (`POST /assets/sprites/upload` en desarrollo) se registran aquí como `tipo: sprite` — **una fila por frame**, `nombre` = clave de textura (`guard_f0`), `ruta` = ubicación del blob; `world.textures["guard_f0"]` referencia la misma ruta. En producción, toda dataURL o ruta embebida en `project.data` se materializa como fila `asset` + blob antes de guardar/publicar (el Publisher solo empaqueta lo referenciado).
+
+**Audio (F4.5):** `tipo: audio` para `.ogg`/`.wav`; `audio[].src`, `variations[]` (pools SFX) y `layers[]` (stems de música adaptativa) referencian estas rutas. Mismo patrón para `texture` (texturas de sector), `font` y `modelo`.
 
 ### 3.6 `galeria` — publicación pública (proyecto 1:1)
 
@@ -271,7 +314,7 @@ model Proyecto {
   nombre        String
   slug          String?         @unique
   estado        EstadoProyecto  @default(EN_DESARROLLO)
-  schemaVersion Int             @default(2) @map("schema_version")
+  schemaVersion Int             @default(3) @map("schema_version")
   renderMode    String          @default("retro") @map("render_mode")
   data          Json
   thumbnailPath String?         @map("thumbnail_path")
@@ -348,3 +391,5 @@ enum TipoAsset {
 - **Un proyecto publicado** debe tener `estado = PUBLICADO` Y una fila en `galeria`; despublícar ⇒ `estado = EN_DESARROLLO` y borrar la fila de `galeria`.
 - **Nada local**: el editor nunca persiste el mapa en `localStorage`/memoria como fuente de verdad; siempre lee/escribe `proyecto.data` en la DB (vía API).
 - **Assets compartidos / huérfanos**: un asset con `proyecto_id` nulo pertenece a la biblioteca personal del usuario y puede referenciarse desde varios proyectos.
+- **Sprite Tool (F5):** `world.sprites[].anim` debe existir como clave de `world.spriteAnims` (lo valida `validate.js` del motor); `world.textures` con valor string debe existir como `asset` (o ruta servida) antes de publicar — los colores puros (number) no necesitan `asset`.
+- **Audio (F4.5):** `audio[].src`, `variations[]` y `layers[]` referencian assets `tipo: audio`; `music.id` debe existir en `audio[]` (también lo valida el motor).
