@@ -488,6 +488,11 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     ⏳ **a validar por el usuario**.
 >   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
 >     mini-thumbs (frames desde `world.textures`).
+>     ✅ **implementado 2026-09-16** — cards por animación guardada (nombre +
+>     meta frames/fps/bucle + mini-thumbs 24px desde `world.textures`), estados
+>     de Biblioteca (sin conexión / vacío / solo texturas), clase
+>     `sprite-tool__library*` nueva, helper puro `visibleFrameKeys()` en
+>     frames.ts con test (212). ⏳ **a validar por el usuario**.
 >   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
 >     `onAssignSprite`/`spriteSelect` existente.
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`

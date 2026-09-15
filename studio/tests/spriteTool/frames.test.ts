@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor, visibleFrameKeys } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -126,5 +126,16 @@ describe('mirrorPixelImage (7f)', () => {
     const img = { width: 1, height: 1, data: new Uint8ClampedArray([7, 8, 9, 255]) };
     const out = mirrorPixelImage(img);
     expect([...out.data]).toEqual([7, 8, 9, 255]);
+  });
+
+  it('visibleFrameKeys (Fase D3) conserva solo frames con thumb string', () => {
+    const textures = {
+      guard_f0: '/assets/sprites/guard_f0.png', // string → visible
+      guard_f1: 0x112233, // número = color puro → sin thumb
+      // guard_f2 no existe en textures
+    };
+    expect(visibleFrameKeys(textures, ['guard_f0', 'guard_f1', 'guard_f2'])).toEqual(['guard_f0']);
+    expect(visibleFrameKeys(textures, [])).toEqual([]);
+    expect(visibleFrameKeys(textures, ['desconocido'])).toEqual([]);
   });
 });

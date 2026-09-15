@@ -117,6 +117,18 @@ export function trimRect(img: PixelImage, rect: Rect, alphaThreshold = 8): Rect 
 }
 
 /**
+ * Frames de una animación que tienen thumb visible en la Biblioteca (Fase D):
+ * solo los que existen en `world.textures` con valor string (dataURL/ruta).
+ * Los valores numéricos (colores puros) no tienen thumb y se omiten.
+ */
+export function visibleFrameKeys(
+  textures: Record<string, string | number>,
+  frames: string[],
+): string[] {
+  return frames.filter((key) => typeof textures[key] === 'string');
+}
+
+/**
  * Voltea horizontalmente una imagen (espejo), 7f. Puro (sin canvas): invierte
  * el orden de columnas RGBA y devuelve una copia nueva sin tocar la original.
  */

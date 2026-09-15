@@ -14,7 +14,7 @@
 
 import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
-import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor } from './frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor, visibleFrameKeys } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
@@ -500,7 +500,7 @@ export class SpriteToolUI {
     // La Biblioteca oculta SOLO el contenido del wizard (body + footer);
     // las tabs quedan como menú de navegación para volver a los pasos.
     this.libraryGrid = document.createElement('div');
-    this.libraryGrid.className = 'sprite-tool__frames';
+    this.libraryGrid.className = 'sprite-tool__library';
     this.step4.appendChild(this.libraryGrid);
 
     body.append(this.step1, this.step2, this.step3, this.step4);
@@ -1118,26 +1118,79 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
-  /** Pinta el Paso 4 (Biblioteca, Fase D): sprites + animaciones guardadas.
-   *  Esqueleto: estado vacío/contador; la vista con cards llega en D3. */
-  private renderLibraryStep(): void {
-    this.libraryGrid.textContent = '';
-    const snapshot = this.getProjectSnapshot();
-    const anims = snapshot ? Object.keys(snapshot.spriteAnims) : [];
-    const textures = snapshot ? Object.keys(snapshot.textures) : [];
-    const empty = document.createElement('div');
-    empty.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
-    if (!snapshot) {
-      empty.textContent = 'La Biblioteca no está conectada al proyecto.';
-    } else if (textures.length === 0 && anims.length === 0) {
-      empty.textContent = 'Aún no hay sprites ni animaciones guardadas en el proyecto.';
-    } else if (anims.length === 0) {
-      empty.textContent = `Hay ${textures.length} textura(s) guardada(s) pero ninguna animación todavía. Crea una en el Paso 3.`;
-    } else {
-      empty.textContent = `${anims.length} animación(es) guardada(s) sobre ${textures.length} textura(s).`;
-    }
-    this.libraryGrid.appendChild(empty);
+/** Pinta el Paso 4 (Biblioteca, Fase D): animaciones guardadas del proyecto
+ *  como cards con nombre + meta + mini-thumbs de sus frames. Solo lectura:
+ *  las acciones (reasignar a sprite, cargar al animador) llegan en D4/D5. */
+private renderLibraryStep(): void {
+  this.libraryGrid.textContent = '';
+  const snapshot = this.getProjectSnapshot();
+  if (!snapshot) {
+    this.libraryGrid.appendChild(this.libraryMessage('La Biblioteca no está conectada al proyecto.'));
+    return;
   }
+  const animNames = Object.keys(snapshot.spriteAnims);
+  if (animNames.length === 0) {
+    const textures = Object.keys(snapshot.textures);
+    this.libraryGrid.appendChild(this.libraryMessage(
+      textures.length === 0
+        ? 'Aún no hay sprites ni animaciones guardadas en el proyecto.'
+        : `Hay ${textures.length} textura(s) guardada(s) pero ninguna animación todavía. Crea una en el Paso 3.`,
+    ));
+    return;
+  }
+  for (const name of animNames) {
+    this.libraryGrid.appendChild(this.renderLibraryCard(snapshot, name));
+  }
+}
+
+/** Mensaje de estado de la Biblioteca (vacío / sin conexión). */
+private libraryMessage(text: string): HTMLDivElement {
+  const msg = document.createElement('div');
+  msg.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
+  msg.textContent = text;
+  return msg;
+}
+
+/** Card de una animación guardada: nombre + meta (nº de frames, fps,
+ *  bucle/una vez) y mini-thumbs desde `world.textures`. */
+private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDivElement {
+  const anim = snapshot.spriteAnims[name];
+  if (!anim) return this.libraryMessage('Animación no encontrada');
+  const card = document.createElement('div');
+  card.className = 'sprite-tool__library-card';
+
+  const head = document.createElement('div');
+  head.className = 'sprite-tool__library-head';
+  const title = document.createElement('span');
+  title.className = 'sprite-tool__library-name';
+  title.textContent = name;
+  const meta = document.createElement('span');
+  meta.className = 'sprite-tool__library-meta';
+  meta.textContent = `${anim.frames.length} frame(s) · ${anim.fps ?? 8} fps · ${anim.loop === false ? 'una vez' : 'bucle'}`;
+  head.append(title, meta);
+  card.appendChild(head);
+
+  const thumbs = document.createElement('div');
+  thumbs.className = 'sprite-tool__library-thumbs';
+  for (const frameKey of visibleFrameKeys(snapshot.textures, anim.frames)) {
+    const src = snapshot.textures[frameKey];
+    if (typeof src !== 'string') continue; // color puro, sin thumb
+    const thumb = document.createElement('img');
+    thumb.className = 'sprite-tool__library-thumb';
+    thumb.src = src;
+    thumb.alt = frameKey;
+    thumb.draggable = false;
+    thumbs.appendChild(thumb);
+  }
+  if (thumbs.children.length === 0) {
+    const none = document.createElement('span');
+    none.className = 'sprite-tool__library-meta';
+    none.textContent = 'Sin frames visibles';
+    thumbs.appendChild(none);
+  }
+  card.appendChild(thumbs);
+  return card;
+}
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
    *  con los mismos fps/loop; selecciona la anim espejada al crearla. */
