@@ -25,6 +25,7 @@ export interface ProjectJson {
     sprites: EditorState['world']['sprites'];
     textures: EditorState['world']['textures'];
     sky?: EditableSky | null;
+    spriteAnims?: EditorState['world']['spriteAnims'];
   };
   audio?: EditableAudioDef[];
   music?: EditableMusicRef;

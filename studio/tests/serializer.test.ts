@@ -121,3 +121,47 @@ describe('Serializer', () => {
     expect((s.world as any).unknown).toBeUndefined();
   });
 });
+
+describe('Sprite Tool · guardado (F5 Fase B)', () => {
+  it('setWorldTextures y setSpriteAnims fusionan y notifican', () => {
+    const s = new EditorState();
+    let calls = 0;
+    s.onChange(() => calls++);
+    s.setWorldTextures({ guard_f0: '/assets/sprites/guard_f0.png' });
+    s.setSpriteAnims({ idle: { frames: ['guard_f0', 'guard_f0'], fps: 4, loop: true } });
+    expect(s.world.textures['guard_f0']).toBe('/assets/sprites/guard_f0.png');
+    expect(s.world.spriteAnims?.['idle']?.frames).toEqual(['guard_f0', 'guard_f0']);
+    expect(calls).toBe(2);
+  });
+
+  it('assignSpriteAnim escribe sprite.anim (puente F5→6.4)', () => {
+    const s = new EditorState();
+    const sp = s.addSprite('sprite', 1, 1, 0, 'sp_guard');
+    expect(s.assignSpriteAnim('sp_guard', 'idle')).toBe(true);
+    expect(s.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBe('idle');
+    expect(s.assignSpriteAnim('no-existe', 'idle')).toBe(false);
+    // null limpia la animación
+    expect(s.assignSpriteAnim('sp_guard', null)).toBe(true);
+    expect(s.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBeUndefined();
+  });
+
+  it('round-trip conserva spriteAnims y sprite.anim, y pasa validateProject', () => {
+    const s = new EditorState();
+    s.setWorldTextures({
+      guard_f0: '/assets/sprites/guard_f0.png',
+      guard_f1: '/assets/sprites/guard_f1.png',
+    });
+    s.setSpriteAnims({ idle: { frames: ['guard_f0', 'guard_f1'], fps: 4 } });
+    const sp = s.addSprite('guard_f0', 2, 2, 0.5, 'sp_guard');
+    s.assignSpriteAnim(sp.id, 'idle');
+
+    const json = toProjectJson(s);
+    expect(validateProjectJson(json)).toEqual([]);
+    expect(json.world.spriteAnims?.['idle']).toEqual({ frames: ['guard_f0', 'guard_f1'], fps: 4 });
+    expect(json.world.sprites.find((x: { id: string }) => x.id === 'sp_guard')?.anim).toBe('idle');
+
+    const restored = fromProjectJson(json);
+    expect(restored.world.spriteAnims?.['idle']?.frames).toEqual(['guard_f0', 'guard_f1']);
+    expect(restored.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBe('idle');
+  });
+});
