@@ -21,3 +21,21 @@ export interface PixelImage {
   height: number;
   data: Uint8ClampedArray;
 }
+
+/** Animación guardada en el proyecto (`world.spriteAnims`). */
+export interface EditableAnimSpec {
+  frames: string[];
+  fps?: number;
+  loop?: boolean;
+}
+
+/**
+ * Snapshot del proyecto leído por la Biblioteca (Fase D): texturas guardadas +
+ * animaciones guardadas. Forma estructuralmente idéntica a
+ * `world.textures`/`world.spriteAnims` del EditorState para no acoplar esta
+ * herramienta con el editor.
+ */
+export interface SpriteLibrarySnapshot {
+  textures: Record<string, string | number>;
+  spriteAnims: Record<string, EditableAnimSpec>;
+}

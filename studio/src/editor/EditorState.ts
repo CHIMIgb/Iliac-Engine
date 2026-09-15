@@ -337,4 +337,22 @@ export class EditorState {
   getSector(id: string): EditableSector | undefined {
     return this.world.sectors.find((s) => s.id === id);
   }
+
+  /**
+   * Snapshot del proyecto para la Biblioteca del Sprite Tool (Fase D): las
+   * texturas y animaciones de sprites ya guardadas. Devuelve una copia ligera
+   * (foto del estado actual) para que el Sprite Tool lo lea en modo lectura
+   * sin riesgo de mutar el mundo.
+   */
+  getSpriteLibrarySnapshot(): { textures: Record<string, string | number>; spriteAnims: Record<string, { frames: string[]; fps?: number; loop?: boolean }> } {
+    return {
+      textures: { ...this.world.textures },
+      spriteAnims: Object.fromEntries(
+        Object.entries(this.world.spriteAnims ?? {}).map(([name, anim]) => [
+          name,
+          { ...anim, frames: [...anim.frames] },
+        ]),
+      ),
+    };
+  }
 }

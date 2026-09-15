@@ -19,7 +19,7 @@ import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
-import type { PixelImage, Rect } from './types';
+import type { SpriteLibrarySnapshot, PixelImage, Rect } from './types';
 
 const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Sprites'] as const;
 
@@ -117,6 +117,9 @@ export class SpriteToolUI {
   private assignRow: HTMLDivElement;
   /** Conectado por main.ts: escribe `sprite.anim` en un sprite existente. */
   onAssignSprite: ((spriteId: string, anim: string) => void) | null = null;
+
+  /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
+  onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -1356,5 +1359,13 @@ export class SpriteToolUI {
     }
     this.assignRow.hidden = false;
     this.assignBtn.disabled = this.animSpecs.length === 0;
+  }
+
+  /**
+   * Snapshot del proyecto para la Biblioteca (Fase D1): texturas + anims
+   * guardadas, o null si main.ts no conectó el callback (modo lectura).
+   */
+  getProjectSnapshot(): SpriteLibrarySnapshot | null {
+    return this.onProjectSnapshot ? this.onProjectSnapshot() : null;
   }
 }
