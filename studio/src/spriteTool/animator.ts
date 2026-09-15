@@ -115,6 +115,30 @@ export function reorderFrames<T>(frames: T[], from: number, to: number): T[] {
 }
 
 /**
+ * Quita el índice en `pos` sin mutar la original (7d). Si la lista quedaría
+ * con menos de 2 frames, devuelve la copia sin cambios: el contrato del
+ * motor exige ≥2 frames por animación.
+ */
+export function removeFrameIndices(frameIndices: number[], pos: number): number[] {
+  if (pos < 0 || pos >= frameIndices.length) return frameIndices.slice();
+  const out = frameIndices.slice();
+  out.splice(pos, 1);
+  if (out.length < 2) return frameIndices.slice();
+  return out;
+}
+
+/**
+ * Índices de frame (0..total-1) que aún no están en `frameIndices` (7d):
+ * los frames de la hoja disponibles para añadir a la anim activa.
+ */
+export function availableFrames(frameIndices: number[], total: number): number[] {
+  const inUse = new Set(frameIndices);
+  const out: number[] = [];
+  for (let i = 0; i < Math.max(0, total); i++) if (!inUse.has(i)) out.push(i);
+  return out;
+}
+
+/**
  * Arma el par `{ textures, spriteAnims }` listo para guardar en el proyecto.
  *
  * - `assetId` es el nombre del asset del Paso 1 (`guard` → `guard_f0`…).

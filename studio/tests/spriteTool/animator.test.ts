@@ -11,6 +11,8 @@ import {
   buildAnimDef,
   clampFps,
   reorderFrames,
+  removeFrameIndices,
+  availableFrames,
   buildSpriteAnims,
   DEFAULT_FPS,
 } from '../../src/spriteTool/animator';
@@ -92,6 +94,37 @@ describe('reorderFrames', () => {
     expect(reorderFrames(['a', 'b'], -1, 1)).toEqual(['a', 'b']);
     expect(reorderFrames(['a', 'b'], 0, 5)).toEqual(['a', 'b']);
     expect(reorderFrames(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
+  });
+});
+
+describe('removeFrameIndices (7d)', () => {
+  it('quita el índice en pos sin mutar la original', () => {
+    const original = [0, 1, 2, 3];
+    const out = removeFrameIndices(original, 1);
+    expect(out).toEqual([0, 2, 3]);
+    expect(original).toEqual([0, 1, 2, 3]);
+  });
+
+  it('protege el mínimo de 2 frames: no baja de 2', () => {
+    expect(removeFrameIndices([0, 1], 0)).toEqual([0, 1]);
+    expect(removeFrameIndices([0, 1, 2], 2)).toEqual([0, 1]);
+  });
+
+  it('ignora pos fuera de rango', () => {
+    expect(removeFrameIndices([0, 1, 2], -1)).toEqual([0, 1, 2]);
+    expect(removeFrameIndices([0, 1, 2], 9)).toEqual([0, 1, 2]);
+  });
+});
+
+describe('availableFrames (7d)', () => {
+  it('devuelve los índices no usados en orden', () => {
+    expect(availableFrames([0, 2], 4)).toEqual([1, 3]);
+  });
+
+  it('todos usados → []; lista vacía → todos disponibles', () => {
+    expect(availableFrames([0, 1], 2)).toEqual([]);
+    expect(availableFrames([], 3)).toEqual([0, 1, 2]);
+    expect(availableFrames([0], 0)).toEqual([]);
   });
 });
 

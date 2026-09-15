@@ -17,7 +17,7 @@ import { showToast } from '../ui/Toast';
 import { assetIdFromFileName, cropRegion, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
-import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, clampFps, MIN_FPS, MAX_FPS } from './animator';
+import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, clampFps, MIN_FPS, MAX_FPS } from './animator';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { PixelImage, Rect } from './types';
 
@@ -89,6 +89,8 @@ export class SpriteToolUI {
   private step3PreviewImg: HTMLImageElement;
   private step3FramesGrid: HTMLDivElement;
   private step3Status: HTMLDivElement;
+  private addFrameSelect: HTMLSelectElement;
+  private addFrameBtn: HTMLButtonElement;
   private step3NameInput: HTMLInputElement;
   private step3FpsInput: HTMLInputElement;
   private step3LoopInput: HTMLInputElement;
@@ -403,10 +405,22 @@ export class SpriteToolUI {
     framesTitle.textContent = 'Frames (arrastra para reordenar)';
     this.step3FramesGrid = document.createElement('div');
     this.step3FramesGrid.className = 'sprite-tool__frames sprite-tool__frames--dnd';
+    // Añadir un frame de la hoja que aún no esté en la anim (7d).
+    const addFrameRow = document.createElement('div');
+    addFrameRow.className = 'sprite-tool__add-frame';
+    this.addFrameSelect = document.createElement('select');
+    this.addFrameSelect.className = 'sprite-tool__input sprite-tool__select';
+    this.addFrameSelect.title = 'Frames de la hoja aún no usados en esta animación';
+    this.addFrameBtn = document.createElement('button');
+    this.addFrameBtn.className = 'btn btn--secondary btn--sm';
+    this.addFrameBtn.textContent = 'Añadir';
+    this.addFrameBtn.disabled = true;
+    this.addFrameBtn.addEventListener('click', () => this.addFrameFromActive());
+    addFrameRow.append(this.addFrameSelect, this.addFrameBtn);
     this.step3Status = document.createElement('div');
     this.step3Status.className = 'sprite-tool__cut-status';
 
-    animMain.append(previewRow, framesTitle, this.step3FramesGrid, this.step3Status);
+    animMain.append(previewRow, framesTitle, this.step3FramesGrid, addFrameRow, this.step3Status);
 
     // Puente hasta el Entity Builder (6.4): asignar la anim a un sprite del mundo.
     this.assignRow = document.createElement('div');
@@ -891,6 +905,7 @@ export class SpriteToolUI {
       this.step3Status.classList.add('sprite-tool__cut-status--warn');
       this.step3AnimsList.textContent = '';
       this.step3FramesGrid.textContent = '';
+      this.renderAddFrameRow();
       this.step3PreviewImg.hidden = true;
       return;
     }
@@ -901,6 +916,7 @@ export class SpriteToolUI {
     this.step3LoopInput.checked = spec.loop;
     this.renderAnimsList();
     this.renderActiveFrames();
+    this.renderAddFrameRow();
     this.updatePreviewImage();
   }
 
@@ -922,7 +938,16 @@ export class SpriteToolUI {
       img.dataset.pos = String(pos);
       const label = document.createElement('span');
       label.textContent = String(pos + 1);
-      cell.append(img, label);
+      // Quitar este frame de la anim (7d): mínimo 2 según contrato del motor.
+      const rm = document.createElement('button');
+      rm.className = 'sprite-tool__thumb--remove';
+      rm.title = 'Quitar este frame de la animación';
+      rm.appendChild(Icon('x', 10));
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeFrameFromActive(pos);
+      });
+      cell.append(img, label, rm);
 
       cell.addEventListener('dragstart', (e) => {
         e.dataTransfer?.setData('text/plain', String(pos));
@@ -946,6 +971,57 @@ export class SpriteToolUI {
       });
       this.step3FramesGrid.appendChild(cell);
     });
+  }
+
+  /** Quita un frame de la anim activa (7d): mínimo 2 según contrato del motor. */
+  private removeFrameFromActive(pos: number): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return;
+    const next = removeFrameIndices(spec.frameIndices, pos);
+    if (next.length === spec.frameIndices.length) {
+      showToast('Una animación necesita al menos 2 frames', 'warning');
+      return;
+    }
+    spec.frameIndices = next;
+    this.renderStep3();
+  }
+
+  /** Rellena el select de "Añadir frame" con los frames de la hoja sin usar (7d). */
+  private renderAddFrameRow(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    this.addFrameSelect.textContent = '';
+    if (!spec) {
+      this.addFrameBtn.disabled = true;
+      return;
+    }
+    const available = availableFrames(spec.frameIndices, this.cutFrames.length)
+      .map((i) => ({ f: this.cutFrames[i], i }))
+      .filter((x) => x.f !== undefined) as { f: CutFrame; i: number }[];
+    if (available.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— todos los frames ya están en la animación —';
+      this.addFrameSelect.appendChild(opt);
+      this.addFrameBtn.disabled = true;
+      return;
+    }
+    for (const { f, i } of available) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `${f.key} — ${f.w}×${f.h}`;
+      this.addFrameSelect.appendChild(opt);
+    }
+    this.addFrameBtn.disabled = false;
+  }
+
+  /** Añade al final de la anim activa el frame elegido del select (7d). */
+  private addFrameFromActive(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return;
+    const i = parseInt(this.addFrameSelect.value, 10);
+    if (Number.isNaN(i) || spec.frameIndices.includes(i)) return;
+    spec.frameIndices.push(i);
+    this.renderStep3();
   }
 
   /** Actualiza el <img> del preview con el frame activo. */
