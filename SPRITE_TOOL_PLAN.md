@@ -467,6 +467,9 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >        texturas guardadas (dataURL → `PixelImage`), los añade como `looseFrames`
 >        (guardia de keys duplicadas), copia la anim en `animSpecs` y salta al Paso 3
 >        para duplicarla/editarla.
+>   - **Regla de la Biblioteca:** es LECTURA + las 2 acciones. No hay corte, no hay
+>     animación, no hay preview de frames individuales, no hay drag & drop de frames,
+>     no hay edición. Todo eso vive en los Pasos 1-3.
 >   - **D1 — acceso al proyecto:** pasar a la Sprite Tool una snapshot de
 >     `textures` + `spriteAnims` guardadas (revisar `EditorState`/`Serializer` en
 >     `main.ts`; si no hay nada guardado → estado vacío con mensaje). La herramienta
