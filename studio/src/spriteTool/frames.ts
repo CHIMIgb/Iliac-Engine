@@ -3,9 +3,8 @@
  *
  * Nombre y URL por convención del Studio (`guard_f2` →
  * `/assets/sprites/guard_f2.png`), inspección de regiones (vacías/trim) y
- * orden row-major de una lista de rects. La mayoría es puro (sin canvas):
- * solo `loadPixelFromDataUrl` decodifica una imagen real y por eso vive aquí
- * como utilidad de navegador (usada por la Biblioteca, Fase D).
+ * orden row-major de una lista de rects. Todo puro (sin canvas): el dibujado
+ * real a `<canvas>` ocurre en la UI (spriteToolUI.ts).
  */
 
 import type { PixelImage, Rect } from './types';
@@ -164,65 +163,4 @@ export function frameOrder(rects: Rect[]): Rect[] {
     for (const i of sorted) out.push(rects[i]!);
   }
   return out;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Biblioteca (Fase D5) — cargar una animación guardada al animador.
-
-/**
- * Decodifica una URL de imagen (dataURL o ruta servida) a `PixelImage`.
- * Utilidad de navegador: crea un <img>, lo dibuja en un <canvas> y lee
- * `getImageData`. Lanza si la imagen no carga.
- */
-export function loadPixelFromDataUrl(url: string): Promise<PixelImage> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) {
-        reject(new Error('sin contexto 2d para decodificar la imagen'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      resolve({ width: data.width, height: data.height, data: data.data });
-    };
-    img.onerror = () => reject(new Error(`no se pudo cargar la imagen: ${url}`));
-    img.src = url;
-  });
-}
-
-/** Item decodificado listo para entrar a `looseFrames` (key única + píxeles). */
-export interface LoosePixelItem {
-  key: string;
-  pixel: PixelImage;
-}
-
-/**
- * Fusiona items decodificados con los frames ya presentes (hoja + sueltos),
- * omitiendo keys duplicadas. Devuelve los items nuevos que deben añadirse a
- * `looseFrames` y el índice global (posición en `existingKeys + nuevos`) de
- * cada key — incluida la de los existentes — para poder armar los
- * `frameIndices` de una animación copiada sin ambigüedad.
- */
-export function addLooseFromPixels(
-  existingKeys: string[],
-  newItems: LoosePixelItem[],
-): { loose: LoosePixelItem[]; indicesByKey: Map<string, number> } {
-  const seen = new Set(existingKeys);
-  const indicesByKey = new Map<string, number>();
-  existingKeys.forEach((k, i) => indicesByKey.set(k, i));
-  let idx = existingKeys.length;
-  const loose: LoosePixelItem[] = [];
-  for (const it of newItems) {
-    if (!seen.has(it.key)) {
-      seen.add(it.key);
-      loose.push(it);
-      indicesByKey.set(it.key, idx++);
-    }
-  }
-  return { loose, indicesByKey };
 }

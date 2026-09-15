@@ -14,14 +14,14 @@
 
 import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
-import { addLooseFromPixels, assetIdFromFileName, cropRegion, frameKeyFromFile, loadPixelFromDataUrl, textureKeyFor } from './frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
-import type { SpriteLibrarySnapshot, PixelImage, Rect } from './types';
+import type { PixelImage, Rect } from './types';
 
-const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Biblioteca'] as const;
+const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Sprites'] as const;
 
 type CutMode = 'auto' | 'manual';
 
@@ -93,9 +93,10 @@ export class SpriteToolUI {
   private step3PreviewImg: HTMLImageElement;
   private step3FramesGrid: HTMLDivElement;
   private step3Status: HTMLDivElement;
-  // Paso 4 (Biblioteca, Fase D): sprites + animaciones guardados en el proyecto.
+  // Paso 4 (Sprites): biblioteca visual de frames sueltos (C3).
   private step4: HTMLDivElement;
-  private libraryGrid: HTMLDivElement;
+  private spritesGrid: HTMLDivElement;
+  private spritesFileInput: HTMLInputElement;
   private addFrameBtn: HTMLButtonElement;
   private addFrameMenu: HTMLDivElement;
   private addFrameMenuOpen = false;
@@ -116,12 +117,6 @@ export class SpriteToolUI {
   private assignRow: HTMLDivElement;
   /** Conectado por main.ts: escribe `sprite.anim` en un sprite existente. */
   onAssignSprite: ((spriteId: string, anim: string) => void) | null = null;
-
-  /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
-  onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
-
-  /** Sprites del mundo con los que reasignar anims en la Biblioteca (D4). */
-  private worldSprites: Array<{ id: string; label: string }> = [];
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -144,15 +139,15 @@ export class SpriteToolUI {
     header.append(title, closeX);
     modal.appendChild(header);
 
-    // Pestañas: Cargar es la inicial; Cortar/Animar se habilitan según el flujo;
-    // Biblioteca siempre está accesible (es solo lectura del proyecto).
+    // Pestañas (solo Cargar y Cortar habilitadas según el flujo; Animar y
+    // Sprites se habilitan en sus fases).
     const tabs = document.createElement('div');
     tabs.className = 'sprite-tool__tabs';
     STEPS.forEach((label, i) => {
       const btn = document.createElement('button');
       btn.className = 'sprite-tool__tab' + (i === 0 ? ' sprite-tool__tab--active' : '');
       btn.textContent = label;
-      btn.disabled = i !== 0 && i !== 3;
+      btn.disabled = i !== 0;
       btn.addEventListener('click', () => this.setStep(i));
       this.stepEls.push(btn);
       tabs.appendChild(btn);
@@ -484,17 +479,32 @@ export class SpriteToolUI {
     animLayout.append(animSide, animMain);
     this.step3.append(animLayout, this.assignRow);
 
-    // ── Paso 4: Biblioteca (Fase D) ── sprites + animaciones guardadas.
+    // ── Paso 4: Sprites (C3) ── Biblioteca visual de frames sueltos.
     this.step4 = document.createElement('div');
     this.step4.className = 'sprite-tool__step';
     this.step4.hidden = true;
 
-    const libraryHeader = document.createElement('div');
-    libraryHeader.className = 'sprite-tool__label';
-    libraryHeader.textContent = 'Sprites y animaciones guardadas en el proyecto';
-    this.libraryGrid = document.createElement('div');
-    this.libraryGrid.className = 'sprite-tool__frames';
-    this.step4.append(libraryHeader, this.libraryGrid);
+    const spritesHeader = document.createElement('div');
+    spritesHeader.className = 'sprite-tool__label';
+    spritesHeader.textContent = 'Frames sueltos — haz clic en uno para añadirlo a la anim activa';
+    const spritesAddBtn = document.createElement('button');
+    spritesAddBtn.className = 'btn btn--secondary btn--sm';
+    spritesAddBtn.title = 'Añade PNG/WebP individuales a la biblioteca';
+    spritesAddBtn.appendChild(Icon('image-plus', 14));
+    spritesAddBtn.appendChild(document.createTextNode(' Añadir frames desde archivo…'));
+    this.spritesFileInput = document.createElement('input');
+    this.spritesFileInput.type = 'file';
+    this.spritesFileInput.accept = 'image/png, image/webp';
+    this.spritesFileInput.multiple = true;
+    this.spritesFileInput.hidden = true;
+    spritesAddBtn.addEventListener('click', () => this.spritesFileInput.click());
+    this.spritesFileInput.addEventListener('change', () => {
+      void this.addLooseFiles(this.spritesFileInput.files);
+      this.spritesFileInput.value = '';
+    });
+    this.spritesGrid = document.createElement('div');
+    this.spritesGrid.className = 'sprite-tool__frames';
+    this.step4.append(spritesHeader, spritesAddBtn, this.spritesFileInput, this.spritesGrid);
 
     body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
@@ -589,9 +599,13 @@ export class SpriteToolUI {
 
   private setStep(i: number): void {
     // Paso 3 solo está disponible con frames (hoja cortada o sueltos);
-    // Paso 4 (Biblioteca) siempre accesible: muestra lo guardado en el proyecto.
+    // Paso 4 (Sprites) requiere frames sueltos.
     if (i === 2 && this.allFrames().length === 0) {
       this.nextBtn.disabled = true;
+      return;
+    }
+    if (i === 3 && this.looseFrames.length === 0) {
+      showToast('No hay frames sueltos todavía', 'info');
       return;
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
@@ -604,7 +618,7 @@ export class SpriteToolUI {
       this.renderStep3();
       this.previewElapsed = 0;
     } else if (i === 3) {
-      this.renderLibraryStep();
+      this.renderSpritesStep();
     }
   }
 
@@ -631,6 +645,7 @@ export class SpriteToolUI {
       this.fileName = file.name;
       this.cutFrames = [];
       this.looseFrames = []; // hoja nueva → los sueltos se descartan (C2)
+      this.stepEls[3]!.disabled = true; // tab Sprites sin sueltos
       this.framesGrid.textContent = '';
 
       this.assetNameInput.disabled = false;
@@ -1103,166 +1118,43 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
-  /** Pinta el Paso 4 (Biblioteca, Fase D): cards por animación guardada
-   *  con thumbnails de cada frame desde las texturas del proyecto. */
-  private renderLibraryStep(): void {
-    this.libraryGrid.textContent = '';
-    const snapshot = this.getProjectSnapshot();
-    const animEntries = snapshot ? Object.entries(snapshot.spriteAnims) : [];
-
-    if (!snapshot || animEntries.length === 0) {
+  /** Pinta la grilla del Paso 4 (Sprites): thumbs de los frames sueltos.
+   *  Click en un thumb → se añade a la anim activa como índice global. */
+  private renderSpritesStep(): void {
+    this.spritesGrid.textContent = '';
+    const loose = this.looseFrames;
+    const spec = this.animSpecs[this.activeAnim];
+    if (loose.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
-      if (!snapshot) empty.textContent = 'La Biblioteca no está conectada al proyecto.';
-      else if (Object.keys(snapshot.textures).length === 0) {
-        empty.textContent = 'Aún no hay sprites ni animaciones guardadas en el proyecto.';
-      } else {
-        empty.textContent = `Hay ${Object.keys(snapshot.textures).length} textura(s) guardada(s) pero ninguna animación todavía. Crea una en el Paso 3.`;
-      }
-      this.libraryGrid.appendChild(empty);
+      empty.textContent = 'Aún no hay frames sueltos. Añádelos con el botón superior.';
+      this.spritesGrid.appendChild(empty);
       return;
     }
-
-    for (const [name, animSpec] of animEntries) {
-      const card = document.createElement('div');
-      card.className = 'sprite-tool__library-card';
-
-      // Cabecera: nombre + info resumen.
-      const header = document.createElement('div');
-      header.className = 'sprite-tool__library-card-header';
-      const title = document.createElement('strong');
-      title.textContent = name;
-      const info = document.createElement('span');
-      info.className = 'muted';
-      const fps = animSpec.fps ?? 4;
-      info.textContent = `${animSpec.frames.length} frames · ${fps} fps · ${animSpec.loop ? 'loop' : 'una vez'}`;
-      header.append(title, info);
-
-      // Thumbnails de los frames de la animación.
-      const thumbs = document.createElement('div');
-      thumbs.className = 'sprite-tool__frames';
-      for (const key of animSpec.frames) {
-        const url = snapshot.textures[key];
-        if (!url) continue;
-        const cell = document.createElement('div');
-        cell.className = 'sprite-tool__thumb';
-        cell.title = key;
-        const img = document.createElement('img');
-        img.src = String(url);
-        img.alt = key;
-        cell.appendChild(img);
-        thumbs.appendChild(cell);
-      }
-
-      card.append(header, thumbs);
-
-      // Acción D4: asignar esta anim guardada a un sprite del mundo.
-      const assignRow = document.createElement('div');
-      assignRow.className = 'sprite-tool__assign';
-      const assignSelect = document.createElement('select');
-      assignSelect.className = 'sprite-tool__select';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = this.worldSprites.length === 0 ? 'No hay sprites en el mundo' : 'Asignar a sprite…';
-      assignSelect.appendChild(placeholder);
-      for (const it of this.worldSprites) {
-        const opt = document.createElement('option');
-        opt.value = it.id;
-        opt.textContent = it.label;
-        assignSelect.appendChild(opt);
-      }
-      const assignBtn = document.createElement('button');
-      assignBtn.className = 'btn btn--secondary btn--sm';
-      assignBtn.textContent = 'Asignar';
-      assignBtn.disabled = this.worldSprites.length === 0;
-      assignBtn.addEventListener('click', () => {
-        if (!assignSelect.value) {
-          showToast('Elige un sprite primero', 'info');
+    loose.forEach((f, pos) => {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'sprite-tool__thumb sprite-tool__thumb--pick';
+      cell.title = f.key;
+      const img = document.createElement('img');
+      img.src = f.dataUrl;
+      img.alt = f.key;
+      const label = document.createElement('span');
+      label.textContent = `${f.w}×${f.h}`;
+      cell.append(img, label);
+      cell.addEventListener('click', () => {
+        if (!spec) {
+          showToast('Crea primero una animación en el Paso 3', 'info');
           return;
         }
-        if (!this.onAssignSprite) {
-          showToast('Asignación no conectada al proyecto', 'error');
-          return;
-        }
-        this.onAssignSprite(assignSelect.value, name);
+        const idx = this.cutFrames.length + pos; // índice global en allFrames()
+        if (spec.frameIndices.includes(idx)) return;
+        spec.frameIndices.push(idx);
+        this.renderStep3();
+        showToast(`«${f.key}» añadido a «${spec.name}»`, 'success');
       });
-      const loadBtn = document.createElement('button');
-      loadBtn.className = 'btn btn--secondary btn--sm';
-      loadBtn.textContent = 'Cargar al animador';
-      loadBtn.addEventListener('click', () => void this.loadAnimToAnimator(name, snapshot));
-      assignRow.append(assignSelect, assignBtn, loadBtn);
-      card.appendChild(assignRow);
-
-      this.libraryGrid.appendChild(card);
-    }
-  }
-
-  /**
-   * Carga una animación guardada al animador (D5): decodifica sus frames desde
-   * las texturas del proyecto, los añade a `looseFrames` (con dedupe), copia la
-   * anim en `animSpecs` y salta al Paso 3 para editarla/duplicarla.
-   */
-  private async loadAnimToAnimator(name: string, snapshot: SpriteLibrarySnapshot): Promise<void> {
-    const anim = snapshot.spriteAnims[name];
-    if (!anim) return;
-    // Decodifica cada frame de la anim desde la textura guardada.
-    const decoded: Array<{ key: string; pixel: PixelImage } | null> = await Promise.all(
-      anim.frames.map(async (key) => {
-        const url = snapshot.textures[key];
-        if (!url) return null;
-        try {
-          return { key, pixel: await loadPixelFromDataUrl(String(url)) };
-        } catch (err) {
-          console.error(`Biblioteca: no se pudo decodificar «${key}»:`, err);
-          return null;
-        }
-      }),
-    );
-    const valid = decoded.filter((d): d is { key: string; pixel: PixelImage } => d !== null);
-    if (valid.length === 0) {
-      showToast('No se pudo decodificar ningún frame de la animación', 'error');
-      return;
-    }
-
-    const { loose, indicesByKey } = addLooseFromPixels(this.allFrames().map((f) => f.key), valid);
-    for (const l of loose) {
-      this.looseFrames.push({
-        key: l.key,
-        dataUrl: this.pixelImageToDataUrl(l.pixel),
-        w: l.pixel.width,
-        h: l.pixel.height,
-        pixel: l.pixel,
-      });
-    }
-
-    // Copia la anim con nombre único si el original está tomado en el editor.
-    const taken = new Set(this.animSpecs.map((s) => s.name));
-    let copyName = name;
-    let suffix = 2;
-    while (taken.has(copyName)) {
-      copyName = `${name}_${suffix++}`;
-    }
-    const frameIndices = anim.frames
-      .map((key) => indicesByKey.get(key))
-      .filter((i): i is number => i !== undefined);
-    if (frameIndices.length < 2) {
-      showToast('La animación guardada no tiene al menos 2 frames disponibles', 'error');
-      return;
-    }
-    this.animSpecs.push({
-      name: copyName,
-      frameIndices,
-      fps: anim.fps ?? 4,
-      loop: anim.loop ?? true,
+      this.spritesGrid.appendChild(cell);
     });
-    this.nextBtn.disabled = false;
-    this.stepEls[2]!.disabled = false;
-    this.selectAnim(this.animSpecs.length - 1);
-    this.setStep(2);
-    const msg = loose.length > 0
-      ? `«${copyName}» cargada (${loose.length} frame(s) nuevo(s) desde el proyecto)`
-      : `«${copyName}» cargada con los frames ya presentes`;
-    showToast(msg, 'success');
   }
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
@@ -1352,7 +1244,9 @@ export class SpriteToolUI {
     this.initAnimsIfNeeded();
     this.nextBtn.disabled = false;
     this.stepEls[2]!.disabled = false;
+    this.stepEls[3]!.disabled = false; // tab Sprites disponible con sueltos
     this.renderStep3();
+    if (!this.step4.hidden) this.renderSpritesStep();
     const msgSkipped = skipped > 0 ? `, ${skipped} omitidos` : '';
     showToast(added === 1 ? `1 frame suelto añadido${msgSkipped}` : `${added} frames sueltos añadidos${msgSkipped}`, skipped > 0 ? 'warning' : 'success');
   }
@@ -1441,7 +1335,6 @@ export class SpriteToolUI {
    * Lo llama main.ts al abrir el modal (el UI no conoce EditorState).
    */
   setWorldSprites(items: Array<{ id: string; label: string }>): void {
-    this.worldSprites = items;
     this.spriteSelect.textContent = '';
     if (items.length === 0) {
       const opt = document.createElement('option');
@@ -1463,13 +1356,5 @@ export class SpriteToolUI {
     }
     this.assignRow.hidden = false;
     this.assignBtn.disabled = this.animSpecs.length === 0;
-  }
-
-  /**
-   * Snapshot del proyecto para la Biblioteca (Fase D1): texturas + anims
-   * guardadas, o null si main.ts no conectó el callback (modo lectura).
-   */
-  getProjectSnapshot(): SpriteLibrarySnapshot | null {
-    return this.onProjectSnapshot ? this.onProjectSnapshot() : null;
   }
 }

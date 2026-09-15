@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { addLooseFromPixels, assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -126,33 +126,5 @@ describe('mirrorPixelImage (7f)', () => {
     const img = { width: 1, height: 1, data: new Uint8ClampedArray([7, 8, 9, 255]) };
     const out = mirrorPixelImage(img);
     expect([...out.data]).toEqual([7, 8, 9, 255]);
-  });
-});
-
-describe('addLooseFromPixels (Fase D5)', () => {
-  const px = (n: number) => ({ width: 1, height: 1, data: new Uint8ClampedArray([n, n, n, 255]) });
-
-  it('omite keys duplicadas y asigna índices globales tras los existentes', () => {
-    const { loose, indicesByKey } = addLooseFromPixels(['a', 'b'], [
-      { key: 'b', pixel: px(1) },
-      { key: 'c', pixel: px(2) },
-      { key: 'd', pixel: px(3) },
-    ]);
-    expect(loose.map((l) => l.key)).toEqual(['c', 'd']);
-    // Índice global: los existentes conservan su posición; los nuevos siguen.
-    expect(indicesByKey.get('a')).toBe(0);
-    expect(indicesByKey.get('b')).toBe(1);
-    expect(indicesByKey.get('c')).toBe(2);
-    expect(indicesByKey.get('d')).toBe(3);
-  });
-
-  it('todo duplicado: loose vacío pero índices de la anim siguen resolviendo', () => {
-    const { loose, indicesByKey } = addLooseFromPixels(['x', 'y'], [
-      { key: 'x', pixel: px(1) },
-      { key: 'y', pixel: px(2) },
-    ]);
-    expect(loose).toEqual([]);
-    expect(indicesByKey.get('x')).toBe(0);
-    expect(indicesByKey.get('y')).toBe(1);
   });
 });

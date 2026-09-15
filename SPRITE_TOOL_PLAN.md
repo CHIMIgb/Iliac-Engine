@@ -467,39 +467,24 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >        texturas guardadas (dataURL → `PixelImage`), los añade como `looseFrames`
 >        (guardia de keys duplicadas), copia la anim en `animSpecs` y salta al Paso 3
 >        para duplicarla/editarla.
->   - **D1 — acceso al proyecto:** ✅ **realizado 2026-09-16** —
->     `getSpriteLibrarySnapshot()` en `EditorState` (foto ligera con copia de
->     `textures` + `spriteAnims`); `SpriteLibrarySnapshot` en `spriteTool/types.ts`;
->     callback `onProjectSnapshot` + `getProjectSnapshot()` en `SpriteToolUI`; wiring en
->     main.ts al abrir el modal; test en `serializer.test.ts`. Typecheck + suite verde
->     (211).
->   - **D2 — sustituir la tab:** ✅ **realizado 2026-09-16** —
->     STEPS[3] = 'Biblioteca'; tab siempre habilitada (solo lectura); eliminado
->     Paso 4 de sueltos (campo `spritesFileInput`, constructor, wiring en loadFile y
->     addLooseFiles); renombrado `spritesGrid` → `libraryGrid`; esqueleto
->     `renderLibraryStep()` (estado vacío / contador de texturas+anims). Typecheck +
->     suite verde (211).
->   - **D3 — vista:** ✅ **realizado 2026-09-16** —
->     `renderLibraryStep()` real con cards por animación guardada: header con nombre,
->     resumen (fps, loop, nº frames) + grid de thumbnails desde `snapshot.textures`.
->     Estado vacío con mensajes según texturas/sin anims/conectado. CSS
->     `.sprite-tool__library-card` añadido. Typecheck + suite verde (211).
->   - **D4 — reasignar:** ✅ **realizado 2026-09-16** —
->     por card, fila `Asignar a sprite…` (select con sprites del mundo + botón Asignar)
->     que reutiliza `onAssignSprite`; `setWorldSprites` guarda la lista en
->     `worldSprites`. Typecheck + suite verde (211).
->   - **D5 — cargar al animador:** ✅ **realizado 2026-09-16** —
->     `loadPixelFromDataUrl` (decodifica URL → `PixelImage` en el navegador);
->     `addLooseFromPixels` puro (dedupe de keys + índice global de cada frame) con
->     test en `frames.test.ts`; botón "Cargar al animador" por card: decodifica los
->     frames desde las texturas del proyecto, los añade a `looseFrames`, copia la anim
->     con nombre único si el original está tomado, selecciona y salta al Paso 3.
->     Typecheck + suite verde (213).
->   - **Aceptación:** ✅ **cumplida 2026-09-16 (pendiente de tu validación manual)** —
->     tab "Biblioteca" lista guardados con thumbs reales; reasignar una anim a otro
->     sprite; cargar una anim al animador y editarla/duplicarla; el tab "Sprites" viejo
->     ya no existe; `studio:test` (213) + `studio:typecheck` verdes; commit por sub-paso
->     (D1→D2→D3→D4→D5).
+>   - **D1 — acceso al proyecto:** pasar a la Sprite Tool una snapshot de
+>     `textures` + `spriteAnims` guardadas (revisar `EditorState`/`Serializer` en
+>     `main.ts`; si no hay nada guardado → estado vacío con mensaje). La herramienta
+>     recibe un nuevo callback/field opcional (p. ej. `onProjectSnapshot`).
+>   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
+>     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
+>   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
+>     mini-thumbs (frames desde `world.textures`).
+>   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
+>     `onAssignSprite`/`spriteSelect` existente.
+>   - **D5 — cargar al animador:** helper puro en `frames.ts`
+>     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
+>     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y
+>     `this.setStep(2)`.
+>   - **Aceptación:** tab "Biblioteca" lista guardados con thumbs reales; reasignar
+>     una anim a otro sprite; cargar una anim al animador y editarla/duplicarla; el tab
+>     "Sprites" viejo ya no existe; `studio:test` + `studio:typecheck` verdes; commit
+>     por sub-paso (D1→D2→D3→D4→D5) y validación del usuario entre sub-pasos.
 >
 > - **Fase E — Colocar animaciones de sprites en entidades del editor (Entity Builder
 >   mínimo, 6.4; decidida por el usuario el 2026-09-15 — mismo bloque que Fase D):**
