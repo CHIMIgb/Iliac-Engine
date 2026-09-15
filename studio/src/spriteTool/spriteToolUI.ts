@@ -2,10 +2,11 @@
  * spriteToolUI.ts — modal del Sprite Tool (F5, Fase A).
  *
  * Paso 1 «Cargar»: sube una hoja PNG y la convierte a `PixelImage` (para la
- * lógica pura del slicer). Paso 2 «Cortar» (modo Auto): detecta las cajas por
- * transparencia con sliders de ajuste fino, preview en vivo y recorte de los
- * frames a <canvas> → dataURL (en memoria, nunca toca la hoja). El modo
- * Manual del Paso 2 y el animador (Paso 3) llegan en sub-pasos siguientes.
+ * lógica pura del slicer). Paso 2 «Cortar» con dos modos:
+ *  - Auto: detecta las cajas por transparencia con sliders de ajuste fino.
+ *  - Manual: grilla cols×rows con spacing y trailing empty.
+ * Ambos con preview en vivo y recorte de los frames a <canvas> → dataURL (en
+ * memoria, nunca toca la hoja). El animador (Paso 3) llega en la Fase B.
  *
  * Toda la lógica de negocio está en spriteTool/*.ts (pura, testeada); esta
  * clase solo monta DOM/canvas.
@@ -15,9 +16,12 @@ import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
 import { assetIdFromFileName, cropRegion, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
+import { gridRects, cellSize } from './gridSlice';
 import type { PixelImage, Rect } from './types';
 
 const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Sprites'] as const;
+
+type CutMode = 'auto' | 'manual';
 
 interface CutFrame {
   key: string;
@@ -34,7 +38,8 @@ export class SpriteToolUI {
   assetId: string = '';
   private fileName: string = '';
 
-  // Estado del Paso 2 (Cortar / Auto).
+  // Estado del Paso 2 (Cortar).
+  private cutMode: CutMode = 'auto';
   private cutRects: Rect[] = [];
   private cutFrames: CutFrame[] = [];
 
@@ -42,18 +47,30 @@ export class SpriteToolUI {
   private assetNameInput: HTMLInputElement;
   private continueBtn: HTMLButtonElement;
 
-  // Paso 2 (Auto)
+  // Paso 2 (Cortar Auto / Manual)
   private step1: HTMLDivElement;
   private step2: HTMLDivElement;
   private cutCanvas: HTMLCanvasElement;
   private cutStatus: HTMLDivElement;
-  private minPixelsInput: HTMLInputElement;
-  private gapInput: HTMLInputElement;
-  private trimInput: HTMLInputElement;
   private cutBtn: HTMLButtonElement;
   private framesGrid: HTMLDivElement;
   private nextBtn: HTMLButtonElement;
   private preview: HTMLImageElement | null = null;
+  private cutModeLabel: HTMLSpanElement;
+  private modeSegments: HTMLButtonElement[] = [];
+
+  // Controles de Auto
+  private minPixelsInput: HTMLInputElement;
+  private gapInput: HTMLInputElement;
+  private trimInput: HTMLInputElement;
+  // Controles de Manual
+  private colsInput: HTMLInputElement;
+  private rowsInput: HTMLInputElement;
+  private spacingInput: HTMLInputElement;
+  private trailingInput: HTMLInputElement;
+  private cellInfo: HTMLDivElement;
+  private controlsAuto: HTMLDivElement;
+  private controlsManual: HTMLDivElement;
 
   private stepEls: HTMLButtonElement[] = [];
 
@@ -174,21 +191,33 @@ export class SpriteToolUI {
 
     this.step1.append(dropzone, nameRow, this.preview, meta);
 
-    // ── Paso 2: Cortar (modo Auto) ────────────────────────────────
+    // ── Paso 2: Cortar ───────────────────────────────────────────
     this.step2 = document.createElement('div');
     this.step2.className = 'sprite-tool__step';
     this.step2.hidden = true;
 
+    // Cabecera: selector de modo Auto | Manual.
     const cutHeader = document.createElement('div');
     cutHeader.className = 'sprite-tool__cut-header';
-    const modeLabel = document.createElement('span');
-    modeLabel.className = 'sprite-tool__mode';
-    modeLabel.textContent = 'Modo: Auto — detección por transparencia';
-    cutHeader.appendChild(modeLabel);
+    this.cutModeLabel = document.createElement('span');
+    this.cutModeLabel.className = 'sprite-tool__mode';
+    const segments = document.createElement('div');
+    segments.className = 'sprite-tool__segments';
+    const autoBtn = document.createElement('button');
+    autoBtn.className = 'sprite-tool__segment active';
+    autoBtn.textContent = 'Auto';
+    const manualBtn = document.createElement('button');
+    manualBtn.className = 'sprite-tool__segment';
+    manualBtn.textContent = 'Manual';
+    autoBtn.addEventListener('click', () => this.setCutMode('auto'));
+    manualBtn.addEventListener('click', () => this.setCutMode('manual'));
+    this.modeSegments = [autoBtn, manualBtn];
+    segments.append(autoBtn, manualBtn);
+    cutHeader.append(this.cutModeLabel, segments);
 
-    // Controles de detección (valores por defecto de detectSprites, editables).
-    const controls = document.createElement('div');
-    controls.className = 'sprite-tool__controls';
+    // Controles del modo Auto (detección por transparencia).
+    this.controlsAuto = document.createElement('div');
+    this.controlsAuto.className = 'sprite-tool__controls';
 
     const minPx = this.numberField('Píxeles mínimos', 4, 1, 100);
     this.minPixelsInput = minPx.input;
@@ -202,11 +231,41 @@ export class SpriteToolUI {
     trimText.textContent = 'Trim (peligro: desalinea frames)';
     trimText.title = 'Recorta a los píxeles opacos. Rompe el registro entre frames (wobble): solo útil para hojas sin padding uniforme.';
     trimLabel.append(this.trimInput, trimText);
-    controls.append(minPx.el, gap.el, trimLabel);
+    this.controlsAuto.append(minPx.el, gap.el, trimLabel);
+
+    // Controles del modo Manual (grilla cols×rows).
+    this.controlsManual = document.createElement('div');
+    this.controlsManual.className = 'sprite-tool__controls';
+    this.controlsManual.hidden = true;
+
+    const cols = this.numberField('Columnas', 1, 1, 128);
+    this.colsInput = cols.input;
+    const rows = this.numberField('Filas', 1, 1, 128);
+    this.rowsInput = rows.input;
+    const spacing = this.numberField('Spacing (px)', 0, 0, 16);
+    this.spacingInput = spacing.input;
+    const trailingLabel = document.createElement('label');
+    trailingLabel.className = 'sprite-tool__checkbox';
+    this.trailingInput = document.createElement('input');
+    this.trailingInput.type = 'checkbox';
+    const trailingText = document.createElement('span');
+    trailingText.textContent = 'Descartar celdas vacías al final';
+    trailingLabel.append(this.trailingInput, trailingText);
+    this.cellInfo = document.createElement('div');
+    this.cellInfo.className = 'sprite-tool__cellinfo';
+    this.cellInfo.textContent = 'Celda: —';
+    this.controlsManual.append(cols.el, rows.el, spacing.el, trailingLabel, this.cellInfo);
 
     for (const input of [this.minPixelsInput, this.gapInput]) {
       input.addEventListener('input', () => this.redetect());
     }
+    for (const input of [this.colsInput, this.rowsInput, this.spacingInput]) {
+      input.addEventListener('input', () => {
+        this.updateCellInfo();
+        this.redetect();
+      });
+    }
+    this.trailingInput.addEventListener('change', () => this.redetect());
 
     this.cutStatus = document.createElement('div');
     this.cutStatus.className = 'sprite-tool__cut-status';
@@ -226,7 +285,7 @@ export class SpriteToolUI {
     this.framesGrid = document.createElement('div');
     this.framesGrid.className = 'sprite-tool__frames';
 
-    this.step2.append(cutHeader, controls, this.cutStatus, canvasWrap, this.cutBtn, this.framesGrid);
+    this.step2.append(cutHeader, this.controlsAuto, this.controlsManual, this.cutStatus, canvasWrap, this.cutBtn, this.framesGrid);
 
     body.append(this.step1, this.step2);
     modal.appendChild(body);
@@ -356,19 +415,61 @@ export class SpriteToolUI {
   private goToCut(): void {
     if (!this.sheet || this.assetId === '') return;
     this.setStep(1);
+    // Auto-calcula una grilla sugerida si no había nada.
+    if (this.colsInput.value === '1' && this.rowsInput.value === '1' && this.sheet) {
+      this.colsInput.value = String(Math.max(1, Math.floor(this.sheet.width / 64)));
+      this.rowsInput.value = String(Math.max(1, Math.floor(this.sheet.height / 64)));
+    }
+    this.updateCellInfo();
     this.redetect();
   }
 
-  /** Re-detecta las cajas con los sliders actuales y redibuja. */
+  /** Alterna entre modo Auto y Manual. */
+  private setCutMode(mode: CutMode): void {
+    if (mode === this.cutMode) return;
+    this.cutMode = mode;
+    this.modeSegments[0]!.classList.toggle('active', mode === 'auto');
+    this.modeSegments[1]!.classList.toggle('active', mode === 'manual');
+    this.controlsAuto.hidden = mode !== 'auto';
+    this.controlsManual.hidden = mode !== 'manual';
+    this.cutModeLabel.textContent = mode === 'auto'
+      ? 'Modo: Auto — detección por transparencia'
+      : 'Modo: Manual — grilla columnas × filas';
+    this.redetect();
+  }
+
+  /** Actualiza el texto derivado de tamaño de celda (informativo). */
+  private updateCellInfo(): void {
+    if (!this.sheet) return;
+    const cols = parseInt(this.colsInput.value, 10) || 1;
+    const rows = parseInt(this.rowsInput.value, 10) || 1;
+    const s = cellSize(this.sheet.width, this.sheet.height, cols, rows);
+    this.cellInfo.textContent = s.cellW > 0 && s.cellH > 0
+      ? `Celda: ${s.cellW}×${s.cellH} px`
+      : 'Celda: inválida (cols/rows muy altos)';
+  }
+
+  /** Re-detecta las cajas con los valores actuales del modo activo y redibuja. */
   private redetect(): void {
     if (!this.sheet) return;
-    const minPixels = parseInt(this.minPixelsInput.value, 10) || 0;
-    const gapTolerance = parseInt(this.gapInput.value, 10) || 0;
-    this.cutRects = detectSprites(this.sheet, { minPixels, gapTolerance });
+    let rects: Rect[] = [];
+    if (this.cutMode === 'auto') {
+      const minPixels = parseInt(this.minPixelsInput.value, 10) || 0;
+      const gapTolerance = parseInt(this.gapInput.value, 10) || 0;
+      rects = detectSprites(this.sheet, { minPixels, gapTolerance });
+    } else {
+      const cols = parseInt(this.colsInput.value, 10) || 0;
+      const rows = parseInt(this.rowsInput.value, 10) || 0;
+      const spacing = parseInt(this.spacingInput.value, 10) || 0;
+      rects = gridRects(this.sheet, cols, rows, { spacing, trailingEmpty: this.trailingInput.checked });
+    }
+    this.cutRects = rects;
     this.drawCuts();
-    const n = this.cutRects.length;
+    const n = rects.length;
     if (n === 0) {
-      this.cutStatus.textContent = 'No se detectaron sprites: la hoja no tiene transparencia o es un tileset. Usa el modo Manual.';
+      this.cutStatus.textContent = this.cutMode === 'auto'
+        ? 'No se detectaron sprites: la hoja no tiene transparencia o es un tileset. Usa el modo Manual.'
+        : 'Grilla vacía o inválida: ajusta columnas/filas o el tamaño de la hoja.';
       this.cutStatus.classList.add('sprite-tool__cut-status--warn');
     } else {
       this.cutStatus.textContent = `${n} sprites detectados`;

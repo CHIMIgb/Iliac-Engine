@@ -743,6 +743,46 @@ html, body, #app {
   color: var(--accent-primary);
 }
 
+/* Selector Auto | Manual (segmentos) */
+.sprite-tool__segments {
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.sprite-tool__segment {
+  padding: var(--space-1) var(--space-3);
+  border: none;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sprite-tool__segment + .sprite-tool__segment {
+  border-left: 1px solid var(--border-default);
+}
+
+.sprite-tool__segment:hover {
+  background: var(--bg-hover);
+}
+
+.sprite-tool__segment.active {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.sprite-tool__cellinfo {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  align-self: center;
+  padding-bottom: var(--space-1);
+}
+
 .sprite-tool__controls {
   display: flex;
   flex-wrap: wrap;
