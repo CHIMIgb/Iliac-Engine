@@ -1040,12 +1040,12 @@ export class SpriteToolUI {
     this.addFrameMenu.hidden = false;
   }
 
-  /** Añade al final de la anim activa el frame elegido y cierra el menú (7d). */
+  /** Añade al final de la anim activa el frame elegido; el menú se mantiene
+   *  abierto para seguir colocando frames (solicitud del usuario). */
   private addFrameFromActive(i: number): void {
     const spec = this.animSpecs[this.activeAnim];
     if (!spec || spec.frameIndices.includes(i)) return;
     spec.frameIndices.push(i);
-    this.addFrameMenuOpen = false;
     this.renderStep3();
   }
 
