@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { assetIdFromFileName, cropRegion, frameOrder, isEmptyRegion, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, cropRegion, frameOrder, isEmptyRegion, mirrorPixelImage, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -87,5 +87,32 @@ describe('cropRegion', () => {
   it('con trim y región vacía devuelve null', () => {
     const img = makeImg(8, 8);
     expect(cropRegion(img, { x: 0, y: 0, w: 4, h: 4 }, { trim: true })).toBeNull();
+  });
+});
+
+describe('mirrorPixelImage (7f)', () => {
+  it('voltea horizontalmente los píxeles (2×1: [R,G] → [G,R])', () => {
+    const img = { width: 2, height: 1, data: new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255]) };
+    const out = mirrorPixelImage(img);
+    expect(out.width).toBe(2);
+    expect(out.height).toBe(1);
+    expect([...out.data]).toEqual([0, 255, 0, 255, 255, 0, 0, 255]);
+  });
+
+  it('preserva alpha y no muta la original', () => {
+    const img = {
+      width: 3,
+      height: 1,
+      data: new Uint8ClampedArray([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]),
+    };
+    const out = mirrorPixelImage(img);
+    expect([...out.data]).toEqual([90, 100, 110, 120, 50, 60, 70, 80, 10, 20, 30, 40]);
+    expect([...img.data]).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]);
+  });
+
+  it('imagen 1×1 queda igual', () => {
+    const img = { width: 1, height: 1, data: new Uint8ClampedArray([7, 8, 9, 255]) };
+    const out = mirrorPixelImage(img);
+    expect([...out.data]).toEqual([7, 8, 9, 255]);
   });
 });

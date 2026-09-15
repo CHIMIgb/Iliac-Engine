@@ -107,6 +107,26 @@ export function trimRect(img: PixelImage, rect: Rect, alphaThreshold = 8): Rect 
 }
 
 /**
+ * Voltea horizontalmente una imagen (espejo), 7f. Puro (sin canvas): invierte
+ * el orden de columnas RGBA y devuelve una copia nueva sin tocar la original.
+ */
+export function mirrorPixelImage(img: PixelImage): PixelImage {
+  const out = new Uint8ClampedArray(img.width * img.height * 4);
+  for (let y = 0; y < img.height; y++) {
+    const row = y * img.width;
+    for (let x = 0; x < img.width; x++) {
+      const src = (row + x) * 4;
+      const dst = (row + (img.width - 1 - x)) * 4;
+      out[dst] = img.data[src]!;
+      out[dst + 1] = img.data[src + 1]!;
+      out[dst + 2] = img.data[src + 2]!;
+      out[dst + 3] = img.data[src + 3]!;
+    }
+  }
+  return { width: img.width, height: img.height, data: out };
+}
+
+/**
  * Ordena los rects en filas: agrupa por centro Y (con tolerancia = mitad de la
  * altura media, para hojas con pequeñas inclinaciones) y dentro de cada fila
  * ordena por X. Cada rect devuelto es el mismo objeto (no se copia).

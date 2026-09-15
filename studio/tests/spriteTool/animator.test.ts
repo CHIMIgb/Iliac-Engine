@@ -13,6 +13,8 @@ import {
   reorderFrames,
   removeFrameIndices,
   availableFrames,
+  mirrorAnimName,
+  buildMirroredAnim,
   buildSpriteAnims,
   DEFAULT_FPS,
 } from '../../src/spriteTool/animator';
@@ -160,5 +162,79 @@ describe('buildSpriteAnims (validado contra validateProject del motor)', () => {
     // duplicado garantiza el contrato; un frame inexistente SÍ daría error.
     expect(out.errors).toEqual([]);
     expect(out.spriteAnims['idle']!.frames).toEqual([textureKeyFor('guard', 0), textureKeyFor('guard', 0)]);
+  });
+
+  it('con frameKeys usa las keys dadas (7f: mix hoja + espejadas) y valida', () => {
+    // 3 keys: dos de hoja y una espejada (como produce buildMirroredAnim).
+    const keys = ['guard_f0', 'guard_f2_mirror', 'guard_f3_mirror'];
+    const anims = [
+      { name: 'idle', frameIndices: [0, 0], fps: 6, loop: true },
+      { name: 'walk_mirror', frameIndices: [1, 2], fps: 8, loop: true },
+    ];
+    const out = buildSpriteAnims('guard', 3, anims, keys);
+    expect(out.errors).toEqual([]);
+    expect(out.textures['guard_f2_mirror']).toBe('/assets/sprites/guard_f2_mirror.png');
+    expect(out.spriteAnims['walk_mirror']!.frames).toEqual(['guard_f2_mirror', 'guard_f3_mirror']);
+  });
+
+  it('con frameKeys reporta error si una key no existe', () => {
+    const keys = ['guard_f0', 'guard_f1'];
+    const anims = [{ name: 'idle', frameIndices: [0, 2], fps: 6, loop: true }];
+    const out = buildSpriteAnims('guard', 2, anims, keys);
+    expect(out.errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('espejo (7f)', () => {
+  const px = (w: number, h: number, color: number) => {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      data[i * 4] = color;
+      data[i * 4 + 1] = color;
+      data[i * 4 + 2] = color;
+      data[i * 4 + 3] = 255;
+    }
+    return { width: w, height: h, data };
+  };
+
+  it('mirrorAnimName: sufijo _mirror', () => {
+    expect(mirrorAnimName('walk')).toBe('walk_mirror');
+    expect(mirrorAnimName('attack')).toBe('attack_mirror');
+  });
+
+  it('buildMirroredAnim voltea cada frame, deduplica keys y respeta la estructura', () => {
+    const source = [
+      { key: 'guard_f0', pixel: px(2, 1, 10) },
+      { key: 'guard_f0', pixel: px(2, 1, 10) }, // duplicado: plantilla tipo attack
+      { key: 'guard_f1', pixel: px(2, 1, 20) },
+    ];
+    const { frames, spec } = buildMirroredAnim('attack', source, 12, false);
+    expect(frames.map((f) => f.key)).toEqual(['guard_f0_mirror', 'guard_f1_mirror']);
+    expect(spec).toEqual({
+      name: 'attack_mirror',
+      frameIndices: [0, 0, 1], // misma estructura (duplicados incluidos)
+      fps: 12,
+      loop: false,
+    });
+  });
+
+  it('la anim espejada completa es válida para validateProject (7f)', () => {
+    const source = [
+      { key: 'guard_f0', pixel: px(2, 1, 10) },
+      { key: 'guard_f1', pixel: px(2, 1, 20) },
+      { key: 'guard_f2', pixel: px(2, 1, 30) },
+      { key: 'guard_f3', pixel: px(2, 1, 40) },
+    ];
+    const originals = source.map((f) => f.key);
+    const mirrored = buildMirroredAnim('walk', source, 8, true);
+    const keys = [...originals, ...mirrored.frames.map((f) => f.key)];
+    const anims = [
+      { name: 'walk', frameIndices: [0, 1, 2, 3], fps: 8, loop: true },
+      { name: 'walk_mirror', frameIndices: mirrored.spec.frameIndices.map((k) => 4 + k), fps: 8, loop: true },
+    ];
+    expect(mirrored.spec.name).toBe('walk_mirror');
+    const out = buildSpriteAnims('guard', keys.length, anims, keys);
+    expect(out.errors).toEqual([]);
+    expect(out.textures['guard_f0_mirror']).toBe('/assets/sprites/guard_f0_mirror.png');
   });
 });

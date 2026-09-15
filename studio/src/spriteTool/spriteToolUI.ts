@@ -17,7 +17,7 @@ import { showToast } from '../ui/Toast';
 import { assetIdFromFileName, cropRegion, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
-import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, clampFps, MIN_FPS, MAX_FPS } from './animator';
+import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { PixelImage, Rect } from './types';
 
@@ -30,6 +30,8 @@ interface CutFrame {
   dataUrl: string;
   w: number;
   h: number;
+  /** Bytes RGBA del frame (necesario para espejarlo en 7f; siempre presente). */
+  pixel?: PixelImage;
 }
 
 export class SpriteToolUI {
@@ -96,6 +98,7 @@ export class SpriteToolUI {
   private step3FpsInput: HTMLInputElement;
   private step3LoopInput: HTMLInputElement;
   private step3PlayBtn: HTMLButtonElement;
+  private step3MirrorBtn: HTMLButtonElement;
   private saveBtn: HTMLButtonElement;
   /** Conectado en 7c: guarda texturas + anims en el proyecto real (async OK). */
   onSaveRequested:
@@ -369,6 +372,13 @@ export class SpriteToolUI {
     stepBtn.title = 'Avanza un frame';
     stepBtn.appendChild(Icon('skip-forward', 14));
     stepBtn.addEventListener('click', () => this.stepFrame());
+    // Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
+    // para animar hacia la izquierda sin tocar el motor.
+    this.step3MirrorBtn = document.createElement('button');
+    this.step3MirrorBtn.className = 'btn btn--secondary btn--sm';
+    this.step3MirrorBtn.title = 'Crea la copia espejada de esta animación (p. ej. atacar a la izquierda)';
+    this.step3MirrorBtn.appendChild(Icon('flip-horizontal-2', 14));
+    this.step3MirrorBtn.addEventListener('click', () => this.mirrorActiveAnim());
 
     const nameLbl = this.labeled('Nombre');
     this.step3NameInput = this.textInput('idle', 'nombre de la animación');
@@ -398,7 +408,7 @@ export class SpriteToolUI {
     nameField.className = 'sprite-tool__number sprite-tool__field-name';
     nameField.append(nameLbl, this.step3NameInput);
 
-    previewCtl.append(this.step3PlayBtn, stepBtn, nameField, fpsField, loopLbl);
+    previewCtl.append(this.step3PlayBtn, stepBtn, this.step3MirrorBtn, nameField, fpsField, loopLbl);
     previewRow.append(this.step3PreviewImg, previewCtl);
 
     const framesTitle = document.createElement('div');
@@ -715,7 +725,7 @@ export class SpriteToolUI {
       const cropped = cropRegion(sheet, this.cutRects[i]!, { trim });
       if (!cropped) continue;
       const dataUrl = this.pixelImageToDataUrl(cropped);
-      frames.push({ key: textureKeyFor(this.assetId, i), dataUrl, w: cropped.width, h: cropped.height });
+      frames.push({ key: textureKeyFor(this.assetId, i), dataUrl, w: cropped.width, h: cropped.height, pixel: cropped });
     }
     this.cutFrames = frames;
     this.renderFrames();
@@ -1049,6 +1059,45 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
+  /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
+   *  con los mismos fps/loop; selecciona la anim espejada al crearla. */
+  private mirrorActiveAnim(): void {
+    const spec = this.animSpecs[this.activeAnim];
+    if (!spec) return;
+    const mirroredName = mirrorAnimName(spec.name);
+    if (this.animSpecs.some((s) => s.name === mirroredName)) {
+      showToast(`La animación «${mirroredName}» ya existe`, 'warning');
+      return;
+    }
+    const source: { key: string; pixel: PixelImage }[] = [];
+    const seen = new Set<string>();
+    for (const i of spec.frameIndices) {
+      const f = this.cutFrames[i];
+      if (!f?.pixel || seen.has(f.key)) continue;
+      seen.add(f.key);
+      source.push({ key: f.key, pixel: f.pixel });
+    }
+    if (source.length === 0) {
+      showToast('No hay frames con píxeles para espejar', 'warning');
+      return;
+    }
+    const { frames, spec: mirrored } = buildMirroredAnim(spec.name, source, spec.fps, spec.loop);
+    const offset = this.cutFrames.length;
+    const newFrames: CutFrame[] = frames.map((f) => ({
+      key: f.key,
+      dataUrl: this.pixelImageToDataUrl(f.pixel),
+      w: f.pixel.width,
+      h: f.pixel.height,
+      pixel: f.pixel,
+    }));
+    this.cutFrames.push(...newFrames);
+    mirrored.frameIndices = mirrored.frameIndices.map((k) => offset + k);
+    this.animSpecs.push(mirrored);
+    this.activeAnim = this.animSpecs.length - 1;
+    this.renderStep3();
+    showToast(`Animación espejada «${mirroredName}» creada`, 'success');
+  }
+
   /** Actualiza el <img> del preview con el frame activo. */
   private updatePreviewImage(): void {
     const url = this.currentPreviewDataUrl();
@@ -1106,7 +1155,10 @@ export class SpriteToolUI {
 
   /** Construye la salida y la envía (7b: valida; 7c: conecta el guardado). */
   private handleSave(): void {
-    const out = buildSpriteAnims(this.assetId, this.cutFrames.length, this.animSpecs);
+    // 7f: las keys reales de cada frame (hoja `_f{index}` + espejadas `_mirror`)
+    // permiten a buildSpriteAnims generar texturas para TODAS las animaciones.
+    const frameKeys = this.cutFrames.map((f) => f.key);
+    const out = buildSpriteAnims(this.assetId, this.cutFrames.length, this.animSpecs, frameKeys);
     if (out.errors.length > 0) {
       showToast(`Animación inválida: ${out.errors[0]}`, 'error');
       return;
@@ -1116,7 +1168,7 @@ export class SpriteToolUI {
       // Mapa key → dataURL para que main.ts suba cada frame al middleware.
       const frameDataUrls: Record<string, string> = {};
       for (let i = 0; i < this.cutFrames.length; i++) {
-        frameDataUrls[textureKeyFor(this.assetId, i)] = this.cutFrames[i]!.dataUrl;
+        frameDataUrls[this.cutFrames[i]!.key] = this.cutFrames[i]!.dataUrl;
       }
       void this.onSaveRequested(out, frameDataUrls);
     } else {

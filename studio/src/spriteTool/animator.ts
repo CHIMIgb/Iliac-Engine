@@ -11,7 +11,8 @@
  */
 
 import { validateProject } from '@engine/core/validate.js';
-import { textureKeyFor, urlFor } from './frames';
+import { textureKeyFor, mirrorPixelImage } from './frames';
+import type { PixelImage } from './types';
 
 /** FPS por defecto y rango clamps para las animaciones. */
 export const DEFAULT_FPS = 8;
@@ -138,13 +139,61 @@ export function availableFrames(frameIndices: number[], total: number): number[]
   return out;
 }
 
+/** Nombre de la animación espejada (7f): `walk` → `walk_mirror`. */
+export function mirrorAnimName(name: string): string {
+  return `${name}_mirror`;
+}
+
+/** Resultado de `buildMirroredAnim`: frames espejados + anim nueva. */
+export interface MirroredOutput {
+  /** Frames espejados nuevos (PixelImage, sin dataURL — el canvas es de la UI). */
+  frames: { key: string; pixel: PixelImage }[];
+  /** AnimSpec nueva (`name_mirror`) con frameIndices relativos a `frames`. */
+  spec: AnimSpec;
+}
+
+/**
+ * Genera la animación espejada de una existente (7f): voltea horizontalmente
+ * cada frame (`{key}_mirror`) y crea el `AnimSpec` `{name}_mirror` con los
+ * mismos fps/loop. Deduplica por key (la plantilla repite frames, p.ej.
+ * attack) y mantiene la MISMA estructura de frameIndices (duplicados incluidos)
+ * apuntando a la lista de frames espejados devuelta. Puro: la UI añade luego
+ * los frames a su lista y desplaza los índices.
+ */
+export function buildMirroredAnim(
+  name: string,
+  sourceFrames: { key: string; pixel: PixelImage }[],
+  fps: number,
+  loop: boolean,
+): MirroredOutput {
+  const unique = new Map<string, { key: string; pixel: PixelImage }>();
+  for (const f of sourceFrames) {
+    const key = `${f.key}_mirror`;
+    if (!unique.has(key)) unique.set(key, { key, pixel: mirrorPixelImage(f.pixel) });
+  }
+  const frames = [...unique.values()];
+  const indexByKey = new Map(frames.map((f, i) => [f.key, i] as const));
+  const frameIndices = sourceFrames.map((f) => indexByKey.get(`${f.key}_mirror`) ?? 0);
+  return {
+    frames,
+    spec: {
+      name: mirrorAnimName(name),
+      frameIndices,
+      fps: clampFps(fps),
+      loop: !!loop,
+    },
+  };
+}
+
 /**
  * Arma el par `{ textures, spriteAnims }` listo para guardar en el proyecto.
  *
  * - `assetId` es el nombre del asset del Paso 1 (`guard` → `guard_f0`…).
- * - `frameCount` son los frames recortados disponibles (para crear las
- *   texturas con `urlFor`, el contrato del middleware).
+ * - `frameCount` son los frames recortados disponibles.
  * - `anims` son las animaciones (especificaciones con índices).
+ * - `frameKeys` (7f) son las keys concretas de cada frame; si se pasan, los
+ *   índices de `anims` apuntan a esta lista (permite keys arbitrarias como las
+ *   espejadas `_mirror`). Sin `frameKeys` se usa la convención `_f{index}`.
  *
  * ANTES de devolver, valida con `validateProject` REAL del motor: si las
  * texturas o las animaciones no cumplen el contrato (p.ej. un frame que no
@@ -154,16 +203,19 @@ export function buildSpriteAnims(
   assetId: string,
   frameCount: number,
   anims: AnimSpec[],
+  frameKeys?: string[],
 ): SpriteAnimsOutput {
+  const keys =
+    frameKeys && frameKeys.length > 0
+      ? frameKeys
+      : Array.from({ length: Math.max(0, frameCount) }, (_, i) => textureKeyFor(assetId, i));
   const textures: Record<string, string> = {};
-  for (let i = 0; i < Math.max(0, frameCount); i++) {
-    textures[textureKeyFor(assetId, i)] = urlFor(assetId, i);
-  }
+  for (const key of keys) textures[key] = `/assets/sprites/${key}.png`;
 
   const spriteAnims: Record<string, AnimDef> = {};
   const errors: string[] = [];
   for (const spec of anims) {
-    const frames = spec.frameIndices.map((i) => textureKeyFor(assetId, i));
+    const frames = spec.frameIndices.map((i) => keys[i] ?? '');
     spriteAnims[spec.name] = buildAnimDef(frames, spec.fps, spec.loop);
   }
 

@@ -413,7 +413,10 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 - **Verificación 7d:** typecheck + Studio (195) + motor (187) verdes; manual: quitar
   frames hasta el mínimo 2 y comprobar el aviso, añadir desde la hoja.
 
-#### 7e — PNGs sueltos desde archivos (adelanta la Fase C)
+#### 7e — PNGs sueltos desde archivos — ▶ **POSPUESTO a la Fase C** (decisión del usuario)
+> Este sub-paso **no se ejecuta ahora**: el usuario decidió dejar los PNGs sueltos para
+> su respectiva Fase C (biblioteca de sprites). Cuando llegue la Fase C se ejecutará tal
+> cual está descrito aquí.
 - [MODIFICAR] `studio/src/spriteTool/frames.ts`:
   - NUEVO `frameKeyFromFile(assetId, fileName)` → `{assetId}_{nombre_sanitizado_sin_ext}`
     (reutiliza la sanitización existente: minúsculas + `[A-Za-z0-9._-]`).
@@ -454,10 +457,15 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
     (invirtiendo el orden de columnas RGBA); puro, testeable en Node.
 - [MODIFICAR] `studio/src/spriteTool/animator.ts`:
   - NUEVO `mirrorAnimName(name)` → `${name}_mirror` (convención de sufijo).
-  - NUEVO `buildMirroredAnim(assetId, name, frameIndices, frames)` → dado un espec de una
-    anim (nombre, índices, fps, loop) y los `CutFrame` con su `PixelImage`, genera:
-    los N frames espejados (key `${frameKey}_mirror`, dataURL volteada) y un `AnimSpec`
-    nuevo (`name_mirror`, mismos índices a los frames espejados, mismos fps/loop).
+  - NUEVO `buildMirroredAnim(name, sourceFrames: { key, pixel }[], fps, loop)` → dado
+    un espec de una anim (nombre, fps, loop) y los `CutFrame` con su `PixelImage`, genera:
+    los frames espejados deduplicados por key (`${frameKey}_mirror`, PixelImage volteado)
+    y un `AnimSpec` nuevo (`name_mirror`, misma estructura de índices con duplicados,
+    mismos fps/loop). Sin canvas: la UI convierte los pixels a dataURL.
+  - `buildSpriteAnims(assetId, frameCount, anims, frameKeys?)` — parámetro NUEVO
+    opcional `frameKeys: string[]` (mínimo técnico de 7e necesario para el espejo): si se
+    pasa, los índices de las anims apuntan a esa lista y las texturas se generan para
+    CADA key (`/assets/sprites/{key}.png`). Sin él, comportamiento anterior `_f{index}`.
 - [MODIFICAR] `studio/src/spriteTool/spriteToolUI.ts`:
   - Botón "Espejar anim <activ>" junto a la anim activa (lucide `flip-horizontal-2`).
   - Al pulsar: genera frames espejados + anim `_mirror` vía `buildMirroredAnim`, los añade
@@ -470,15 +478,15 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 - [MODIFICAR] `studio/tests/spriteTool/animator.test.ts` — `mirrorAnimName` y
   `buildMirroredAnim`: keys con sufijo `_mirror`, anim nueva con mismos fps/loop,
   y `buildSpriteAnims` con keys espejadas → `validateProject` `valid:true`.
-- [MODIFICAR] ROADMAP.md §12 → F5 marca **Fase C realizada** (nota: la pestaña "Sprites"
-  /biblioteca dedicada queda opcional; el flujo de PNGs sueltos + espejo queda cubierto
-  dentro del Paso 3).
-- **Verificación 7f:** typecheck + Studio (195 + nuevos) + motor (187) verdes. Manual:
+- [MODIFICAR] ROADMAP.md §12 → F5: **espejo queda cubierto dentro del Paso 3**; la Fase C
+  (PNGs sueltos 7e + pestaña "Sprites"/biblioteca) **queda pendiente** para su momento.
+- **Verificación 7f:** typecheck + Studio (200 + nuevos) + motor (187) verdes. Manual:
   hoja → cortar → "Espejar anim walk" → la anim `walk_mirror` aparece y reproduce → guardar
   → asignar a un sprite del mundo → playtest F5 → el sprite camina hacia la izquierda.
 
 ### Orden de ejecución acordado
-`6a → (valida) → 6b → (valida) → 7a → (valida) → 7b → (valida) → 7c → (valida) → 7d → (valida) → 7e → (valida) → 7f → (valida y marca ROADMAP)`
+`6a → (valida) → 6b → (valida) → 7a → (valida) → 7b → (valida) → 7c → (valida) → 7d → (validado) → 7f → (valida)`
+*(7e queda pospuesto y se ejecutará dentro de la Fase C.)*
 
 - Cada paso cerrado con su suite verde (`test:engine` en 6a/6b; `studio:typecheck` +
   `studio:test` en 7a/7b/7c) y commit propio sin `push` (convención del usuario).
