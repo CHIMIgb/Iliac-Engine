@@ -93,6 +93,10 @@ export class SpriteToolUI {
   private step3PreviewImg: HTMLImageElement;
   private step3FramesGrid: HTMLDivElement;
   private step3Status: HTMLDivElement;
+  // Paso 4 (Sprites): biblioteca visual de frames sueltos (C3).
+  private step4: HTMLDivElement;
+  private spritesGrid: HTMLDivElement;
+  private spritesFileInput: HTMLInputElement;
   private addFrameBtn: HTMLButtonElement;
   private addFrameMenu: HTMLDivElement;
   private addFrameMenuOpen = false;
@@ -475,7 +479,34 @@ export class SpriteToolUI {
     animLayout.append(animSide, animMain);
     this.step3.append(animLayout, this.assignRow);
 
-    body.append(this.step1, this.step2, this.step3);
+    // ── Paso 4: Sprites (C3) ── Biblioteca visual de frames sueltos.
+    this.step4 = document.createElement('div');
+    this.step4.className = 'sprite-tool__step';
+    this.step4.hidden = true;
+
+    const spritesHeader = document.createElement('div');
+    spritesHeader.className = 'sprite-tool__label';
+    spritesHeader.textContent = 'Frames sueltos — haz clic en uno para añadirlo a la anim activa';
+    const spritesAddBtn = document.createElement('button');
+    spritesAddBtn.className = 'btn btn--secondary btn--sm';
+    spritesAddBtn.title = 'Añade PNG/WebP individuales a la biblioteca';
+    spritesAddBtn.appendChild(Icon('image-plus', 14));
+    spritesAddBtn.appendChild(document.createTextNode(' Añadir frames desde archivo…'));
+    this.spritesFileInput = document.createElement('input');
+    this.spritesFileInput.type = 'file';
+    this.spritesFileInput.accept = 'image/png, image/webp';
+    this.spritesFileInput.multiple = true;
+    this.spritesFileInput.hidden = true;
+    spritesAddBtn.addEventListener('click', () => this.spritesFileInput.click());
+    this.spritesFileInput.addEventListener('change', () => {
+      void this.addLooseFiles(this.spritesFileInput.files);
+      this.spritesFileInput.value = '';
+    });
+    this.spritesGrid = document.createElement('div');
+    this.spritesGrid.className = 'sprite-tool__frames';
+    this.step4.append(spritesHeader, spritesAddBtn, this.spritesFileInput, this.spritesGrid);
+
+    body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
 
     // Pie
@@ -567,24 +598,27 @@ export class SpriteToolUI {
   };
 
   private setStep(i: number): void {
-    // Paso 3 solo está disponible con frames (hoja cortada o sueltos).
+    // Paso 3 solo está disponible con frames (hoja cortada o sueltos);
+    // Paso 4 (Sprites) requiere frames sueltos.
     if (i === 2 && this.allFrames().length === 0) {
       this.nextBtn.disabled = true;
       return;
     }
-    if (i > 2) {
-      showToast('Ese paso llega en una fase posterior', 'info');
+    if (i === 3 && this.looseFrames.length === 0) {
+      showToast('No hay frames sueltos todavía', 'info');
       return;
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
     this.step1.hidden = i !== 0;
     this.step2.hidden = i !== 1;
     this.step3.hidden = i !== 2;
+    this.step4.hidden = i !== 3;
+    this.stopPreview();
     if (i === 2) {
       this.renderStep3();
       this.previewElapsed = 0;
-    } else {
-      this.stopPreview();
+    } else if (i === 3) {
+      this.renderSpritesStep();
     }
   }
 
@@ -611,6 +645,7 @@ export class SpriteToolUI {
       this.fileName = file.name;
       this.cutFrames = [];
       this.looseFrames = []; // hoja nueva → los sueltos se descartan (C2)
+      this.stepEls[3]!.disabled = true; // tab Sprites sin sueltos
       this.framesGrid.textContent = '';
 
       this.assetNameInput.disabled = false;
@@ -1083,6 +1118,45 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
+  /** Pinta la grilla del Paso 4 (Sprites): thumbs de los frames sueltos.
+   *  Click en un thumb → se añade a la anim activa como índice global. */
+  private renderSpritesStep(): void {
+    this.spritesGrid.textContent = '';
+    const loose = this.looseFrames;
+    const spec = this.animSpecs[this.activeAnim];
+    if (loose.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
+      empty.textContent = 'Aún no hay frames sueltos. Añádelos con el botón superior.';
+      this.spritesGrid.appendChild(empty);
+      return;
+    }
+    loose.forEach((f, pos) => {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'sprite-tool__thumb sprite-tool__thumb--pick';
+      cell.title = f.key;
+      const img = document.createElement('img');
+      img.src = f.dataUrl;
+      img.alt = f.key;
+      const label = document.createElement('span');
+      label.textContent = `${f.w}×${f.h}`;
+      cell.append(img, label);
+      cell.addEventListener('click', () => {
+        if (!spec) {
+          showToast('Crea primero una animación en el Paso 3', 'info');
+          return;
+        }
+        const idx = this.cutFrames.length + pos; // índice global en allFrames()
+        if (spec.frameIndices.includes(idx)) return;
+        spec.frameIndices.push(idx);
+        this.renderStep3();
+        showToast(`«${f.key}» añadido a «${spec.name}»`, 'success');
+      });
+      this.spritesGrid.appendChild(cell);
+    });
+  }
+
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
    *  con los mismos fps/loop; selecciona la anim espejada al crearla. */
   private mirrorActiveAnim(): void {
@@ -1170,7 +1244,9 @@ export class SpriteToolUI {
     this.initAnimsIfNeeded();
     this.nextBtn.disabled = false;
     this.stepEls[2]!.disabled = false;
+    this.stepEls[3]!.disabled = false; // tab Sprites disponible con sueltos
     this.renderStep3();
+    if (!this.step4.hidden) this.renderSpritesStep();
     const msgSkipped = skipped > 0 ? `, ${skipped} omitidos` : '';
     showToast(added === 1 ? `1 frame suelto añadido${msgSkipped}` : `${added} frames sueltos añadidos${msgSkipped}`, skipped > 0 ? 'warning' : 'success');
   }

@@ -239,7 +239,7 @@ Salida al proyecto (vía `EditorState`):
   - **Espejo de animaciones** — botón "Espejar anim" genera frames volteados
     (`{key}_mirror`) y la animación `{name}_mirror` (mismos fps/loop) para animar "hacia la
     izquierda" sin tocar el motor (7f).
-- Limpieza del código viejo del slicer (`AssetManager.ts` se reduce a biblioteca de assets: texturas/audio/sprites sueltos).
+- Limpieza del código viejo del slicer: **no aplica** — el Sprite Tool sustituyó desde el inicio la arquitectura planificada (`AssetManager.ts`/`spritePipeline.ts` nunca existieron).
 - **Aceptación:** subir 3 PNG sueltos → arrastrarlos al animador → crear anim y guardar; espejar una anim y verla en playtest girando/atacando a la izquierda; la demo usa un sprite suelto como `tex` de entidad; `npm run studio:test` y `npm run studio:typecheck` verdes; ROADMAP §12 marca F5/6.5 parcialmente `realizada` por fases.
 
 *Orden sugerido: A → (validación usuario) → B → (validación) → C → commit final.*
@@ -275,7 +275,7 @@ Salida al proyecto (vía `EditorState`):
 1. **Punto de entrada:** **botón propio en la toolbar** (patrón `toolbar.addAction` + Icon lucide). La Sprite Tool se abre como modal/page propia; no ocupa la tecla 0.
 2. **Asset id:** campo editable **"nombre del asset" en el Paso 1**, autocompletado con el nombre del archivo de la hoja (p.ej. `guard` → keys `guard_f0`…).
 3. **Animaciones:** sí — **plantilla idle/walk/attack/death + anims libres** (crear/renombrar/eliminar animaciones personalizadas).
-4. **AssetManager confirmado:** en Fase C se simplifica a biblioteca de assets (texturas/audio/sprites sueltos); el slicer/animator viejo se elimina.
+4. **AssetManager:** el Sprite Tool reemplazó desde el inicio a la biblioteca de assets planificada; `AssetManager.ts`/`spritePipeline.ts` jamás se crearon, así que no hay slicer viejo que limpiar en Fase C.
 5. **Frames sueltos:** en esta iteración quedan **solo para el animador** (consumidos dentro de la Sprite Tool); NO se toca `entityCatalog` ni el Entity Builder (6.4, aparte).
 
 ### Nota: convivencia 2D en mundo 3D
@@ -438,10 +438,14 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >   - `main.ts` NO cambia: el guardado ya sube cada key con su dataURL.
 >   - Manual: subir 3 PNG sueltos → crear anim nueva → añadirlos → guardar → asignar
 >     → playtest.
-> - **C3 — pestaña "Sprites" + limpieza (pendiente):**
+> - **C3 — pestaña "Sprites" + limpieza ✅ (Fase C cerrada, en curso de validación):**
 >   - Pestaña "Sprites" (4ª tab): biblioteca visual de los `looseFrames` (grilla de
->     thumbs + botón añadir archivos + click para añadir a la anim activa).
->   - Revisar/limpiar el slicer viejo en `AssetManager.ts` si queda código obsoleto.
+>     thumbs `w×h` + botón añadir archivos + click para añadir a la anim activa
+>     como índice global `cutFrames.length + pos`).
+>   - La tab se habilita al añadir sueltos y se deshabilita al cargar hoja nueva.
+>   - **Limpieza no aplica:** `AssetManager.ts`/`spritePipeline.ts` del plan jamás
+>     se crearon (git log vacío); el Sprite Tool nació con la arquitectura nueva
+>     `spriteTool/`. No hay slicer viejo que eliminar.
 >   - ROADMAP §12 → Fase C realizada.
 - [MODIFICAR] `studio/src/spriteTool/frames.ts`:
   - NUEVO `frameKeyFromFile(assetId, fileName)` → `{assetId}_{nombre_sanitizado_sin_ext}`
