@@ -4,16 +4,20 @@ import fs from 'node:fs';
 import {
   audioUploadToBuffer,
   isAudioName,
+  isSpriteName,
   resolveAssetPath,
+  spriteUploadToBuffer,
 } from './src/io/assetServer';
 
 /**
  * Middleware de assets del Studio (F4.6.a): el navegador no puede escribir en
- * disco; el dev server hace de puente entre la herramienta de Audio y la
- * carpeta `assets/audio/` del repositorio.
+ * disco; el dev server hace de puente entre las herramientas y la carpeta
+ * `assets/` del repositorio.
  *
  *   POST /assets/audio/upload   → { name, data(base64) } → escribe en assets/audio/
+ *   POST /assets/sprites/upload → { name, data(base64) } → escribe en assets/sprites/
  *   GET  /assets/audio/list     → { files: [...] } (solo extensiones de audio)
+ *   GET  /assets/sprites/list   → { files: [...] } (solo extensiones de sprite)
  *   GET  /assets/<subruta>      → sirve el archivo (playtest / preview)
  *
  * La logica de validacion vive en `src/io/assetServer.ts` (pura, testeada);
@@ -22,11 +26,50 @@ import {
 function assetsMiddleware() {
   const assetsDir = resolve(__dirname, '..', 'assets');
   const audioDir = resolve(assetsDir, 'audio');
+  const spritesDir = resolve(assetsDir, 'sprites');
   const json = (res: import('node:http').ServerResponse, code: number, body: unknown): void => {
     res.statusCode = code;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(body));
   };
+
+  /** Subida compartida: lee el body JSON, lo valida con `toBuffer` y lo escribe en `dir`. */
+  function handleUpload(
+    req: import('node:http').IncomingMessage,
+    res: import('node:http').ServerResponse,
+    dir: string,
+    route: string,
+    toBuffer: (p: { name?: unknown; data?: unknown }) => { fileName: string; buffer: Uint8Array } | null,
+    maxLabel: string,
+  ): void {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 60 * 1024 * 1024) req.destroy(); // protege el server
+    });
+    req.on('end', () => {
+      let payload: { name?: unknown; data?: unknown };
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return json(res, 400, { success: false, error: 'JSON invalido' });
+      }
+      const out = toBuffer(payload);
+      if (!out) {
+        return json(res, 400, {
+          success: false,
+          error: `Archivo invalido: nombre, formato o tamano (${maxLabel}) incorrecto`,
+        });
+      }
+      const dest = resolve(dir, out.fileName);
+      if (!dest.startsWith(dir)) {
+        return json(res, 400, { success: false, error: `Ruta fuera de ${route}` });
+      }
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(dest, out.buffer);
+      json(res, 200, { success: true, path: `${route}/${out.fileName}` });
+    });
+  }
 
   return {
     name: 'studio-assets',
@@ -39,33 +82,13 @@ function assetsMiddleware() {
 
         // POST /assets/audio/upload — guarda un archivo subido desde el popover.
         if (req.method === 'POST' && url === '/assets/audio/upload') {
-          let raw = '';
-          req.on('data', (c) => {
-            raw += c;
-            if (raw.length > 60 * 1024 * 1024) req.destroy(); // protege el server
-          });
-          req.on('end', () => {
-            let payload: { name?: unknown; data?: unknown };
-            try {
-              payload = JSON.parse(raw);
-            } catch {
-              return json(res, 400, { success: false, error: 'JSON invalido' });
-            }
-            const out = audioUploadToBuffer(payload);
-            if (!out) {
-              return json(res, 400, {
-                success: false,
-                error: 'Archivo invalido: nombre, formato de audio o tamano (>50 MB) incorrecto',
-              });
-            }
-            const dest = resolve(audioDir, out.fileName);
-            if (!dest.startsWith(audioDir)) {
-              return json(res, 400, { success: false, error: 'Ruta fuera de assets/audio' });
-            }
-            fs.mkdirSync(audioDir, { recursive: true });
-            fs.writeFileSync(dest, out.buffer);
-            json(res, 200, { success: true, path: `/assets/audio/${out.fileName}` });
-          });
+          handleUpload(req, res, audioDir, '/assets/audio', audioUploadToBuffer, '>50 MB');
+          return;
+        }
+
+        // POST /assets/sprites/upload — guarda un frame cortado del Sprite Tool (F5).
+        if (req.method === 'POST' && url === '/assets/sprites/upload') {
+          handleUpload(req, res, spritesDir, '/assets/sprites', spriteUploadToBuffer, '>20 MB');
           return;
         }
 
@@ -75,6 +98,20 @@ function assetsMiddleware() {
             const files = fs
               .readdirSync(audioDir)
               .filter((f) => fs.statSync(resolve(audioDir, f)).isFile() && isAudioName(f))
+              .sort();
+            json(res, 200, { files });
+          } catch {
+            json(res, 200, { files: [] });
+          }
+          return;
+        }
+
+        // GET /assets/sprites/list — lista los sprites/frames cortados (F5).
+        if (req.method === 'GET' && url === '/assets/sprites/list') {
+          try {
+            const files = fs
+              .readdirSync(spritesDir)
+              .filter((f) => fs.statSync(resolve(spritesDir, f)).isFile() && isSpriteName(f))
               .sort();
             json(res, 200, { files });
           } catch {

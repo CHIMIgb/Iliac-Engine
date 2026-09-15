@@ -8,9 +8,12 @@ import {
   sanitizeFileName,
   extFromName,
   isAudioName,
+  isSpriteName,
   audioUploadToBuffer,
+  spriteUploadToBuffer,
   resolveAssetPath,
   MAX_AUDIO_BYTES,
+  MAX_SPRITE_BYTES,
 } from '../src/io/assetServer';
 
 // Base64 portable (sin @types/node): TextEncoder + btoa, globales de Node 16+/browser.
@@ -68,6 +71,41 @@ describe('assetServer · upload a buffer', () => {
     // Base64 de >50 MB sin decodificar: 'A' (byte 0) repetido; 4/3 >MAX por bytes.
     const big = 'A'.repeat(Math.ceil((MAX_AUDIO_BYTES / 3) * 4) + 4);
     expect(audioUploadToBuffer({ name: 'big.wav', data: big })).toBeNull();
+  });
+});
+
+describe('assetServer · sprites del Sprite Tool (F5)', () => {
+  it('isSpriteName admite png y rechaza el resto', () => {
+    expect(isSpriteName('guard_f0.png')).toBe(true);
+    for (const f of ['a.jpg', 'a.webp', 'a.gif', 'a.txt', 'a']) {
+      expect(isSpriteName(f), f).toBe(false);
+    }
+  });
+
+  it('spriteUploadToBuffer decodifica un frame png valido', () => {
+    const out = spriteUploadToBuffer({ name: 'guard_f0.png', data: b64('PNGDATA') });
+    expect(out).not.toBeNull();
+    expect(out!.fileName).toBe('guard_f0.png');
+    expect(String.fromCharCode(...out!.buffer)).toBe('PNGDATA');
+  });
+
+  it('tolera prefijo data:image/png;base64,', () => {
+    const out = spriteUploadToBuffer({ name: 'hero_f1.png', data: `data:image/png;base64,${b64('PNG')}` });
+    expect(out).not.toBeNull();
+    expect(String.fromCharCode(...out!.buffer)).toBe('PNG');
+  });
+
+  it('rechaza payloads sin nombre, sin data, sin extension png o con base64 invalido', () => {
+    expect(spriteUploadToBuffer({ data: b64('x') })).toBeNull();
+    expect(spriteUploadToBuffer({ name: 'guard_f0.png' })).toBeNull();
+    expect(spriteUploadToBuffer({ name: 'a.jpg', data: b64('x') })).toBeNull();
+    expect(spriteUploadToBuffer({ name: 'a', data: b64('x') })).toBeNull();
+    expect(spriteUploadToBuffer({ name: 'a.png', data: 'no-base64!!!' })).toBeNull();
+  });
+
+  it('rechaza frames que exceden el tamano maximo de sprites', () => {
+    const big = 'A'.repeat(Math.ceil((MAX_SPRITE_BYTES / 3) * 4) + 4);
+    expect(spriteUploadToBuffer({ name: 'huge.png', data: big })).toBeNull();
   });
 });
 
