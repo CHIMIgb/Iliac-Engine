@@ -58,8 +58,10 @@ export function toProjectJson(state: EditorState): ProjectJson {
         ...(s.entityName ? { entityName: s.entityName } : {}),
         ...(s.collisionType ? { collisionType: s.collisionType } : {}),
         ...(s.collisionBox ? { collisionBox: s.collisionBox } : {}),
+        ...(s.anim ? { anim: s.anim } : {}),
       })),
       textures: { ...state.world.textures },
+      ...(state.world.spriteAnims ? { spriteAnims: { ...state.world.spriteAnims } } : {}),
       ...(state.world.sky ? { sky: { ...state.world.sky } } : {}),
     },
   };
@@ -86,6 +88,9 @@ export function fromProjectJson(json: Record<string, unknown> | ProjectJson): Ed
       sprites: Array.isArray(world.sprites) ? (world.sprites as EditorState['world']['sprites']) : [],
       textures,
       sky: (world.sky ?? null) as EditorState['world']['sky'],
+      spriteAnims: world.spriteAnims
+        ? (world.spriteAnims as EditorState['world']['spriteAnims'])
+        : undefined,
     },
     audio: Array.isArray(json.audio) ? (json.audio as EditableAudioDef[]) : [],
     music: (json.music ?? null) as EditorState['music'],

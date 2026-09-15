@@ -73,6 +73,8 @@ export interface EditableSprite {
   collisionType?: EditableCollisionType;
   /** Caja de colisión en metros (w × d × h). */
   collisionBox?: EditableCollisionBox;
+  /** Id de la animación en `world.spriteAnims` (si el sprite es animado). */
+  anim?: string;
 }
 
 /** Texturas disponibles (svg o color hex). */
@@ -169,4 +171,6 @@ export interface EditableWorld {
   sprites: EditableSprite[];
   textures: EditableTextures;
   sky?: EditableSky | null;
+  /** Animaciones de sprites (F5, Fase B): `{ [name]: { frames, fps?, loop? } }`. */
+  spriteAnims?: Record<string, { frames: string[]; fps?: number; loop?: boolean }>;
 }

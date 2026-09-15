@@ -298,6 +298,36 @@ export class EditorState {
   }
 
   // ─────────────────────────────────────────────────
+  // Texturas / Sprite Anims (F5, Fase B — Sprite Tool)
+  // ─────────────────────────────────────────────────
+
+  /** Fusiona texturas nuevas en `world.textures` (p. ej. frames recortados). */
+  setWorldTextures(patch: Record<string, string | number>): void {
+    this.world.textures = { ...this.world.textures, ...patch };
+    this.notify();
+  }
+
+  /** Fusiona animaciones de sprites en `world.spriteAnims`. */
+  setSpriteAnims(anims: Record<string, { frames: string[]; fps?: number; loop?: boolean }>): void {
+    this.world.spriteAnims = { ...(this.world.spriteAnims ?? {}), ...anims };
+    this.notify();
+  }
+
+  /**
+   * Asigna la animación `anim` a un sprite del mundo (puente F5→6.4: aún no hay
+   * Entity Builder, así que el usuario elige un sprite existente). false si el
+   * sprite no existe; `anim` null limpia la animación.
+   */
+  assignSpriteAnim(spriteId: string, anim: string | null): boolean {
+    const sp = this.world.sprites.find((s) => s.id === spriteId);
+    if (!sp) return false;
+    if (anim === null) delete sp.anim;
+    else sp.anim = anim;
+    this.notify();
+    return true;
+  }
+
+  // ─────────────────────────────────────────────────
   // Accesores
   // ─────────────────────────────────────────────────
   getVertex(id: string): EditableVertex | undefined {

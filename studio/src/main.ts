@@ -147,16 +147,59 @@ const audioBtn = layout.toolbar.addAction({
 toolGroup.appendChild(audioBtn);
 
 // ── Toolbar: sprites (F5 — Sprite Tool: slicer + animator) ─────
+const spriteTool = new SpriteToolUI();
+
+// Wiring del guardado (F5 Fase B): sube cada frame al middleware del dev
+// server y fusiona texturas + animaciones en el documento editable.
+spriteTool.onSaveRequested = async (out, frameDataUrls) => {
+  try {
+    let uploaded = 0;
+    for (const [key, url] of Object.entries(out.textures)) {
+      const dataUrl = frameDataUrls[key];
+      if (!dataUrl) continue;
+      const res = await fetch('/assets/sprites/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `${key}.png`, data: dataUrl }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success) {
+        throw new Error(body?.error ?? `Fallo al subir ${key}`);
+      }
+      uploaded++;
+    }
+    doc.setWorldTextures(out.textures);
+    doc.setSpriteAnims(out.spriteAnims);
+    showToast(
+      `Guardado: ${uploaded} frames + ${Object.keys(out.spriteAnims).length} animaciones`,
+      'success',
+    );
+  } catch (err) {
+    console.error('Error guardando sprites:', err);
+    showToast(err instanceof Error ? err.message : 'Error al guardar sprites', 'error');
+  }
+};
+
+// Puente F5→6.4: asignar la animación activa a un sprite del mundo.
+spriteTool.onAssignSprite = (spriteId, anim) => {
+  if (!doc.assignSpriteAnim(spriteId, anim)) {
+    showToast('Sprite no encontrado', 'error');
+    return;
+  }
+  showToast(`Sprite ${spriteId} → anim «${anim}»`, 'success');
+};
+
 const spriteBtn = layout.toolbar.addAction({
-  icon: 'images', label: 'Sprites',
+  icon: 'images', label: 'Sprites' /*, shortcut: '0' */,
   onClick: () => {
     markSpritesActive();
+    spriteTool.setWorldSprites(
+      doc.world.sprites.map((s) => ({ id: s.id, label: `${s.id} (${s.tex})` })),
+    );
     spriteTool.open();
   },
 });
 toolGroup.appendChild(spriteBtn);
-
-const spriteTool = new SpriteToolUI();
 
 /** Cielo, Audio y Sprites se quitan mutuamente el badge azul al seleccionarse. */
 function markSkyActive(): void {

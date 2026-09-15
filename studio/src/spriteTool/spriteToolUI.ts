@@ -94,8 +94,17 @@ export class SpriteToolUI {
   private step3LoopInput: HTMLInputElement;
   private step3PlayBtn: HTMLButtonElement;
   private saveBtn: HTMLButtonElement;
-  /** Conectado en 7c: guarda texturas + anims en el proyecto real. */
-  onSaveRequested: ((out: SpriteAnimsOutput) => void) | null = null;
+  /** Conectado en 7c: guarda texturas + anims en el proyecto real (async OK). */
+  onSaveRequested:
+    | ((out: SpriteAnimsOutput, frameDataUrls: Record<string, string>) => Promise<void> | void)
+    | null = null;
+
+  // Puente F5→6.4: asignar la anim de un sprite del mundo en el playtest.
+  private spriteSelect: HTMLSelectElement;
+  private assignBtn: HTMLButtonElement;
+  private assignRow: HTMLDivElement;
+  /** Conectado por main.ts: escribe `sprite.anim` en un sprite existente. */
+  onAssignSprite: ((spriteId: string, anim: string) => void) | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -398,8 +407,29 @@ export class SpriteToolUI {
     this.step3Status.className = 'sprite-tool__cut-status';
 
     animMain.append(previewRow, framesTitle, this.step3FramesGrid, this.step3Status);
+
+    // Puente hasta el Entity Builder (6.4): asignar la anim a un sprite del mundo.
+    this.assignRow = document.createElement('div');
+    this.assignRow.className = 'sprite-tool__assign';
+    this.assignRow.hidden = true;
+    const assignTitle = this.labeled('Asignar a sprite del mundo');
+    this.spriteSelect = document.createElement('select');
+    this.spriteSelect.className = 'sprite-tool__input sprite-tool__select';
+    this.spriteSelect.title = 'El Entity Builder (futuro) permitirá colocar sprites animados; por ahora se asigna a uno existente.';
+    this.assignBtn = document.createElement('button');
+    this.assignBtn.className = 'btn btn--secondary btn--sm';
+    this.assignBtn.textContent = 'Asignar anim activa';
+    this.assignBtn.disabled = true;
+    this.assignBtn.addEventListener('click', () => {
+      const sid = this.spriteSelect.value;
+      const spec = this.animSpecs[this.activeAnim];
+      if (!sid || !spec || !this.onAssignSprite) return;
+      this.onAssignSprite(sid, spec.name);
+    });
+    this.assignRow.append(assignTitle, this.spriteSelect, this.assignBtn);
+
     animLayout.append(animSide, animMain);
-    this.step3.append(animLayout);
+    this.step3.append(animLayout, this.assignRow);
 
     body.append(this.step1, this.step2, this.step3);
     modal.appendChild(body);
@@ -854,6 +884,8 @@ export class SpriteToolUI {
   private renderStep3(): void {
     this.saveBtn.disabled = this.animSpecs.length === 0;
     const spec = this.animSpecs[this.activeAnim];
+    this.assignBtn.textContent = spec ? `Asignar anim «${spec.name}»` : 'Asignar anim activa';
+    this.assignBtn.disabled = !spec || this.spriteSelect.value === '';
     if (!spec) {
       this.step3Status.textContent = 'Sin animaciones: pulsa «＋ Nueva anim».';
       this.step3Status.classList.add('sprite-tool__cut-status--warn');
@@ -980,9 +1012,42 @@ export class SpriteToolUI {
     }
     this.saveBtn.disabled = false;
     if (this.onSaveRequested) {
-      this.onSaveRequested(out);
+      // Mapa key → dataURL para que main.ts suba cada frame al middleware.
+      const frameDataUrls: Record<string, string> = {};
+      for (let i = 0; i < this.cutFrames.length; i++) {
+        frameDataUrls[textureKeyFor(this.assetId, i)] = this.cutFrames[i]!.dataUrl;
+      }
+      void this.onSaveRequested(out, frameDataUrls);
     } else {
       showToast('Guardado real pendiente (siguiente paso)', 'info');
     }
+  }
+
+  /**
+   * Inyecta los sprites del mundo para el puente "Asignar a sprite del mundo".
+   * Lo llama main.ts al abrir el modal (el UI no conoce EditorState).
+   */
+  setWorldSprites(items: Array<{ id: string; label: string }>): void {
+    this.spriteSelect.textContent = '';
+    if (items.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No hay sprites en el mundo';
+      this.spriteSelect.appendChild(opt);
+      this.assignRow.hidden = true;
+      return;
+    }
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Elegir sprite…';
+    this.spriteSelect.appendChild(placeholder);
+    for (const it of items) {
+      const opt = document.createElement('option');
+      opt.value = it.id;
+      opt.textContent = it.label;
+      this.spriteSelect.appendChild(opt);
+    }
+    this.assignRow.hidden = false;
+    this.assignBtn.disabled = this.animSpecs.length === 0;
   }
 }
