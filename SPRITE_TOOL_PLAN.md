@@ -481,6 +481,11 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     validar por el usuario**.
 >   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
 >     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
+>     ✅ **implementado 2026-09-16** — STEPS[3] = 'Biblioteca'; tab siempre habilitada
+>     (solo lectura); eliminado Paso 4 de sueltos (spritesFileInput, constructor,
+>     wiring en loadFile/addLooseFiles); `spritesGrid` → `libraryGrid`; esqueleto
+>     `renderLibraryStep()` (estado vacío / contador). Typecheck + suite verde (211).
+>     ⏳ **a validar por el usuario**.
 >   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
 >     mini-thumbs (frames desde `world.textures`).
 >   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
