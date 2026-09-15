@@ -52,6 +52,11 @@ export class SpriteToolUI {
   private overlay: HTMLDivElement;
   private assetNameInput: HTMLInputElement;
   private continueBtn: HTMLButtonElement;
+  /** Vistas del modal: el wizard (pasos 1-3 + tabs + footer) y la Biblioteca
+   *  (Fase D) son mutuamente excluyentes — al entrar a la Biblioteca se oculta
+   *  TODO el wizard de corte/animación. */
+  private tabs: HTMLDivElement;
+  private wizardBody: HTMLDivElement;
 
   // Paso 2 (Cortar Auto / Manual)
   private step1: HTMLDivElement;
@@ -146,6 +151,7 @@ export class SpriteToolUI {
     // Biblioteca siempre accesible (solo lectura del proyecto, Fase D).
     const tabs = document.createElement('div');
     tabs.className = 'sprite-tool__tabs';
+    this.tabs = tabs;
     STEPS.forEach((label, i) => {
       const btn = document.createElement('button');
       btn.className = 'sprite-tool__tab' + (i === 0 ? ' sprite-tool__tab--active' : '');
@@ -160,6 +166,7 @@ export class SpriteToolUI {
     // Cuerpo
     const body = document.createElement('div');
     body.className = 'sprite-tool__body';
+    this.wizardBody = body;
 
     // ── Paso 1: Cargar ────────────────────────────────────────────
     this.step1 = document.createElement('div');
@@ -490,9 +497,16 @@ export class SpriteToolUI {
     this.step4.className = 'sprite-tool__step';
     this.step4.hidden = true;
 
+    // La Biblioteca oculta las tabs del wizard: este botón (navegación, no de
+    // corte/animación) permite volver al Paso 1. También se sale con X o Esc.
+    const backBtn = document.createElement('button');
+    backBtn.className = 'btn btn--secondary btn--sm';
+    backBtn.textContent = '← Volver al editor de sprites';
+    backBtn.addEventListener('click', () => this.setStep(0));
+
     this.libraryGrid = document.createElement('div');
     this.libraryGrid.className = 'sprite-tool__frames';
-    this.step4.appendChild(this.libraryGrid);
+    this.step4.append(backBtn, this.libraryGrid);
 
     body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
@@ -595,19 +609,24 @@ export class SpriteToolUI {
       return;
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
-    this.step1.hidden = i !== 0;
-    this.step2.hidden = i !== 1;
-    this.step3.hidden = i !== 2;
-    this.step4.hidden = i !== 3;
-    // La Biblioteca no es un paso del flujo de corte/animación: no muestra
-    // el footer (Continuar/Animar/Guardar) ni sus acciones.
-    this.footer.hidden = i === 3;
+    const inLibrary = i === 3;
+    // La Biblioteca es una vista exclusiva: oculta TODO el wizard de
+    // corte/animación (tabs, cuerpo con los pasos y footer).
+    this.tabs.hidden = inLibrary;
+    this.wizardBody.hidden = inLibrary;
+    this.footer.hidden = inLibrary;
+    // (Los steps individuales ya no controlan la visibilidad global: al estar
+    // el body oculto, nada del wizard se ve en Biblioteca.)
+    this.step1.hidden = i !== 0 && !inLibrary;
+    this.step2.hidden = i !== 1 && !inLibrary;
+    this.step3.hidden = i !== 2 && !inLibrary;
+    this.step4.hidden = !inLibrary;
     this.stopPreview();
-    if (i === 2) {
+    if (inLibrary) {
+      this.renderLibraryStep();
+    } else if (i === 2) {
       this.renderStep3();
       this.previewElapsed = 0;
-    } else if (i === 3) {
-      this.renderLibraryStep();
     }
   }
 
