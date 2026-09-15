@@ -611,12 +611,11 @@ export class SpriteToolUI {
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
     const inLibrary = i === 3;
     // La Biblioteca es una vista exclusiva: oculta TODO el wizard de
-    // corte/animación (tabs, cuerpo con los pasos y footer).
+    // corte/animación (tabs, cuerpo con los pasos y footer). La regla global
+    // [hidden] garantiza que hidden gane sobre el display:flex de las clases.
     this.tabs.hidden = inLibrary;
     this.wizardBody.hidden = inLibrary;
     this.footer.hidden = inLibrary;
-    // (Los steps individuales ya no controlan la visibilidad global: al estar
-    // el body oculto, nada del wizard se ve en Biblioteca.)
     this.step1.hidden = i !== 0 && !inLibrary;
     this.step2.hidden = i !== 1 && !inLibrary;
     this.step3.hidden = i !== 2 && !inLibrary;
