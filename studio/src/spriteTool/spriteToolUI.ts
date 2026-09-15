@@ -1100,25 +1100,60 @@ export class SpriteToolUI {
     this.renderStep3();
   }
 
-  /** Pinta el Paso 4 (Biblioteca, Fase D): sprites + animaciones guardadas.
-   *  Esqueleto: estado vacío/contador; la vista con cards llega en D3. */
+  /** Pinta el Paso 4 (Biblioteca, Fase D): cards por animación guardada
+   *  con thumbnails de cada frame desde las texturas del proyecto. */
   private renderLibraryStep(): void {
     this.libraryGrid.textContent = '';
     const snapshot = this.getProjectSnapshot();
-    const anims = snapshot ? Object.keys(snapshot.spriteAnims) : [];
-    const textures = snapshot ? Object.keys(snapshot.textures) : [];
-    const empty = document.createElement('div');
-    empty.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
-    if (!snapshot) {
-      empty.textContent = 'La Biblioteca no está conectada al proyecto.';
-    } else if (textures.length === 0 && anims.length === 0) {
-      empty.textContent = 'Aún no hay sprites ni animaciones guardadas en el proyecto.';
-    } else if (anims.length === 0) {
-      empty.textContent = `Hay ${textures.length} textura(s) guardada(s) pero ninguna animación todavía. Crea una en el Paso 3.`;
-    } else {
-      empty.textContent = `${anims.length} animación(es) guardada(s) sobre ${textures.length} textura(s).`;
+    const animEntries = snapshot ? Object.entries(snapshot.spriteAnims) : [];
+
+    if (!snapshot || animEntries.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'sprite-tool__cut-status sprite-tool__cut-status--warn';
+      if (!snapshot) empty.textContent = 'La Biblioteca no está conectada al proyecto.';
+      else if (Object.keys(snapshot.textures).length === 0) {
+        empty.textContent = 'Aún no hay sprites ni animaciones guardadas en el proyecto.';
+      } else {
+        empty.textContent = `Hay ${Object.keys(snapshot.textures).length} textura(s) guardada(s) pero ninguna animación todavía. Crea una en el Paso 3.`;
+      }
+      this.libraryGrid.appendChild(empty);
+      return;
     }
-    this.libraryGrid.appendChild(empty);
+
+    for (const [name, animSpec] of animEntries) {
+      const card = document.createElement('div');
+      card.className = 'sprite-tool__library-card';
+
+      // Cabecera: nombre + info resumen.
+      const header = document.createElement('div');
+      header.className = 'sprite-tool__library-card-header';
+      const title = document.createElement('strong');
+      title.textContent = name;
+      const info = document.createElement('span');
+      info.className = 'muted';
+      const fps = animSpec.fps ?? 4;
+      info.textContent = `${animSpec.frames.length} frames · ${fps} fps · ${animSpec.loop ? 'loop' : 'una vez'}`;
+      header.append(title, info);
+
+      // Thumbnails de los frames de la animación.
+      const thumbs = document.createElement('div');
+      thumbs.className = 'sprite-tool__frames';
+      for (const key of animSpec.frames) {
+        const url = snapshot.textures[key];
+        if (!url) continue;
+        const cell = document.createElement('div');
+        cell.className = 'sprite-tool__thumb';
+        cell.title = key;
+        const img = document.createElement('img');
+        img.src = String(url);
+        img.alt = key;
+        cell.appendChild(img);
+        thumbs.appendChild(cell);
+      }
+
+      card.append(header, thumbs);
+      this.libraryGrid.appendChild(card);
+    }
   }
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`

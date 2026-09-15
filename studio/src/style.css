@@ -1090,3 +1090,28 @@ html, body, #app {
 .sprite-tool__assign .sprite-tool__label {
   margin-right: auto;
 }
+
+/* ── Sprite Tool · Biblioteca (Fase D) ─────────────────────────────── */
+
+.sprite-tool__library-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border-default, #313244);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--bg-surface, #313244);
+}
+
+.sprite-tool__library-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-primary, #cdd6f4);
+}
+
+.sprite-tool__library-card-header .muted {
+  color: var(--text-muted, #6c7086);
+  font-size: 11px;
+}

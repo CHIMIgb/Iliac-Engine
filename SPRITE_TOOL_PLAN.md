@@ -479,9 +479,11 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     addLooseFiles); renombrado `spritesGrid` → `libraryGrid`; esqueleto
 >     `renderLibraryStep()` (estado vacío / contador de texturas+anims). Typecheck +
 >     suite verde (211).
->     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
->   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
->     mini-thumbs (frames desde `world.textures`).
+>   - **D3 — vista:** ✅ **realizado 2026-09-16** —
+>     `renderLibraryStep()` real con cards por animación guardada: header con nombre,
+>     resumen (fps, loop, nº frames) + grid de thumbnails desde `snapshot.textures`.
+>     Estado vacío con mensajes según texturas/sin anims/conectado. CSS
+>     `.sprite-tool__library-card` añadido. Typecheck + suite verde (211).
 >   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
 >     `onAssignSprite`/`spriteSelect` existente.
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`
