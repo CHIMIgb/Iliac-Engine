@@ -12,6 +12,7 @@ import { EditorViewport } from './viewport/EditorViewport';
 import { EditorState } from './editor/EditorState';
 import { ToolManager, type ToolId, type Selection } from './tools/ToolManager';
 import { DungeonBrowser } from './ui/DungeonBrowser';
+import { SpriteToolUI } from './spriteTool/spriteToolUI';
 import { DUNGEONS } from './dungeons/definitions';
 import { assemble, mergeDungeon } from './dungeons/assemble';
 import { findSpot } from './dungeons/placement';
@@ -95,8 +96,9 @@ function setActiveTool(id: ToolId): void {
   toolManager.setTool(id);
   layout.statusBar.setItem('tool', `Herramienta: ${id}`);
   toolActions.forEach((action, i) => layout.toolbar.setActive(i, action.id === id));
-  skyBtn.classList.remove('active'); // elegir una herramienta quita los badges de Cielo/Audio
+  skyBtn.classList.remove('active'); // elegir una herramienta quita los badges de Cielo/Audio/Sprites
   audioBtn.classList.remove('active');
+  spriteBtn.classList.remove('active');
 }
 
 toolActions.forEach((action) => {
@@ -144,10 +146,23 @@ const audioBtn = layout.toolbar.addAction({
 });
 toolGroup.appendChild(audioBtn);
 
-/** El Cielo y Audio se quitan mutuamente el badge azul al seleccionarse. */
+// ── Toolbar: sprites (F5 — Sprite Tool: slicer + animator) ─────
+const spriteBtn = layout.toolbar.addAction({
+  icon: 'images', label: 'Sprites',
+  onClick: () => {
+    markSpritesActive();
+    spriteTool.open();
+  },
+});
+toolGroup.appendChild(spriteBtn);
+
+const spriteTool = new SpriteToolUI();
+
+/** Cielo, Audio y Sprites se quitan mutuamente el badge azul al seleccionarse. */
 function markSkyActive(): void {
   toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
   audioBtn.classList.remove('active');
+  spriteBtn.classList.remove('active');
   skyBtn.classList.add('active');
 }
 
@@ -155,7 +170,16 @@ function markSkyActive(): void {
 function markAudioActive(): void {
   toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
   skyBtn.classList.remove('active');
+  spriteBtn.classList.remove('active');
   audioBtn.classList.add('active');
+}
+
+/** El Sprite Tool luce el mismo badge que Cielo/Audio al abrir el modal. */
+function markSpritesActive(): void {
+  toolActions.forEach((_, i) => layout.toolbar.setActive(i, false));
+  skyBtn.classList.remove('active');
+  audioBtn.classList.remove('active');
+  spriteBtn.classList.add('active');
 }
 
 // ── Toolbar: mazmorras (junto a Entidades) ─────────────────────

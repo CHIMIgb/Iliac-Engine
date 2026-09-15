@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { frameOrder, isEmptyRegion, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, frameOrder, isEmptyRegion, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -10,6 +10,13 @@ describe('frames', () => {
     expect(textureKeyFor('guard', 0)).toBe('guard_f0');
     expect(textureKeyFor('guard', 12)).toBe('guard_f12');
     expect(urlFor('guard', 2)).toBe('/assets/sprites/guard_f2.png');
+  });
+
+  it('assetIdFromFileName sanea el nombre a minusculas y sin extension', () => {
+    expect(assetIdFromFileName('Guard.PNG')).toBe('guard');
+    expect(assetIdFromFileName('mi hoja 2.png')).toBe('mi_hoja_2');
+    expect(assetIdFromFileName('a/b/goblin walk.webp')).toBe('goblin_walk');
+    expect(assetIdFromFileName('a\\b\\Goblin.Walk.webp')).toBe('goblin.walk');
   });
 
   it('trimRect reduce al bounding box de píxeles opacos', () => {

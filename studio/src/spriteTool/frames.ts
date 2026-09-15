@@ -19,6 +19,14 @@ export function urlFor(assetId: string, index: number): string {
   return `/assets/sprites/${textureKeyFor(assetId, index)}.png`;
 }
 
+/** Sanea un nombre de archivo a un asset id usable (minusculas, sin extension). */
+export function assetIdFromFileName(name: string): string {
+  const base = name.replace(/\\/g, '/').split('/').pop() ?? '';
+  const withoutExt = base.replace(/\.[^.]+$/, '');
+  const clean = withoutExt.replace(/[^A-Za-z0-9._-]/g, '_');
+  return clean.toLowerCase();
+}
+
 /** True si la región no contiene ningún píxel con alpha ≥ umbral. */
 export function isEmptyRegion(img: PixelImage, rect: Rect, alphaThreshold = 8): boolean {
   for (let dy = 0; dy < rect.h; dy++) {
