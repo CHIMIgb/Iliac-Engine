@@ -484,8 +484,10 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     resumen (fps, loop, nº frames) + grid de thumbnails desde `snapshot.textures`.
 >     Estado vacío con mensajes según texturas/sin anims/conectado. CSS
 >     `.sprite-tool__library-card` añadido. Typecheck + suite verde (211).
->   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
->     `onAssignSprite`/`spriteSelect` existente.
+>   - **D4 — reasignar:** ✅ **realizado 2026-09-16** —
+>     por card, fila `Asignar a sprite…` (select con sprites del mundo + botón Asignar)
+>     que reutiliza `onAssignSprite`; `setWorldSprites` guarda la lista en
+>     `worldSprites`. Typecheck + suite verde (211).
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`
 >     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
 >     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y

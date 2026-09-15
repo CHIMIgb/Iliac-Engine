@@ -120,6 +120,9 @@ export class SpriteToolUI {
   /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
   onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
 
+  /** Sprites del mundo con los que reasignar anims en la Biblioteca (D4). */
+  private worldSprites: Array<{ id: string; label: string }> = [];
+
   constructor() {
     this.overlay = document.createElement('div');
     this.overlay.className = 'modal-overlay sprite-tool';
@@ -1152,6 +1155,40 @@ export class SpriteToolUI {
       }
 
       card.append(header, thumbs);
+
+      // Acción D4: asignar esta anim guardada a un sprite del mundo.
+      const assignRow = document.createElement('div');
+      assignRow.className = 'sprite-tool__assign';
+      const assignSelect = document.createElement('select');
+      assignSelect.className = 'sprite-tool__select';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = this.worldSprites.length === 0 ? 'No hay sprites en el mundo' : 'Asignar a sprite…';
+      assignSelect.appendChild(placeholder);
+      for (const it of this.worldSprites) {
+        const opt = document.createElement('option');
+        opt.value = it.id;
+        opt.textContent = it.label;
+        assignSelect.appendChild(opt);
+      }
+      const assignBtn = document.createElement('button');
+      assignBtn.className = 'btn btn--secondary btn--sm';
+      assignBtn.textContent = 'Asignar';
+      assignBtn.disabled = this.worldSprites.length === 0;
+      assignBtn.addEventListener('click', () => {
+        if (!assignSelect.value) {
+          showToast('Elige un sprite primero', 'info');
+          return;
+        }
+        if (!this.onAssignSprite) {
+          showToast('Asignación no conectada al proyecto', 'error');
+          return;
+        }
+        this.onAssignSprite(assignSelect.value, name);
+      });
+      assignRow.append(assignSelect, assignBtn);
+      card.appendChild(assignRow);
+
       this.libraryGrid.appendChild(card);
     }
   }
@@ -1332,6 +1369,7 @@ export class SpriteToolUI {
    * Lo llama main.ts al abrir el modal (el UI no conoce EditorState).
    */
   setWorldSprites(items: Array<{ id: string; label: string }>): void {
+    this.worldSprites = items;
     this.spriteSelect.textContent = '';
     if (items.length === 0) {
       const opt = document.createElement('option');
