@@ -493,18 +493,20 @@ export class SpriteToolUI {
     // Solo lectura + 2 acciones (reasignar, cargar al animador); sin corte,
     // sin animación, sin preview, sin cabeceras: en este tab solo se ve el
     // contenido guardado (mensaje de estado vacío, o las cards en D3).
+    // VIVE FUERA del wizardBody: la Biblioteca oculta el wizard completo,
+    // así que no puede ser hija de ese contenedor.
     this.step4 = document.createElement('div');
     this.step4.className = 'sprite-tool__step';
     this.step4.hidden = true;
 
-    // La Biblioteca oculta SOLO el contenido del wizard (body + footer);
-    // las tabs quedan como menú de navegación para volver a los pasos.
     this.libraryGrid = document.createElement('div');
     this.libraryGrid.className = 'sprite-tool__library';
     this.step4.appendChild(this.libraryGrid);
 
-    body.append(this.step1, this.step2, this.step3, this.step4);
+    body.append(this.step1, this.step2, this.step3);
     modal.appendChild(body);
+    // Biblioteca como hija directa del modal (no del wizard body).
+    modal.appendChild(this.step4);
 
     // Pie (solo visible en los pasos de corte/animación; la Biblioteca es
     // lectura exclusiva de lo guardado, sin acciones de corte ni animación).
