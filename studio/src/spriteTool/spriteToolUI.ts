@@ -497,16 +497,11 @@ export class SpriteToolUI {
     this.step4.className = 'sprite-tool__step';
     this.step4.hidden = true;
 
-    // La Biblioteca oculta las tabs del wizard: este botón (navegación, no de
-    // corte/animación) permite volver al Paso 1. También se sale con X o Esc.
-    const backBtn = document.createElement('button');
-    backBtn.className = 'btn btn--secondary btn--sm';
-    backBtn.textContent = '← Volver al editor de sprites';
-    backBtn.addEventListener('click', () => this.setStep(0));
-
+    // La Biblioteca oculta SOLO el contenido del wizard (body + footer);
+    // las tabs quedan como menú de navegación para volver a los pasos.
     this.libraryGrid = document.createElement('div');
     this.libraryGrid.className = 'sprite-tool__frames';
-    this.step4.append(backBtn, this.libraryGrid);
+    this.step4.appendChild(this.libraryGrid);
 
     body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
@@ -610,10 +605,9 @@ export class SpriteToolUI {
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
     const inLibrary = i === 3;
-    // La Biblioteca es una vista exclusiva: oculta TODO el wizard de
-    // corte/animación (tabs, cuerpo con los pasos y footer). La regla global
-    // [hidden] garantiza que hidden gane sobre el display:flex de las clases.
-    this.tabs.hidden = inLibrary;
+    // La Biblioteca es una vista exclusiva: oculta SOLO el cuerpo del wizard
+    // y su footer (acciones de corte/animación). Las tabs se conservan como
+    // menú de navegación para volver a los pasos.
     this.wizardBody.hidden = inLibrary;
     this.footer.hidden = inLibrary;
     this.step1.hidden = i !== 0 && !inLibrary;
