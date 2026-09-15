@@ -231,10 +231,19 @@ Salida al proyecto (vía `EditorState`):
 
 ### Fase C — Biblioteca de sprites recortados + integración final
 - Tab "Sprites": subida múltiple de PNG individuales → animador directo.
+- **Añadido por solicitud del usuario (7d/7e/7f):**
+  - Editor de frames por anim: **quitar frames** (mínimo 2) y **añadir frames de la hoja**
+    que no estén ya en la anim (7d).
+  - **Añadir frames desde archivo…** — PNG sueltos múltiples dentro del Paso 3, disponibles
+    para cualquier anim, preservados al re-cortar (7e).
+  - **Espejo de animaciones** — botón "Espejar anim" genera frames volteados
+    (`{key}_mirror`) y la animación `{name}_mirror` (mismos fps/loop) para animar "hacia la
+    izquierda" sin tocar el motor (7f).
 - Limpieza del código viejo del slicer (`AssetManager.ts` se reduce a biblioteca de assets: texturas/audio/sprites sueltos).
-- **Aceptación:** subir 3 PNG sueltos → arrastrarlos al animador → crear anim y guardar; la demo usa un sprite suelto como `tex` de entidad; `npm run studio:test` y `npm run studio:typecheck` verdes; ROADMAP §12 marca F5/6.5 parcialmente `realizada` por fases.
+- **Aceptación:** subir 3 PNG sueltos → arrastrarlos al animador → crear anim y guardar; espejar una anim y verla en playtest girando/atacando a la izquierda; la demo usa un sprite suelto como `tex` de entidad; `npm run studio:test` y `npm run studio:typecheck` verdes; ROADMAP §12 marca F5/6.5 parcialmente `realizada` por fases.
 
 *Orden sugerido: A → (validación usuario) → B → (validación) → C → commit final.*
+*(Desglose detallado de los sub-pasos: §12 más abajo.)*
 
 ---
 
@@ -244,7 +253,8 @@ Salida al proyecto (vía `EditorState`):
 - `detectSprites.test.ts`: hoja sintética con 3 sprites separados → 3 rects correctos; sprite con hueco interno (anillo) → 1 rect (gapTolerance); ruido < minPixels descartado; hoja sin transparencia → aviso/0 rects; orden row-major.
 - `gridSlice.test.ts`: 4×2 → 8 rects; cell px auto-calculada; spacing resta borde; trailingEmpty elimina celdas vacías.
 - `frames.test.ts`: recorte de un rect → dimensiones correctas; trim true → bounding box a opacos; trim false → celda completa; naming `textureKeyFor/urlFor`.
-- `animator.test.ts`: anim con <2 frames se duplica; fps clamp; reordenar frames cambia el array sin tocar la hoja; guardado produce `textures` + `spriteAnims` válidas para `validateProject` del motor (carga real de `engine/core/validate.js`).
+- `animator.test.ts`: anim con <2 frames se duplica; fps clamp; reordenar frames cambia el array sin tocar la hoja; guardado produce `textures` + `spriteAnims` válidas para `validateProject` del motor (carga real de `engine/core/validate.js`); **frameKeys mixtas (hoja + sueltos); `mirrorAnimName` y `buildMirroredAnim` (sufijo `_mirror`, mismos fps/loop, válido para `validateProject`)**
+- `frames.test.ts` (extra, 7e/7f): `frameKeyFromFile` (sanitización) y `spritePath`; `mirrorPixelImage` (2×1 `[R,G]` → `[G,R]`, alfa preservado).
 - Regresión: 181 tests actuales del Studio siguen pasando (solo se toca `AssetManager.ts` en Fase C).
 
 ---
@@ -386,8 +396,85 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
   F5 → Sprites → cargar `demo_walk.png` → Cortar → Animar → Guardar → asignar a un
   sprite → playtest F5 → **guardia animado**.
 
+#### 7d — Editor de frames con añadir/quitar (solicitud del usuario)
+- [MODIFICAR] `studio/src/spriteTool/spriteToolUI.ts` — Paso 3, editor de la anim activa:
+  - **Quitar frame:** botón ✕ (lucide `x`) en cada thumb → splice de `frameIndices`.
+    **Guardia:** no se puede bajar de 2 frames (el contrato del motor exige ≥2) —
+    aviso toast, no se elimina.
+  - **Añadir frame de la hoja:** fila "Añadir frame ►" con un `select` de los frames
+    de la hoja (`cutFrames`) que NO están en la anim activa (label `key — WxH`) +
+    botón Añadir → `push` al final (después se reordena con drag & drop). Si no hay
+    disponibles: opción "— todos los frames ya están en la animación —".
+  - Sin cambios en `animator.ts` (reorderFrames sigue; buildAnimDef ya garantiza ≥2).
+- **Verificación 7d:** typecheck + Studio (195) + motor (187) verdes; manual: quitar
+  frames hasta el mínimo 2 y comprobar el aviso, añadir desde la hoja.
+
+#### 7e — PNGs sueltos desde archivos (adelanta la Fase C)
+- [MODIFICAR] `studio/src/spriteTool/frames.ts`:
+  - NUEVO `frameKeyFromFile(assetId, fileName)` → `{assetId}_{nombre_sanitizado_sin_ext}`
+    (reutiliza la sanitización existente: minúsculas + `[A-Za-z0-9._-]`).
+  - NUEVO `spritePath(key)` → `/assets/sprites/{key}.png` (URL genérica por key,
+    no por índice).
+- [MODIFICAR] `studio/src/spriteTool/animator.ts` — **cambio de firma** (validada en 7a):
+  - `buildSpriteAnims(assetId, frameCount, anims)` → `buildSpriteAnims(assetId, frameKeys: string[], anims)`.
+    Genera `textures[key] = spritePath(key)` para cada key disponible y valida que
+    cada frame de cada anim exista en `frameKeys` (errores legibles en español).
+  - Actualizar los tests de 7a a la nueva firma en el mismo commit.
+- [MODIFICAR] `studio/src/spriteTool/spriteToolUI.ts`:
+  - Botón "Añadir frames desde archivo…" (lucide `image-plus`) → `<input type=file
+    accept="image/png, image/webp" multiple>` → por cada PNG: `loadFile`-like →
+    `PixelImage` → dataURL → `{ key: frameKeyFromFile(assetId, nombre), dataUrl, w, h }`.
+  - Se guardan en `this.looseFrames` (lista separada) y **nunca se pierden al
+    re-cortar** la hoja en el Paso 2 (`cutFramesFromSheet` respeta `looseFrames`;
+    `loadFile` los vacía con la hoja nueva).
+  - `allFrames()` = `[...cutFrames, ...looseFrames]` (getter): usado por renderFrames,
+    select de añadir-frame y handleSave → el guardado real (7c) ya sube TODAS las keys
+    con el middleware; main.ts NO cambia.
+  - Key duplicada (mismo archivo dos veces) → skip + toast warning.
+- [MODIFICAR] `studio/tests/spriteTool/animator.test.ts` — adaptar a `frameKeys`; nuevo
+  test con keys mixtas (hoja `_f0` + suelta `_sword`) y error por key inexistente.
+- [MODIFICAR] `studio/tests/spriteTool/frames.test.ts` — `frameKeyFromFile`
+  (espacios/acentos/mayúsculas → key limpia minúscula) y `spritePath`.
+- **Verificación 7e:** typecheck + Studio (195 + nuevos) + motor (187) verdes. Manual:
+  subir 3 PNG sueltos → crear anim nueva → añadirlos → guardar → asignar → playtest.
+
+#### 7f — Espejo de animaciones (solicitud del usuario)
+- **Concepto:** los sprites del motor son billboards con textura; "espejo" = voltear
+  horizontalmente cada frame. En vez de modificar el motor, el Studio **genera texturas
+  espejadas nuevas** (`{key}_mirror`) y una **animación espejada nueva** (`{name}_mirror`)
+  con los mismos fps/loop. El contrato `world.spriteAnims` ya lo soporta sin cambios de
+  motor: un sprite en el puente "Asignar a sprite del mundo" elige `walk_mirror` para
+  moverse a la izquierda.
+- [MODIFICAR] `studio/src/spriteTool/frames.ts`:
+  - NUEVO `mirrorPixelImage(img: PixelImage): PixelImage` — voltea horizontalmente
+    (invirtiendo el orden de columnas RGBA); puro, testeable en Node.
+- [MODIFICAR] `studio/src/spriteTool/animator.ts`:
+  - NUEVO `mirrorAnimName(name)` → `${name}_mirror` (convención de sufijo).
+  - NUEVO `buildMirroredAnim(assetId, name, frameIndices, frames)` → dado un espec de una
+    anim (nombre, índices, fps, loop) y los `CutFrame` con su `PixelImage`, genera:
+    los N frames espejados (key `${frameKey}_mirror`, dataURL volteada) y un `AnimSpec`
+    nuevo (`name_mirror`, mismos índices a los frames espejados, mismos fps/loop).
+- [MODIFICAR] `studio/src/spriteTool/spriteToolUI.ts`:
+  - Botón "Espejar anim <activ>" junto a la anim activa (lucide `flip-horizontal-2`).
+  - Al pulsar: genera frames espejados + anim `_mirror` vía `buildMirroredAnim`, los añade
+    a `looseFrames`/`allFrames`, crea y **selecciona** la anim espejada. Guardia: si ya
+    existe `{name}_mirror` → toast aviso y no duplicar.
+  - `CutFrame` gana `pixel?: PixelImage` (los frames recortados y los sueltos guardan su
+    PixelImage para poder espejarse; la UI lo descarta en la serialización).
+- [MODIFICAR] `studio/tests/spriteTool/frames.test.ts` — `mirrorPixelImage`: 2×1
+  `[R,G]` → `[G,R]`, alfa preservado, imagen 1×1 sin cambio relevante.
+- [MODIFICAR] `studio/tests/spriteTool/animator.test.ts` — `mirrorAnimName` y
+  `buildMirroredAnim`: keys con sufijo `_mirror`, anim nueva con mismos fps/loop,
+  y `buildSpriteAnims` con keys espejadas → `validateProject` `valid:true`.
+- [MODIFICAR] ROADMAP.md §12 → F5 marca **Fase C realizada** (nota: la pestaña "Sprites"
+  /biblioteca dedicada queda opcional; el flujo de PNGs sueltos + espejo queda cubierto
+  dentro del Paso 3).
+- **Verificación 7f:** typecheck + Studio (195 + nuevos) + motor (187) verdes. Manual:
+  hoja → cortar → "Espejar anim walk" → la anim `walk_mirror` aparece y reproduce → guardar
+  → asignar a un sprite del mundo → playtest F5 → el sprite camina hacia la izquierda.
+
 ### Orden de ejecución acordado
-`6a → (valida) → 6b → (valida) → 7a → (valida) → 7b → (valida) → 7c → (valida y marca ROADMAP)`
+`6a → (valida) → 6b → (valida) → 7a → (valida) → 7b → (valida) → 7c → (valida) → 7d → (valida) → 7e → (valida) → 7f → (valida y marca ROADMAP)`
 
 - Cada paso cerrado con su suite verde (`test:engine` en 6a/6b; `studio:typecheck` +
   `studio:test` en 7a/7b/7c) y commit propio sin `push` (convención del usuario).
