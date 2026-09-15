@@ -473,7 +473,12 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     callback `onProjectSnapshot` + `getProjectSnapshot()` en `SpriteToolUI`; wiring en
 >     main.ts al abrir el modal; test en `serializer.test.ts`. Typecheck + suite verde
 >     (211).
->   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
+>   - **D2 — sustituir la tab:** ✅ **realizado 2026-09-16** —
+>     STEPS[3] = 'Biblioteca'; tab siempre habilitada (solo lectura); eliminado
+>     Paso 4 de sueltos (campo `spritesFileInput`, constructor, wiring en loadFile y
+>     addLooseFiles); renombrado `spritesGrid` → `libraryGrid`; esqueleto
+>     `renderLibraryStep()` (estado vacío / contador de texturas+anims). Typecheck +
+>     suite verde (211).
 >     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
 >   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
 >     mini-thumbs (frames desde `world.textures`).
