@@ -14,7 +14,7 @@
 
 import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
-import { assetIdFromFileName, cropRegion, textureKeyFor } from './frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
@@ -46,6 +46,8 @@ export class SpriteToolUI {
   private cutMode: CutMode = 'auto';
   private cutRects: Rect[] = [];
   private cutFrames: CutFrame[] = [];
+  /** Frames sueltos (PNG individuales, Fase C): sobreviven al re-cortar la hoja. */
+  private looseFrames: CutFrame[] = [];
 
   private overlay: HTMLDivElement;
   private assetNameInput: HTMLInputElement;
@@ -425,10 +427,26 @@ export class SpriteToolUI {
     this.addFrameBtn.textContent = 'Añadir frame';
     this.addFrameBtn.disabled = true;
     this.addFrameBtn.addEventListener('click', () => this.toggleAddFrameMenu());
+    // Frames sueltos desde archivos (C2): PNG/WebP individuales a la biblioteca.
+    const looseBtn = document.createElement('button');
+    looseBtn.className = 'btn btn--secondary btn--sm';
+    looseBtn.title = 'Añade PNG/WebP individuales como frames sueltos';
+    looseBtn.appendChild(Icon('image-plus', 14));
+    looseBtn.appendChild(document.createTextNode(' Añadir frames desde archivo…'));
+    const looseInput = document.createElement('input');
+    looseInput.type = 'file';
+    looseInput.accept = 'image/png, image/webp';
+    looseInput.multiple = true;
+    looseInput.hidden = true;
+    looseBtn.addEventListener('click', () => looseInput.click());
+    looseInput.addEventListener('change', () => {
+      void this.addLooseFiles(looseInput.files);
+      looseInput.value = '';
+    });
     this.addFrameMenu = document.createElement('div');
     this.addFrameMenu.className = 'sprite-tool__add-frame-menu';
     this.addFrameMenu.hidden = true;
-    addFrameRow.append(this.addFrameBtn);
+    addFrameRow.append(this.addFrameBtn, looseBtn, looseInput);
     this.step3Status = document.createElement('div');
     this.step3Status.className = 'sprite-tool__cut-status';
 
@@ -549,8 +567,8 @@ export class SpriteToolUI {
   };
 
   private setStep(i: number): void {
-    // Paso 3 solo está disponible con frames recortados; el resto siempre.
-    if (i === 2 && this.cutFrames.length === 0) {
+    // Paso 3 solo está disponible con frames (hoja cortada o sueltos).
+    if (i === 2 && this.allFrames().length === 0) {
       this.nextBtn.disabled = true;
       return;
     }
@@ -592,6 +610,7 @@ export class SpriteToolUI {
       this.sheetUrl = URL.createObjectURL(file);
       this.fileName = file.name;
       this.cutFrames = [];
+      this.looseFrames = []; // hoja nueva → los sueltos se descartan (C2)
       this.framesGrid.textContent = '';
 
       this.assetNameInput.disabled = false;
@@ -610,6 +629,11 @@ export class SpriteToolUI {
       console.error('Error cargando hoja:', err);
       showToast('No se pudo cargar esa imagen', 'error');
     }
+  }
+
+  /** Lista global de frames reproducibles: hoja cortada + PNGs sueltos (C2). */
+  private allFrames(): CutFrame[] {
+    return [...this.cutFrames, ...this.looseFrames];
   }
 
   /** Activa el Paso 2 y dispara la primera detección. */
@@ -772,7 +796,7 @@ export class SpriteToolUI {
 
   /** Activa el Paso 3 (Animar). */
   private goToAnimate(): void {
-    if (this.cutFrames.length === 0) return;
+    if (this.allFrames().length === 0) return;
     this.initAnimsIfNeeded();
     this.setStep(2);
   }
@@ -782,7 +806,7 @@ export class SpriteToolUI {
    * índices apuntan fuera de los frames recortados (hoja re-cortada).
    */
   private initAnimsIfNeeded(): void {
-    const n = this.cutFrames.length;
+    const n = this.allFrames().length;
     if (n === 0) return;
     const needsRegen =
       this.animSpecs.length === 0 ||
@@ -795,7 +819,7 @@ export class SpriteToolUI {
 
   /** Añade una animación nueva con nombre libre y los dos primeros frames. */
   private addAnim(): void {
-    const n = this.cutFrames.length;
+    const n = this.allFrames().length;
     if (n === 0) return;
     let i = 1;
     const taken = new Set(this.animSpecs.map((s) => s.name));
@@ -902,7 +926,7 @@ export class SpriteToolUI {
     const spec = this.animSpecs[this.activeAnim];
     if (!spec) return '';
     const idx = this.previewFrameIndex();
-    const frame = this.cutFrames[spec.frameIndices[idx] ?? -1];
+    const frame = this.allFrames()[spec.frameIndices[idx] ?? -1];
     return frame ? frame.dataUrl : '';
   }
 
@@ -938,7 +962,7 @@ export class SpriteToolUI {
     this.step3FramesGrid.textContent = '';
     if (!spec) return;
     spec.frameIndices.forEach((frameIdx, pos) => {
-      const frame = this.cutFrames[frameIdx];
+      const frame = this.allFrames()[frameIdx];
       if (!frame) return;
       const cell = document.createElement('div');
       cell.className = 'sprite-tool__thumb sprite-tool__dnd';
@@ -1017,7 +1041,7 @@ export class SpriteToolUI {
       this.addFrameMenu.hidden = true;
       return;
     }
-    const idcs = availableFrames(spec.frameIndices, this.cutFrames.length);
+    const idcs = availableFrames(spec.frameIndices, this.allFrames().length);
     this.addFrameBtn.disabled = idcs.length === 0;
     if (!this.addFrameMenuOpen) {
       this.addFrameMenu.hidden = true;
@@ -1032,7 +1056,7 @@ export class SpriteToolUI {
       return;
     }
     for (const i of idcs) {
-      const frame = this.cutFrames[i];
+      const frame = this.allFrames()[i];
       if (!frame) continue;
       const cell = document.createElement('button');
       cell.type = 'button';
@@ -1071,8 +1095,9 @@ export class SpriteToolUI {
     }
     const source: { key: string; pixel: PixelImage }[] = [];
     const seen = new Set<string>();
+    const all = this.allFrames();
     for (const i of spec.frameIndices) {
-      const f = this.cutFrames[i];
+      const f = all[i];
       if (!f?.pixel || seen.has(f.key)) continue;
       seen.add(f.key);
       source.push({ key: f.key, pixel: f.pixel });
@@ -1082,7 +1107,7 @@ export class SpriteToolUI {
       return;
     }
     const { frames, spec: mirrored } = buildMirroredAnim(spec.name, source, spec.fps, spec.loop);
-    const offset = this.cutFrames.length;
+    const offset = all.length;
     const newFrames: CutFrame[] = frames.map((f) => ({
       key: f.key,
       dataUrl: this.pixelImageToDataUrl(f.pixel),
@@ -1090,12 +1115,64 @@ export class SpriteToolUI {
       h: f.pixel.height,
       pixel: f.pixel,
     }));
-    this.cutFrames.push(...newFrames);
+    this.looseFrames.push(...newFrames); // sobreviven al re-cortar la hoja
     mirrored.frameIndices = mirrored.frameIndices.map((k) => offset + k);
     this.animSpecs.push(mirrored);
     this.activeAnim = this.animSpecs.length - 1;
     this.renderStep3();
     showToast(`Animación espejada «${mirroredName}» creada`, 'success');
+  }
+
+  /** Carga PNG/WebP individuales como frames sueltos (C2). Convierte cada
+   *  archivo a PixelImage + dataURL, evita keys duplicadas y refresca el Paso 3. */
+  private async addLooseFiles(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0) return;
+    if (this.assetId === '') {
+      showToast('Pon un nombre de asset (Paso 1) antes de añadir frames', 'warning');
+      return;
+    }
+    let added = 0;
+    let skipped = 0;
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        skipped++;
+        continue;
+      }
+      try {
+        const bmp = await createImageBitmap(file);
+        if (bmp.width === 0 || bmp.height === 0) throw new Error('imagen vacía');
+        const canvas = document.createElement('canvas');
+        canvas.width = bmp.width;
+        canvas.height = bmp.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) throw new Error('sin contexto 2d');
+        ctx.drawImage(bmp, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixel: PixelImage = { width: imageData.width, height: imageData.height, data: imageData.data };
+        const key = frameKeyFromFile(this.assetId, file.name);
+        const all = this.allFrames();
+        if (all.some((f) => f.key === key)) {
+          skipped++;
+          continue;
+        }
+        const dataUrl = this.pixelImageToDataUrl(pixel);
+        this.looseFrames.push({ key, dataUrl, w: pixel.width, h: pixel.height, pixel });
+        added++;
+      } catch (err) {
+        console.error('Error añadiendo frame suelto:', err);
+        skipped++;
+      }
+    }
+    if (added === 0) {
+      if (skipped > 0) showToast('Ningún frame añadido: duplicados o archivos inválidos', 'warning');
+      return;
+    }
+    this.initAnimsIfNeeded();
+    this.nextBtn.disabled = false;
+    this.stepEls[2]!.disabled = false;
+    this.renderStep3();
+    const msgSkipped = skipped > 0 ? `, ${skipped} omitidos` : '';
+    showToast(added === 1 ? `1 frame suelto añadido${msgSkipped}` : `${added} frames sueltos añadidos${msgSkipped}`, skipped > 0 ? 'warning' : 'success');
   }
 
   /** Actualiza el <img> del preview con el frame activo. */
@@ -1155,10 +1232,11 @@ export class SpriteToolUI {
 
   /** Construye la salida y la envía (7b: valida; 7c: conecta el guardado). */
   private handleSave(): void {
-    // 7f: las keys reales de cada frame (hoja `_f{index}` + espejadas `_mirror`)
-    // permiten a buildSpriteAnims generar texturas para TODAS las animaciones.
-    const frameKeys = this.cutFrames.map((f) => f.key);
-    const out = buildSpriteAnims(this.assetId, this.cutFrames.length, this.animSpecs, frameKeys);
+    // 7f/C2: las keys reales de cada frame (hoja `_f{index}`, espejadas `_mirror`
+    // o sueltas) permiten a buildSpriteAnims generar texturas para TODAS las anims.
+    const all = this.allFrames();
+    const frameKeys = all.map((f) => f.key);
+    const out = buildSpriteAnims(this.assetId, all.length, this.animSpecs, frameKeys);
     if (out.errors.length > 0) {
       showToast(`Animación inválida: ${out.errors[0]}`, 'error');
       return;
@@ -1167,8 +1245,8 @@ export class SpriteToolUI {
     if (this.onSaveRequested) {
       // Mapa key → dataURL para que main.ts suba cada frame al middleware.
       const frameDataUrls: Record<string, string> = {};
-      for (let i = 0; i < this.cutFrames.length; i++) {
-        frameDataUrls[this.cutFrames[i]!.key] = this.cutFrames[i]!.dataUrl;
+      for (let i = 0; i < all.length; i++) {
+        frameDataUrls[all[i]!.key] = all[i]!.dataUrl;
       }
       void this.onSaveRequested(out, frameDataUrls);
     } else {

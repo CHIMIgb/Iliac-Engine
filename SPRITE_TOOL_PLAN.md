@@ -424,7 +424,7 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     pasa a usarla (centraliza la URL).
 >   - Tests en `frames.test.ts` (2 nuevos): key limpia con espacios/acentos/rutas;
 >     `spritePath` para keys de hoja, sueltas y espejadas.
-> - **C2 — PNGs sueltos en el animador (pendiente):**
+> - **C2 — PNGs sueltos en el animador ✅ (en curso de validación):**
 >   - [MODIFICAR] `spriteToolUI.ts`: botón "Añadir frames desde archivo…" (lucide
 >     `image-plus`) → `<input type=file accept="image/png, image/webp" multiple>`; por
 >     cada archivo: `PixelImage` → dataURL → `{ key: frameKeyFromFile(assetId, nombre),
@@ -432,8 +432,9 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >   - Se guardan en `this.looseFrames` (lista separada) que **sobrevive al re-cortar**
 >     (Paso 2: `cutFramesFromSheet` la respeta; `loadFile` la vacía con hoja nueva).
 >   - `allFrames()` = `[...cutFrames, ...looseFrames]` (getter) usado por
->     `renderAddFrameMenu`, la grilla del Paso 3, `initAnimsIfNeeded` y `handleSave`
->     (que pasa `allFrames().map(f => f.key)` a `buildSpriteAnims`).
+>     `renderAddFrameMenu`, la grilla del Paso 3, `initAnimsIfNeeded`, `addAnim`,
+>     `goToAnimate`, `mirrorActiveAnim` (los espejados pasan a `looseFrames`) y
+>     `handleSave` (que pasa `allFrames().map(f => f.key)` a `buildSpriteAnims`).
 >   - `main.ts` NO cambia: el guardado ya sube cada key con su dataURL.
 >   - Manual: subir 3 PNG sueltos → crear anim nueva → añadirlos → guardar → asignar
 >     → playtest.
