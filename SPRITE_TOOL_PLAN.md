@@ -278,3 +278,118 @@ Los sprites 2D conviven en un mundo 3D y se renderizan con **billboarding** (pla
 - Comandos: `npm run studio:typecheck` · `npm run studio:test` · `npm run test:engine` (regresión del motor — deben seguir en verde, no se toca).
 - Validación visual: subir una hoja real → cortar → animar → **F5 playtest** con el guardia animado en la demo (criterio explícito del HITO F5 en ROADMAP: *"Sprite animado importado y recortado aparece en la demo"*).
 - Al terminar cada fase completada se marca en `ROADMAP.md` §12 como `realizada` (F5/6.5 parcial por fases) y se espera validación del usuario antes de pasar a la siguiente.
+
+---
+
+## 12. Desglose de ejecución paso a paso (acordado 2026-09-14)
+
+> **Decisión clave antes de Fase B:** el motor **no consumía** `spriteAnims` todavía
+> (`SpriteSystem.js` era estático: un sprite = una textura). El usuario aprobó la
+> **Opción 1**: extensión mínima del motor para cumplir el HITO F5 ("sprite animado
+> aparece en la demo"). El plan original asumía que el motor ya lo leía; se corrige aquí.
+
+Cada paso = **commit propio** + **verificación verde** antes de pasar al siguiente.
+El usuario valida cada paso cerrado; solo entonces se continúa.
+
+### Sub-paso 6 — Motor consume `spriteAnims` (extensión mínima, atrás compatible)
+
+**Contrato (sin cambios de schema):** `world.spriteAnims = { [id]: { frames: string[], fps?, loop? } }`
+con **≥2 frames** que existen en `world.textures`. Un sprite animado lleva el campo
+opcional `anim` (`sprite.anim = 'idle'`); **sin `anim` → comportamiento actual idéntico**.
+
+#### 6a — Lógica pura de frames (`engine/core/anims.js`)
+- [CREAR] `engine/core/anims.js` — sin Three.js, testeable aislado:
+  - `animFrameIndex(anim, elapsed)` → índice de frame según `fps`/`loop`/fin de anim.
+  - `loop:false` → se clampa al último frame al terminar (no reinicia).
+  - `fps` por defecto (si falta) → 1. `frames.length` ≥ 1 siempre.
+- [CREAR] `test/engine/anims.test.js` — node:test puro:
+  - avance por fps (elapsed 0 → frame 0; `1/fps` → frame 1…)
+  - loop:false se queda en el último frame
+  - loop:true reinicia (wrap)
+  - fps mínimo/clamp si aplica
+- **Verificación 6a:** `npm run test:engine` con los nuevos tests en verde + regresión 162.
+
+#### 6b — Render animado + orquestación + validación
+- [MODIFICAR] `engine/three/SpriteSystem.js` — `buildSprites(scene, world, textures)`:
+  - Sprite sin `anim` (o anim inexistente) → **exactamente igual que hoy** (compatibilidad).
+  - Sprite con `anim` válida → un `THREE.Sprite` por entidad cuyo `material.map` cambia
+    por frame; el animator mantiene `{ sprite, animDef, clock }` por entidad.
+  - Devuelve un objeto `SpriteAnimator` con `update(dt)` (o `null` si no hay anims).
+- [MODIFICAR] `engine/Engine3D.js` — solo orquestación (no implementa frames):
+  - `this.spriteAnimator = null` en constructor.
+  - En `load()` y `setWorld()`: capturar el animator de `WorldMesh.build(...)`.
+  - En `update(dt)`: `this.spriteAnimator?.update(safeDt)`.
+  - En `dispose()`: `this.spriteAnimator = null`.
+- [MODIFICAR] `engine/core/validate.js` — reglas **aditivas** (atrás compatible):
+  - `world.spriteAnims`: debe ser objeto; cada anim: `frames` array de ≥2 strings que
+    **existen en `world.textures`**; `fps` número > 0 (si se declara); `loop` booleano.
+  - Sprites con `anim` que no existe en `spriteAnims` → error.
+- [CREAR/MODIFICAR] tests de validación: `spriteAnims` inválido da error (frames <2,
+  frame inexistente, fps ≤ 0, anim de sprite inexistente); válido pasa.
+- **Verificación 6b:** `npm run test:engine` verde + Studio 179 regresión. Playtest manual
+  corto: un sprite con `anim` se ve animado en la demo/Studio; sin `anim` se ve estático.
+
+### Sub-paso 7 — Fase B: Animator (Paso 3) + guardado en el proyecto
+
+**Aceptación de Fase B (plan §7):** crear idle/walk/attack/death desde los frames;
+playtest (F5) muestra al guardia animado en la demo; validación del motor pasa (≥2 frames).
+
+#### 7a — Lógica pura del animator (`studio/src/spriteTool/animator.ts`)
+- [CREAR] `studio/src/spriteTool/animator.ts` — sin canvas, testable en Node:
+  - `defaultAnimTemplate(nFrames)` → reparte los frames en **idle/walk/attack/death**
+    (idle 1º, walk siguientes, etc.); cada anim con duplicado si <2 frames.
+  - `buildAnimDef(frames, fps, loop)` → `{ frames, fps, loop }` con **≥2** frames
+    (duplica el único) y `fps` clamp 1–60.
+  - `reorderFrames(frames, from, to)` → reordena sin tocar la hoja.
+  - `buildSpriteAnims(anims)` → devuelve `{ textures, spriteAnims }` listos para guardar
+    y **validados con `validateProject` real** (carga `engine/core/validate.js`).
+- [CREAR] `studio/tests/spriteTool/animator.test.ts`:
+  - template con 8 frames → idle/walk/attack/death con ≥2 frames y cobertura total.
+  - anim con 1 frame → se duplica.
+  - fps clamp (0 → 1, 999 → 60).
+  - reorder mantiene los mismos keys, orden cambiado.
+  - `buildSpriteAnims` → `validateProject` devuelve `valid:true`; versiones rotas
+    (frames < 2, frame inexistente) → `valid:false`.
+- **Verificación 7a:** `npm run studio:typecheck` + `npm run studio:test` (179 + nuevos).
+
+#### 7b — UI Paso 3 «Animar» (`spriteToolUI.ts` + CSS)
+- [MODIFICAR] `studio/src/spriteTool/spriteToolUI.ts`:
+  - Activar la pestaña "3 · Animar" al tener frames.
+  - Lista de frames con **drag & drop HTML5 nativo** (reordenar sin tocar la hoja).
+  - **Preview ▶/⏸** (setInterval/requestAnimationFrame en el modal): slider `fps`,
+    checkbox `loop`, botón **step** (frame a frame).
+  - Lista de anims: plantilla idle/walk/attack/death precargada
+    (`defaultAnimTemplate`), botón "＋ Nueva anim" (nombre libre), editar frames/`fps`/`loop`,
+    eliminar anim.
+  - Footer: botón "Guardar en el proyecto" (deshabilitado sin anims válidas).
+- [MODIFICAR] `studio/src/style.css` — estilos del Paso 3 (frames draggables, preview,
+  lista de anims) con tokens de DESIGN.md.
+- **Verificación 7b:** typecheck + tests Studio 179 (regresión) verdes; manual visual
+  del Paso 3 con `demo_walk.png`.
+
+#### 7c — Guardado real + asignación al playtest
+- [MODIFICAR] `studio/src/editor/EditorState.ts`:
+  - `setWorldTextures(patch)` → fusiona en `world.textures` (notify).
+  - `setSpriteAnims(anims)` → fusiona en `world.spriteAnims` (notify).
+  - **No** toca `entityCatalog` (decisión 5 del plan).
+- [MODIFICAR] `studio/src/main.ts` (wiring del guardado):
+  - Al pulsar Guardar: por cada frame → `POST /assets/sprites/upload`
+    (middleware **ya existente**, spritesDir `/assets/sprites/upload`, `>20 MB`).
+  - `EditorState.setWorldTextures` + `setSpriteAnims` + toast success/error.
+  - **Asignación al playtest (puente hasta 6.4):** menú "Asignar a sprite del mundo ▾"
+    con los `world.sprites` del doc + botón "Asignar anim idle" → escribe `sprite.anim`
+    en un sprite existente. El HITO "guardia animado en el playtest" se valida sin
+    esperar al Entity Builder.
+- [MODIFICAR] ROADMAP.md §12 → F5 marca **Fase B realizada** (falta C: biblioteca de
+  PNGs individuales).
+- **Verificación 7c:** typecheck + Studio tests verdes + motor regresión verde. Manual:
+  F5 → Sprites → cargar `demo_walk.png` → Cortar → Animar → Guardar → asignar a un
+  sprite → playtest F5 → **guardia animado**.
+
+### Orden de ejecución acordado
+`6a → (valida) → 6b → (valida) → 7a → (valida) → 7b → (valida) → 7c → (valida y marca ROADMAP)`
+
+- Cada paso cerrado con su suite verde (`test:engine` en 6a/6b; `studio:typecheck` +
+  `studio:test` en 7a/7b/7c) y commit propio sin `push` (convención del usuario).
+- Comentarios en español, iconos lucide (sin emojis), tokens DESIGN.md, cero cambios
+  de schema, cero toques a lo validado sin permiso.
