@@ -509,9 +509,21 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     para validar «reasignar a OTRO sprite» sin backend. Test en
 >     landscape.test.ts (213). ✅ **validado por el usuario**.
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`
->     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
->     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y
->     `this.setStep(2)`.
+>     `collectMissingFrameKeys()` (mapeo frameKeys → a cargar, dedupe por key,
+>     omitiendo colores puros) con su test en `frames.test.ts`; decode de las
+>     texturas guardadas (dataURL/ruta) → `PixelImage` en la capa UI
+>     (`loadPixelFromDataUrl`, mismo patrón canvas que `addLooseFiles` — el
+>     entorno de tests es Node sin canvas, así que el decode vive en
+>     `spriteToolUI.ts` y lo testeable queda puro en `frames.ts`); añade los
+>     frames faltantes a `looseFrames`, copia la anim en `animSpecs` (nombre
+>     único si colisiona, mismos fps/loop) y `this.setStep(2)`.
+>     ✅ **implementado 2026-09-15** — botón «Cargar al animador» en cada card de
+>     la Biblioteca (siempre disponible, sin depender de sprites del mundo):
+>     reconstruye los frames desde `world.textures` (solo los que faltan),
+>     los añade como frames sueltos, duplica la anim en el Paso 3 y salta a
+>     Animar para editarla/duplicarla; toasts de éxito/omitidos/error. Test
+>     `collectMissingFrameKeys` en frames.test.ts (217 suite Studio). ⏳ **a
+>     validar por el usuario**. **Fase D cerrada** una vez validado D5.
 >   - **Aceptación:** tab "Biblioteca" lista guardados con thumbs reales; reasignar
 >     una anim a otro sprite; cargar una anim al animador y editarla/duplicarla; el tab
 >     "Sprites" viejo ya no existe; `studio:test` + `studio:typecheck` verdes; commit

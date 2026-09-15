@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor, visibleFrameKeys } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, collectMissingFrameKeys, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor, visibleFrameKeys } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -137,5 +137,39 @@ describe('mirrorPixelImage (7f)', () => {
     expect(visibleFrameKeys(textures, ['guard_f0', 'guard_f1', 'guard_f2'])).toEqual(['guard_f0']);
     expect(visibleFrameKeys(textures, [])).toEqual([]);
     expect(visibleFrameKeys(textures, ['desconocido'])).toEqual([]);
+  });
+});
+
+describe('collectMissingFrameKeys (Fase D5)', () => {
+  const textures: Record<string, string | number> = {
+    guard_f0: '/assets/sprites/guard_f0.png',
+    guard_f1: 0x112233, // color puro: no se puede decodificar
+    guard_f2: '/assets/sprites/guard_f2.png',
+    // guard_f3 no existe en textures
+  };
+
+  it('dedupe: omite keys ya cargadas y conserva el orden de la anim', () => {
+    expect(collectMissingFrameKeys(
+      ['guard_f0', 'guard_f1', 'guard_f2'],
+      textures,
+      ['guard_f2'],
+    )).toEqual(['guard_f0']);
+  });
+
+  it('omite colores puros (number) y keys inexistentes', () => {
+    expect(collectMissingFrameKeys(
+      ['guard_f0', 'guard_f1', 'guard_f3'],
+      textures,
+      [],
+    )).toEqual(['guard_f0']);
+  });
+
+  it('todas conocidas o sin frames → lista vacía', () => {
+    expect(collectMissingFrameKeys(['guard_f0'], textures, ['guard_f0'])).toEqual([]);
+    expect(collectMissingFrameKeys([], textures, [])).toEqual([]);
+  });
+
+  it('textures vacío → nada cargable', () => {
+    expect(collectMissingFrameKeys(['guard_f0', 'guard_f2'], {}, [])).toEqual([]);
   });
 });

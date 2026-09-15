@@ -149,6 +149,22 @@ export function mirrorPixelImage(img: PixelImage): PixelImage {
 }
 
 /**
+ * Keys de una animación guardada que faltan por cargar al animador (Fase D5):
+ * aquellas que existen en `world.textures` con valor string (dataURL/ruta
+ * decodificable) y aún no están en `knownKeys` (dedupe: no recargar frames ya
+ * cargados). Los colores puros (number) no tienen imagen y se omiten. Conserva
+ * el orden de `animFrames`.
+ */
+export function collectMissingFrameKeys(
+  animFrames: string[],
+  textures: Record<string, string | number>,
+  knownKeys: readonly string[],
+): string[] {
+  const known = new Set(knownKeys);
+  return animFrames.filter((key) => typeof textures[key] === 'string' && !known.has(key));
+}
+
+/**
  * Ordena los rects en filas: agrupa por centro Y (con tolerancia = mitad de la
  * altura media, para hojas con pequeñas inclinaciones) y dentro de cada fila
  * ordena por X. Cada rect devuelto es el mismo objeto (no se copia).

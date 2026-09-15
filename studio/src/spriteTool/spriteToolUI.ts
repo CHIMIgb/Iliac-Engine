@@ -14,7 +14,7 @@
 
 import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
-import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor, visibleFrameKeys } from './frames';
+import { assetIdFromFileName, collectMissingFrameKeys, cropRegion, frameKeyFromFile, textureKeyFor, visibleFrameKeys } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
@@ -1202,9 +1202,11 @@ private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDi
   return card;
 }
 
-/** Fila de acción de la Biblioteca (D4): select de sprites del mundo + botón
- *  «Asignar a sprite…». Cero lógica nueva: llama al callback `onAssignSprite`
- *  ya conectado por main.ts (→ doc.assignSpriteAnim, con toasts de resultado). */
+/** Fila de acción de la Biblioteca (D4+D5): select de sprites del mundo +
+ *  botón «Asignar a sprite…» (D4) y botón «Cargar al animador» (D5). El
+ *  primero va conectado al callback `onAssignSprite` ya existente (→
+ *  doc.assignSpriteAnim); el segundo llama a `loadLibraryAnim`. La parte de
+ *  asignación depende de sprites del mundo; «Cargar al animador» siempre está. */
 private renderLibraryAssignRow(animName: string): HTMLDivElement {
   const row = document.createElement('div');
   row.className = 'sprite-tool__library-actions';
@@ -1213,38 +1215,128 @@ private renderLibraryAssignRow(animName: string): HTMLDivElement {
     hint.className = 'sprite-tool__library-meta';
     hint.textContent = 'No hay sprites en el mundo para asignar.';
     row.appendChild(hint);
-    return row;
-  }
-  const select = document.createElement('select');
-  select.className = 'sprite-tool__input sprite-tool__select';
-  select.title = 'Sprite del mundo que mostrará esta animación';
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = 'Elegir sprite…';
-  select.appendChild(placeholder);
-  for (const it of this.worldSpriteOptions) {
-    const opt = document.createElement('option');
-    opt.value = it.id;
-    opt.textContent = it.label;
-    select.appendChild(opt);
-  }
-  const btn = document.createElement('button');
-  btn.className = 'btn btn--secondary btn--sm';
-  btn.textContent = 'Asignar a sprite…';
-  btn.addEventListener('click', () => {
-    const sid = select.value;
-    if (!sid) {
-      showToast('Elige un sprite primero', 'warning');
-      return;
+  } else {
+    const select = document.createElement('select');
+    select.className = 'sprite-tool__input sprite-tool__select';
+    select.title = 'Sprite del mundo que mostrará esta animación';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Elegir sprite…';
+    select.appendChild(placeholder);
+    for (const it of this.worldSpriteOptions) {
+      const opt = document.createElement('option');
+      opt.value = it.id;
+      opt.textContent = it.label;
+      select.appendChild(opt);
     }
-    if (!this.onAssignSprite) {
-      showToast('La Biblioteca no está conectada al proyecto', 'warning');
-      return;
-    }
-    this.onAssignSprite(sid, animName);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--secondary btn--sm';
+    btn.textContent = 'Asignar a sprite…';
+    btn.addEventListener('click', () => {
+      const sid = select.value;
+      if (!sid) {
+        showToast('Elige un sprite primero', 'warning');
+        return;
+      }
+      if (!this.onAssignSprite) {
+        showToast('La Biblioteca no está conectada al proyecto', 'warning');
+        return;
+      }
+      this.onAssignSprite(sid, animName);
+    });
+    row.append(select, btn);
+  }
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'btn btn--secondary btn--sm';
+  loadBtn.textContent = 'Cargar al animador';
+  loadBtn.title = 'Reconstruye los frames desde las texturas guardadas y salta al Paso 3 para duplicarla/editarla';
+  loadBtn.addEventListener('click', () => {
+    void this.loadLibraryAnim(animName);
   });
-  row.append(select, btn);
+  row.appendChild(loadBtn);
   return row;
+}
+
+/**
+ * Carga una anim guardada al animador (D5): reconstruye sus frames desde las
+ * texturas del proyecto (los que aún no estén cargados, dedupe por key),
+ * copia la anim en `animSpecs` con nombre único y salta al Paso 3 para
+ * duplicarla/editarla. Los frames reconstruidos van a `looseFrames` como en
+ * «Añadir frame suelto».
+ */
+private async loadLibraryAnim(name: string): Promise<void> {
+  const snapshot = this.getProjectSnapshot();
+  const anim = snapshot?.spriteAnims[name];
+  if (!snapshot || !anim) {
+    showToast(`La animación «${name}» ya no existe en el proyecto`, 'error');
+    return;
+  }
+  const missing = collectMissingFrameKeys(anim.frames, snapshot.textures, this.allFrames().map((f) => f.key));
+  let added = 0;
+  let skipped = 0;
+  for (const key of missing) {
+    const src = snapshot.textures[key];
+    if (typeof src !== 'string') {
+      skipped++;
+      continue;
+    }
+    const pixel = await this.loadPixelFromDataUrl(src);
+    if (!pixel) {
+      skipped++;
+      continue;
+    }
+    this.looseFrames.push({ key, dataUrl: this.pixelImageToDataUrl(pixel), w: pixel.width, h: pixel.height, pixel });
+    added++;
+  }
+  if (added === 0) {
+    showToast('No se pudo cargar ningún frame de la animación', 'error');
+    return;
+  }
+  // Índices de la anim en la lista global de frames (los no cargados se omiten).
+  const keys = this.allFrames().map((f) => f.key);
+  const indexes = anim.frames.map((k) => keys.indexOf(k)).filter((i) => i >= 0);
+  // Copia con nombre único si colisiona (p. ej. re-cargar la misma anim).
+  const taken = new Set(this.animSpecs.map((s) => s.name));
+  let copyName = name;
+  let suffix = 2;
+  while (taken.has(copyName)) {
+    copyName = `${name}_${suffix++}`;
+  }
+  this.animSpecs.push({
+    name: copyName,
+    frameIndices: indexes,
+    fps: anim.fps ?? 8,
+    loop: anim.loop ?? true,
+  });
+  this.activeAnim = this.animSpecs.length - 1;
+  this.stepEls[2]!.disabled = false;
+  this.nextBtn.disabled = false;
+  this.setStep(2);
+  const msgSkipped = skipped > 0 ? `, ${skipped} omitidos` : '';
+  showToast(`Animación «${copyName}» cargada (${indexes.length} frames${msgSkipped})`, skipped > 0 ? 'warning' : 'success');
+}
+
+/** Decodifica una URL (dataURL o ruta del middleware) a PixelImage. Mismo
+ *  patrón canvas que addLooseFiles; null si la imagen no se puede decodificar. */
+private async loadPixelFromDataUrl(url: string): Promise<PixelImage | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bmp = await createImageBitmap(await res.blob());
+    if (bmp.width === 0 || bmp.height === 0) throw new Error('imagen vacía');
+    const canvas = document.createElement('canvas');
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('sin contexto 2d');
+    ctx.drawImage(bmp, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    bmp.close();
+    return { width: imageData.width, height: imageData.height, data: imageData.data };
+  } catch (err) {
+    console.error('Error decodificando frame guardado:', err);
+    return null;
+  }
 }
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
