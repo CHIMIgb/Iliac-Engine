@@ -14,7 +14,7 @@
 
 import { Icon } from '../ui/Icon';
 import { showToast } from '../ui/Toast';
-import { assetIdFromFileName, cropRegion, frameKeyFromFile, textureKeyFor } from './frames';
+import { addLooseFromPixels, assetIdFromFileName, cropRegion, frameKeyFromFile, loadPixelFromDataUrl, textureKeyFor } from './frames';
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
@@ -1186,11 +1186,83 @@ export class SpriteToolUI {
         }
         this.onAssignSprite(assignSelect.value, name);
       });
-      assignRow.append(assignSelect, assignBtn);
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'btn btn--secondary btn--sm';
+      loadBtn.textContent = 'Cargar al animador';
+      loadBtn.addEventListener('click', () => void this.loadAnimToAnimator(name, snapshot));
+      assignRow.append(assignSelect, assignBtn, loadBtn);
       card.appendChild(assignRow);
 
       this.libraryGrid.appendChild(card);
     }
+  }
+
+  /**
+   * Carga una animación guardada al animador (D5): decodifica sus frames desde
+   * las texturas del proyecto, los añade a `looseFrames` (con dedupe), copia la
+   * anim en `animSpecs` y salta al Paso 3 para editarla/duplicarla.
+   */
+  private async loadAnimToAnimator(name: string, snapshot: SpriteLibrarySnapshot): Promise<void> {
+    const anim = snapshot.spriteAnims[name];
+    if (!anim) return;
+    // Decodifica cada frame de la anim desde la textura guardada.
+    const decoded: Array<{ key: string; pixel: PixelImage } | null> = await Promise.all(
+      anim.frames.map(async (key) => {
+        const url = snapshot.textures[key];
+        if (!url) return null;
+        try {
+          return { key, pixel: await loadPixelFromDataUrl(String(url)) };
+        } catch (err) {
+          console.error(`Biblioteca: no se pudo decodificar «${key}»:`, err);
+          return null;
+        }
+      }),
+    );
+    const valid = decoded.filter((d): d is { key: string; pixel: PixelImage } => d !== null);
+    if (valid.length === 0) {
+      showToast('No se pudo decodificar ningún frame de la animación', 'error');
+      return;
+    }
+
+    const { loose, indicesByKey } = addLooseFromPixels(this.allFrames().map((f) => f.key), valid);
+    for (const l of loose) {
+      this.looseFrames.push({
+        key: l.key,
+        dataUrl: this.pixelImageToDataUrl(l.pixel),
+        w: l.pixel.width,
+        h: l.pixel.height,
+        pixel: l.pixel,
+      });
+    }
+
+    // Copia la anim con nombre único si el original está tomado en el editor.
+    const taken = new Set(this.animSpecs.map((s) => s.name));
+    let copyName = name;
+    let suffix = 2;
+    while (taken.has(copyName)) {
+      copyName = `${name}_${suffix++}`;
+    }
+    const frameIndices = anim.frames
+      .map((key) => indicesByKey.get(key))
+      .filter((i): i is number => i !== undefined);
+    if (frameIndices.length < 2) {
+      showToast('La animación guardada no tiene al menos 2 frames disponibles', 'error');
+      return;
+    }
+    this.animSpecs.push({
+      name: copyName,
+      frameIndices,
+      fps: anim.fps ?? 4,
+      loop: anim.loop ?? true,
+    });
+    this.nextBtn.disabled = false;
+    this.stepEls[2]!.disabled = false;
+    this.selectAnim(this.animSpecs.length - 1);
+    this.setStep(2);
+    const msg = loose.length > 0
+      ? `«${copyName}» cargada (${loose.length} frame(s) nuevo(s) desde el proyecto)`
+      : `«${copyName}» cargada con los frames ya presentes`;
+    showToast(msg, 'success');
   }
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`

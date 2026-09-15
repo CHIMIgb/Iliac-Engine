@@ -488,14 +488,18 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     por card, fila `Asignar a sprite…` (select con sprites del mundo + botón Asignar)
 >     que reutiliza `onAssignSprite`; `setWorldSprites` guarda la lista en
 >     `worldSprites`. Typecheck + suite verde (211).
->   - **D5 — cargar al animador:** helper puro en `frames.ts`
->     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
->     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y
->     `this.setStep(2)`.
->   - **Aceptación:** tab "Biblioteca" lista guardados con thumbs reales; reasignar
->     una anim a otro sprite; cargar una anim al animador y editarla/duplicarla; el tab
->     "Sprites" viejo ya no existe; `studio:test` + `studio:typecheck` verdes; commit
->     por sub-paso (D1→D2→D3→D4→D5) y validación del usuario entre sub-pasos.
+>   - **D5 — cargar al animador:** ✅ **realizado 2026-09-16** —
+>     `loadPixelFromDataUrl` (decodifica URL → `PixelImage` en el navegador);
+>     `addLooseFromPixels` puro (dedupe de keys + índice global de cada frame) con
+>     test en `frames.test.ts`; botón "Cargar al animador" por card: decodifica los
+>     frames desde las texturas del proyecto, los añade a `looseFrames`, copia la anim
+>     con nombre único si el original está tomado, selecciona y salta al Paso 3.
+>     Typecheck + suite verde (213).
+>   - **Aceptación:** ✅ **cumplida 2026-09-16 (pendiente de tu validación manual)** —
+>     tab "Biblioteca" lista guardados con thumbs reales; reasignar una anim a otro
+>     sprite; cargar una anim al animador y editarla/duplicarla; el tab "Sprites" viejo
+>     ya no existe; `studio:test` (213) + `studio:typecheck` verdes; commit por sub-paso
+>     (D1→D2→D3→D4→D5).
 >
 > - **Fase E — Colocar animaciones de sprites en entidades del editor (Entity Builder
 >   mínimo, 6.4; decidida por el usuario el 2026-09-15 — mismo bloque que Fase D):**
