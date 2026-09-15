@@ -400,61 +400,99 @@ enum TipoAsset {
 
 ## 8. Plan de construcción por pasos (poco a poco)
 
-Orden de ejecución recomendado para montar el backend + DB **en pasos pequeños, verificables e independientes**. Cada paso deja algo funcional y se marca en el `ROADMAP.md` (§12) al terminar; se valida con el usuario antes de pasar al siguiente.
+Orden de ejecución para montar el backend + DB en **pasos pequeños, verificables e independientes**. Cada paso deja algo funcional y se marca como `✅` en `ROADMAP.md` (§12) al terminar; se valida con el usuario antes de pasar al siguiente.
 
-> Regla de avance: **un paso = un commit** (o dos si el primero es solo schema). No pasar de paso hasta que el anterior esté `✅`. Los pasos 1–5 son backend puro; el 6 es la integración con el Studio; el 7 queda como hueco futuro.
+> Regla de avance: **un paso = un commit**. No pasar de paso hasta que el anterior esté `✅` y validado.
+>
+> Orden maestro: **1) base de datos (SQL → migración Prisma) → 2) estructura de carpetas y archivos → 3) backend (endpoints uno a uno)**. La DB es el cimiento: primero el SQL que la describe, luego Prisma lo versiona; sin DB no se escribe una línea de endpoints.
 
-### Paso 1 — Infraestructura: Postgres + Prisma + Hono (esqueleto)
+---
 
-| | |
-|---|---|
-| **Qué se crea** | Carpeta `server/` (npm, TypeScript, Hono, Prisma); postgres levantado (Docker Compose o local); `server/.env` con `DATABASE_URL` (gitignored); primer `schema.prisma` **vacío** con el `datasource` y `generator`; middleware de salud. |
-| **Tablas** | ninguna todavía (migración inicial). |
-| **Endpoints** | `GET /health` → `{"success":true,"data":{"status":"ok"},"error":null}`. |
-| **Criterio de aceptación** | `curl.exe http://localhost:3000/health` responde 200; `npx prisma migrate dev` aplica la migración inicial sin errores; `npm run typecheck` limpio. |
+### Fase A — Base de datos (primero el SQL, después Prisma)
 
-### Paso 2 — Auth: `rol`, `persona`, `usuario`
+### A1 — Escribir el SQL completo del esquema
 
 | | |
 |---|---|
-| **Qué se crea** | Tablas `rol`, `persona`, `usuario` (ver §3.1–3.3, §6) + enums si aplican; helpers de error (`codes.ts`, `AppError`, `handler.ts`); middleware de validación Zod; JWT access (15 min) + refresh (7 días), bcrypt 12 rounds; rate limit en login. |
-| **Endpoints** | `POST /auth/register`, `POST /auth/login`. (El refresh/me quedan optativos aquí.) |
-| **Criterio de aceptación** | Registrar → login → token desencripta con el `JWT_SECRET`; contrato `{success,data,error}` en TODAS las respuestas; password nunca viaja en claro ni se loguea; test de registro/login (Vitest) verde. |
+| **Qué se crea** | `server/db/schema.sql` — el esquema Postgres **escrito a mano** desde §3: `CREATE TYPE` (enums `EstadoProyecto`, `TipoAsset`), `CREATE TABLE` de `rol`, `persona`, `usuario`, `proyecto`, `asset`, `galeria`, `plantilla` (con FKs, UNIQUE, defaults, `ON DELETE CASCADE`), índices de §5, + seeds en SQL (`raíz` `admin`/`creador`, plantilla `tpl-demo`). Idempotente (re-ejecutable con `DROP ... IF EXISTS` al inicio). |
+| **Criterio de aceptación** | El SQL es completo (todas las tablas de §3, todos los índices de §5); comentado en español; sin dependencias del ORM (Postgres plano sirve). Se valida en A2 al ejecutarlo de verdad. |
 
-### Paso 3 — Proyectos: `proyecto` (data JSONB)
-
-| | |
-|---|---|
-| **Qué se crea** | Tabla `proyecto` (§3.4) con `EstadoProyecto`; seed de la plantilla `tpl-demo` desde `demo/project.js` (schema v3); validación Zod del body y del `project.data` (contra `validateProject` del motor). |
-| **Endpoints** | `POST /api/projects` (crear), `GET /api/projects` (listar míos), `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`. |
-| **Criterio de aceptación** | Crear proyecto → se persiste el JSONB completo → recuperarlo con `GET` devuelve el mismo árbol v3 (`world`, `audio`, …); un `404` ajeno → `PROJECT_NOT_FOUND`; los endpoints exigen auth y solo del propietario. |
-
-### Paso 4 — Assets: `asset` + blobs en filesystem
+### A2 — Levantar Postgres y ejecutar el SQL
 
 | | |
 |---|---|
-| **Qué se crea** | Tabla `asset` (§3.5) con `TipoAsset`; carpeta de blobs `server/storage/uploads/` (gitignored); validación de MIME real (no solo extensión) + tamaño máximo; dedupe por `hash`; escritura/borrado atómico de archivos. |
-| **Endpoints** | `POST /api/assets` (multipart), `GET /api/assets/:id` (metadata), `GET /api/assets/:id/file` (bytes), `DELETE /api/assets/:id` (fila + blob). |
-| **Criterio de aceptación** | Subir el PNG del Sprite Tool (`guard_f0`) → fila `asset` (tipo `sprite`) + blob servido por `/file`; subir el mismo archivo otra vez → reuse por hash (sin duplicar bytes); borrar elimina fila y archivo. |
+| **Qué se crea** | Postgres local (Docker Compose `postgres:16` o instalación WSL) + base de datos `raycast`; ejecución de `schema.sql` (psql) que crea tablas, enums, índices y seeds. |
+| **Criterio de aceptación** | `psql \dt` lista las 7 tablas; `\d proyecto` muestra `data JSONB` y FKs; consultar `rol` devuelve `admin` y `creador`; re-ejecutar `schema.sql` no da error (idempotencia). |
 
-### Paso 5 — Galería y plantillas: `galeria`, `plantilla`
-
-| | |
-|---|---|
-| **Qué se crea** | Tabla `galeria` (§3.6) y `plantilla` (§3.7) + seeds (`admin`/`creador`, `tpl-demo`); publicación/despublicación transaccional (estado + fila galería). |
-| **Endpoints** | `PATCH /api/projects/:id/publish` y su inverso (`unpublish`), `GET /api/gallery`, `GET /api/gallery/:slug`, `GET /api/templates`, `GET /api/templates/:id`. |
-| **Criterio de aceptación** | Publicar → aparece público en `/api/gallery` con slug único; `SLUG_TAKEN` en conflicto; despublícar → desaparece; crear proyecto desde `tpl-demo` carga el demo jugable. |
-
-### Paso 6 — Integración del Studio (frente real)
+### A3 — Migración Prisma desde el SQL
 
 | | |
 |---|---|
-| **Qué se crea** | Cliente tipado `apiFetch<T>` (contrato §5b) + almacén de sesión; reemplazo de `localStorage` por la API como fuente de verdad: guardar/cargar el proyecto del editor en `proyecto.data`; lista de proyectos del usuario (abrir/crear/borrar); subida de frames del Sprite Tool → `POST /api/assets`. |
-| **Criterio de aceptación** | Diseñar un nivel en el editor → Guardar → recargar la página → el nivel vuelve de la DB; el Sprite Tool guarda y re-lee sus frames desde la API (fin de los toasts "Guardado real pendiente"). |
+| **Qué se crea** | `schema.prisma` **espejo 1:1 del SQL** (mismos modelos, enums, únicos, índices — §6 ya lo esboza, ahora se ajusta a lo que A1/A2 dejaron en Postgres); tooling Prisma en `server/`; migración inicial versionada `prisma migrate dev --name init`. |
+| **Criterio de aceptación** | `prisma migrate dev` genera y aplica la migración sin ningún cambio pendiente (`migrate status` limpio); `prisma generate` compila el client; el esquema Prisma equivale al SQL (comprobación: sin `--create-only`, la DB ya tenía las tablas gracias a A2 → Prisma la reconcilia y queda en sync). |
 
-### Paso 7 — Hueco futuro (no tocar por ahora)
+> **Por qué SQL primero y luego Prisma:** Prisma versiona y genera SQL por sí mismo, pero escribirlo a mano primero deja el modelo mental explícito (tipos, FKs, índices) y un artefacto consultable fuera del ORM; la migración Prisma después lo fija como fuente versionada. El `schema.prisma` y el `schema.sql` deben hablar el mismo lenguaje — si divergen, gana el que esté migrado (`schema.prisma`).
 
-Refresco de sesión robusto, roles `admin` vs `creador` aplicados por endpoint, thumbnails/galería con imágenes reales, rate limits globales, tests e2e del flujo Studio↔API, despliegue (Docker Compose completo). Nada de esto bloquea los pasos 1–6.
+---
+
+### Fase B — Estructura de carpetas y archivos (sin lógica de negocio)
+
+### B1 — Esqueleto del servidor
+
+| | |
+|---|---|
+| **Qué se crea** | Carpeta `server/` con: `package.json` (scripts `dev`, `build`, `test`, `typecheck`), `tsconfig.json` (strict), `.env` + `.env.example` (`DATABASE_URL`, `JWT_SECRET`, `PORT`, `PUBLIC_URL`), `.gitignore` (node_modules, `.env`, `storage/`), `src/index.ts` (Hono app vacía con middleware básico), `src/db.ts` (singleton PrismaClient), `storage/uploads/` (blobs). |
+| **Criterio de aceptación** | `npm install` sin errores; `npm run typecheck` limpio; la app arranca y escucha en el puerto configurado. |
+
+### B2 — Contrato de respuesta y salud (la estructura respira)
+
+| | |
+|---|---|
+| **Qué se crea** | Las 3 piezas de errores (ROADMAP §5b): `src/lib/codes.ts` (diccionario de códigos), `src/lib/AppError.ts`, `src/lib/handler.ts` (interceptor global `onError` — nunca filtra stacks); logger con request id; CORS; y los únicos endpoints de infraestructura: `GET /health` (liveness) y `GET /ready` (readiness, chequea DB). |
+| **Criterio de aceptación** | `curl.exe http://localhost:3000/health` → `{"success":true,"data":{"status":"ok"},"error":null}`; `curl.exe http://localhost:3000/ready` responde `ok` solo con DB conectada; una ruta inexistente responde con el contrato `{success:false, error}` en vez de HTML plano. |
+
+---
+
+### Fase C — Backend (endpoints, uno por paso)
+
+### C1 — Auth: `registro` e `inicio de sesión`
+
+| | |
+|---|---|
+| **Qué se crea** | `POST /auth/register` y `POST /auth/login` sobre las tablas de A1–A3 (`rol`, `persona`, `usuario`): bcrypt 12 rounds, JWT access (15 min) + refresh (7 días), rate limit en login, validación Zod de todos los inputs. |
+| **Criterio de aceptación** | Registrar → login → token desencripta con `JWT_SECRET`; password nunca viaja en claro ni se loguea; contrato `{success,data,error}` en toda respuesta; test Vitest de registro/login verde. |
+
+### C2 — Proyectos: `proyecto` (data JSONB v3)
+
+| | |
+|---|---|
+| **Qué se crea** | CRUD de proyectos sobre la tabla `proyecto` (auth, solo propietario): `POST /api/projects`, `GET /api/projects`, `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`; validación del `data` con Zod + `validateProject` del motor; seed `tpl-demo` desde `demo/project.js`. |
+| **Criterio de aceptación** | Crear proyecto → el JSONB v3 completo (`world`, `audio`, …) se persiste y `GET` devuelve el mismo árbol; proyecto ajeno → `PROJECT_NOT_FOUND` (404); endpoints protegidos por auth. |
+
+### C3 — Assets: `asset` + blobs en filesystem
+
+| | |
+|---|---|
+| **Qué se crea** | Subida/lectura/borrado de assets sobre la tabla `asset` (tipo enum `TipoAsset`): `POST /api/assets` (multipart), `GET /api/assets/:id` (metadata), `GET /api/assets/:id/file` (bytes), `DELETE /api/assets/:id`; blob en `storage/uploads/`; MIME real (no solo extensión), tamaño máximo, dedupe por `hash`. |
+| **Criterio de aceptación** | Subir el PNG del Sprite Tool (`guard_f0`) → fila `asset` (`tipo: sprite`) + blob servido por `/file`; re-subir el mismo archivo reusa bytes por hash; borrar elimina fila + archivo. |
+
+### C4 — Galería y plantillas: `galeria`, `plantilla`
+
+| | |
+|---|---|
+| **Qué se crea** | Publicación/despublicación transaccional (estado + fila en `galeria`): `PATCH /api/projects/:id/publish` (+ `unpublish`); galería pública: `GET /api/gallery`, `GET /api/gallery/:slug`; plantillas: `GET /api/templates`, `GET /api/templates/:id`. |
+| **Criterio de aceptación** | Publicar → aparece públicamente con slug único (`SLUG_TAKEN` en conflicto); despublícar → desaparece; crear proyecto desde `tpl-demo` carga el demo jugable. |
+
+### C5 — Integración del Studio (frente real)
+
+| | |
+|---|---|
+| **Qué se crea** | Cliente tipado `apiFetch<T>` (contrato §5b) + sesión; reemplazo de `localStorage` por la API como fuente de verdad: guardar/cargar el proyecto del editor en `proyecto.data`; lista de proyectos del usuario (abrir/crear/borrar); frames del Sprite Tool → `POST /api/assets`. |
+| **Criterio de aceptación** | Diseñar un nivel → Guardar → recargar la página → el nivel vuelve de la DB; el Sprite Tool guarda y re-lee frames desde la API (fin de los toasts "Guardado real pendiente"). ⚠️ Este paso **toca flujos ya validados del Studio**: requiere tu validación explícita antes de ejecutarse. |
+
+### Hueco futuro (fuera de estas fases)
+
+Refresco de sesión robusto, roles `admin` vs `creador` aplicados por endpoint, thumbnails/galería con imágenes reales, rate limits globales, tests e2e Studio↔API, despliegue (Docker Compose completo). Nada de esto bloquea las fases A–C.
 
 ---
 
