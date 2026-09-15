@@ -11,7 +11,7 @@
  */
 
 import { validateProject } from '@engine/core/validate.js';
-import { textureKeyFor, mirrorPixelImage } from './frames';
+import { textureKeyFor, mirrorPixelImage, spritePath } from './frames';
 import type { PixelImage } from './types';
 
 /** FPS por defecto y rango clamps para las animaciones. */
@@ -210,7 +210,7 @@ export function buildSpriteAnims(
       ? frameKeys
       : Array.from({ length: Math.max(0, frameCount) }, (_, i) => textureKeyFor(assetId, i));
   const textures: Record<string, string> = {};
-  for (const key of keys) textures[key] = `/assets/sprites/${key}.png`;
+  for (const key of keys) textures[key] = spritePath(key);
 
   const spriteAnims: Record<string, AnimDef> = {};
   const errors: string[] = [];

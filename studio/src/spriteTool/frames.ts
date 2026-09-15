@@ -19,6 +19,16 @@ export function urlFor(assetId: string, index: number): string {
   return `/assets/sprites/${textureKeyFor(assetId, index)}.png`;
 }
 
+/** Key de un PNG suelto (Fase C): `{assetId}_{nombre_sanitizado_sin_ext}`. */
+export function frameKeyFromFile(assetId: string, fileName: string): string {
+  return `${assetId}_${assetIdFromFileName(fileName)}`;
+}
+
+/** URL servida por el middleware para una key arbitraria (hoja, espejo o suelta). */
+export function spritePath(key: string): string {
+  return `/assets/sprites/${key}.png`;
+}
+
 /** Sanea un nombre de archivo a un asset id usable (minusculas, sin extension). */
 export function assetIdFromFileName(name: string): string {
   const base = name.replace(/\\/g, '/').split('/').pop() ?? '';

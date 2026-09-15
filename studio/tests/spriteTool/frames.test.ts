@@ -2,7 +2,7 @@
  * studio/tests/spriteTool/frames.test.ts — naming, trim y orden de frames (F5).
  */
 import { describe, expect, it } from 'vitest';
-import { assetIdFromFileName, cropRegion, frameOrder, isEmptyRegion, mirrorPixelImage, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
+import { assetIdFromFileName, cropRegion, frameKeyFromFile, frameOrder, isEmptyRegion, mirrorPixelImage, spritePath, textureKeyFor, trimRect, urlFor } from '../../src/spriteTool/frames';
 import { makeImg, opaqueRect } from './helpers';
 
 describe('frames', () => {
@@ -17,6 +17,18 @@ describe('frames', () => {
     expect(assetIdFromFileName('mi hoja 2.png')).toBe('mi_hoja_2');
     expect(assetIdFromFileName('a/b/goblin walk.webp')).toBe('goblin_walk');
     expect(assetIdFromFileName('a\\b\\Goblin.Walk.webp')).toBe('goblin.walk');
+  });
+
+  it('frameKeyFromFile combina assetId con el nombre sano del archivo (C1)', () => {
+    expect(frameKeyFromFile('guard', 'Sword.png')).toBe('guard_sword');
+    expect(frameKeyFromFile('guard', 'mi poción.png')).toBe('guard_mi_poci_n');
+    expect(frameKeyFromFile('guard', 'a/b/Arrow.WebP')).toBe('guard_arrow');
+  });
+
+  it('spritePath genera la URL del middleware para cualquier key (C1)', () => {
+    expect(spritePath('guard_f0')).toBe('/assets/sprites/guard_f0.png');
+    expect(spritePath('guard_sword')).toBe('/assets/sprites/guard_sword.png');
+    expect(spritePath('guard_f0_mirror')).toBe('/assets/sprites/guard_f0_mirror.png');
   });
 
   it('trimRect reduce al bounding box de píxeles opacos', () => {
