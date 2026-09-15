@@ -413,10 +413,35 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 - **Verificación 7d:** typecheck + Studio (195) + motor (187) verdes; manual: quitar
   frames hasta el mínimo 2 y comprobar el aviso, añadir desde la hoja.
 
-#### 7e — PNGs sueltos desde archivos — ▶ **POSPUESTO a la Fase C** (decisión del usuario)
-> Este sub-paso **no se ejecuta ahora**: el usuario decidió dejar los PNGs sueltos para
-> su respectiva Fase C (biblioteca de sprites). Cuando llegue la Fase C se ejecutará tal
-> cual está descrito aquí.
+#### 7e — PNGs sueltos desde archivos — ▶ **en ejecución como Fase C** (decisión del usuario)
+> El usuario validó 7f y ordenó continuar la Fase C "dividida en pasos pequeños".
+> Desglose en curso (cada paso con commit propio + suite verde + validación):
+>
+> - **C1 — lógica pura ✅ (commit `ab3ce16`):**
+>   - [CREAR] `frameKeyFromFile(assetId, fileName)` en `frames.ts` →
+>     `{assetId}_{nombre_sanitizado_sin_ext}` (reutiliza `assetIdFromFileName`).
+>   - [CREAR] `spritePath(key)` → `/assets/sprites/{key}.png`; `buildSpriteAnims`
+>     pasa a usarla (centraliza la URL).
+>   - Tests en `frames.test.ts` (2 nuevos): key limpia con espacios/acentos/rutas;
+>     `spritePath` para keys de hoja, sueltas y espejadas.
+> - **C2 — PNGs sueltos en el animador (pendiente):**
+>   - [MODIFICAR] `spriteToolUI.ts`: botón "Añadir frames desde archivo…" (lucide
+>     `image-plus`) → `<input type=file accept="image/png, image/webp" multiple>`; por
+>     cada archivo: `PixelImage` → dataURL → `{ key: frameKeyFromFile(assetId, nombre),
+>     dataUrl, w, h, pixel }`. Guardia: key duplicada → skip + toast.
+>   - Se guardan en `this.looseFrames` (lista separada) que **sobrevive al re-cortar**
+>     (Paso 2: `cutFramesFromSheet` la respeta; `loadFile` la vacía con hoja nueva).
+>   - `allFrames()` = `[...cutFrames, ...looseFrames]` (getter) usado por
+>     `renderAddFrameMenu`, la grilla del Paso 3, `initAnimsIfNeeded` y `handleSave`
+>     (que pasa `allFrames().map(f => f.key)` a `buildSpriteAnims`).
+>   - `main.ts` NO cambia: el guardado ya sube cada key con su dataURL.
+>   - Manual: subir 3 PNG sueltos → crear anim nueva → añadirlos → guardar → asignar
+>     → playtest.
+> - **C3 — pestaña "Sprites" + limpieza (pendiente):**
+>   - Pestaña "Sprites" (4ª tab): biblioteca visual de los `looseFrames` (grilla de
+>     thumbs + botón añadir archivos + click para añadir a la anim activa).
+>   - Revisar/limpiar el slicer viejo en `AssetManager.ts` si queda código obsoleto.
+>   - ROADMAP §12 → Fase C realizada.
 - [MODIFICAR] `studio/src/spriteTool/frames.ts`:
   - NUEVO `frameKeyFromFile(assetId, fileName)` → `{assetId}_{nombre_sanitizado_sin_ext}`
     (reutiliza la sanitización existente: minúsculas + `[A-Za-z0-9._-]`).
