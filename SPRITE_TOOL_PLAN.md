@@ -522,8 +522,8 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     reconstruye los frames desde `world.textures` (solo los que faltan),
 >     los añade como frames sueltos, duplica la anim en el Paso 3 y salta a
 >     Animar para editarla/duplicarla; toasts de éxito/omitidos/error. Test
->     `collectMissingFrameKeys` en frames.test.ts (217 suite Studio). ⏳ **a
->     validar por el usuario**. **Fase D cerrada** una vez validado D5.
+>     `collectMissingFrameKeys` en frames.test.ts (217 suite Studio). ✅ **validado por el usuario**.
+>     **Fase D cerrada ✅ validada (D1–D5).**
 >   - **Aceptación:** tab "Biblioteca" lista guardados con thumbs reales; reasignar
 >     una anim a otro sprite; cargar una anim al animador y editarla/duplicarla; el tab
 >     "Sprites" viejo ya no existe; `studio:test` + `studio:typecheck` verdes; commit
