@@ -8,6 +8,8 @@
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
+>
+> **¿Por dónde empiezo?** Mirar **§8 (Plan de construcción por pasos)** — pequeños pasos verificables para montar DB + backend poco a poco; las tablas están en §3 y el esquema Prisma en §6.
 
 ---
 
@@ -393,3 +395,74 @@ enum TipoAsset {
 - **Assets compartidos / huérfanos**: un asset con `proyecto_id` nulo pertenece a la biblioteca personal del usuario y puede referenciarse desde varios proyectos.
 - **Sprite Tool (F5):** `world.sprites[].anim` debe existir como clave de `world.spriteAnims` (lo valida `validate.js` del motor); `world.textures` con valor string debe existir como `asset` (o ruta servida) antes de publicar — los colores puros (number) no necesitan `asset`.
 - **Audio (F4.5):** `audio[].src`, `variations[]` y `layers[]` referencian assets `tipo: audio`; `music.id` debe existir en `audio[]` (también lo valida el motor).
+
+---
+
+## 8. Plan de construcción por pasos (poco a poco)
+
+Orden de ejecución recomendado para montar el backend + DB **en pasos pequeños, verificables e independientes**. Cada paso deja algo funcional y se marca en el `ROADMAP.md` (§12) al terminar; se valida con el usuario antes de pasar al siguiente.
+
+> Regla de avance: **un paso = un commit** (o dos si el primero es solo schema). No pasar de paso hasta que el anterior esté `✅`. Los pasos 1–5 son backend puro; el 6 es la integración con el Studio; el 7 queda como hueco futuro.
+
+### Paso 1 — Infraestructura: Postgres + Prisma + Hono (esqueleto)
+
+| | |
+|---|---|
+| **Qué se crea** | Carpeta `server/` (npm, TypeScript, Hono, Prisma); postgres levantado (Docker Compose o local); `server/.env` con `DATABASE_URL` (gitignored); primer `schema.prisma` **vacío** con el `datasource` y `generator`; middleware de salud. |
+| **Tablas** | ninguna todavía (migración inicial). |
+| **Endpoints** | `GET /health` → `{"success":true,"data":{"status":"ok"},"error":null}`. |
+| **Criterio de aceptación** | `curl.exe http://localhost:3000/health` responde 200; `npx prisma migrate dev` aplica la migración inicial sin errores; `npm run typecheck` limpio. |
+
+### Paso 2 — Auth: `rol`, `persona`, `usuario`
+
+| | |
+|---|---|
+| **Qué se crea** | Tablas `rol`, `persona`, `usuario` (ver §3.1–3.3, §6) + enums si aplican; helpers de error (`codes.ts`, `AppError`, `handler.ts`); middleware de validación Zod; JWT access (15 min) + refresh (7 días), bcrypt 12 rounds; rate limit en login. |
+| **Endpoints** | `POST /auth/register`, `POST /auth/login`. (El refresh/me quedan optativos aquí.) |
+| **Criterio de aceptación** | Registrar → login → token desencripta con el `JWT_SECRET`; contrato `{success,data,error}` en TODAS las respuestas; password nunca viaja en claro ni se loguea; test de registro/login (Vitest) verde. |
+
+### Paso 3 — Proyectos: `proyecto` (data JSONB)
+
+| | |
+|---|---|
+| **Qué se crea** | Tabla `proyecto` (§3.4) con `EstadoProyecto`; seed de la plantilla `tpl-demo` desde `demo/project.js` (schema v3); validación Zod del body y del `project.data` (contra `validateProject` del motor). |
+| **Endpoints** | `POST /api/projects` (crear), `GET /api/projects` (listar míos), `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`. |
+| **Criterio de aceptación** | Crear proyecto → se persiste el JSONB completo → recuperarlo con `GET` devuelve el mismo árbol v3 (`world`, `audio`, …); un `404` ajeno → `PROJECT_NOT_FOUND`; los endpoints exigen auth y solo del propietario. |
+
+### Paso 4 — Assets: `asset` + blobs en filesystem
+
+| | |
+|---|---|
+| **Qué se crea** | Tabla `asset` (§3.5) con `TipoAsset`; carpeta de blobs `server/storage/uploads/` (gitignored); validación de MIME real (no solo extensión) + tamaño máximo; dedupe por `hash`; escritura/borrado atómico de archivos. |
+| **Endpoints** | `POST /api/assets` (multipart), `GET /api/assets/:id` (metadata), `GET /api/assets/:id/file` (bytes), `DELETE /api/assets/:id` (fila + blob). |
+| **Criterio de aceptación** | Subir el PNG del Sprite Tool (`guard_f0`) → fila `asset` (tipo `sprite`) + blob servido por `/file`; subir el mismo archivo otra vez → reuse por hash (sin duplicar bytes); borrar elimina fila y archivo. |
+
+### Paso 5 — Galería y plantillas: `galeria`, `plantilla`
+
+| | |
+|---|---|
+| **Qué se crea** | Tabla `galeria` (§3.6) y `plantilla` (§3.7) + seeds (`admin`/`creador`, `tpl-demo`); publicación/despublicación transaccional (estado + fila galería). |
+| **Endpoints** | `PATCH /api/projects/:id/publish` y su inverso (`unpublish`), `GET /api/gallery`, `GET /api/gallery/:slug`, `GET /api/templates`, `GET /api/templates/:id`. |
+| **Criterio de aceptación** | Publicar → aparece público en `/api/gallery` con slug único; `SLUG_TAKEN` en conflicto; despublícar → desaparece; crear proyecto desde `tpl-demo` carga el demo jugable. |
+
+### Paso 6 — Integración del Studio (frente real)
+
+| | |
+|---|---|
+| **Qué se crea** | Cliente tipado `apiFetch<T>` (contrato §5b) + almacén de sesión; reemplazo de `localStorage` por la API como fuente de verdad: guardar/cargar el proyecto del editor en `proyecto.data`; lista de proyectos del usuario (abrir/crear/borrar); subida de frames del Sprite Tool → `POST /api/assets`. |
+| **Criterio de aceptación** | Diseñar un nivel en el editor → Guardar → recargar la página → el nivel vuelve de la DB; el Sprite Tool guarda y re-lee sus frames desde la API (fin de los toasts "Guardado real pendiente"). |
+
+### Paso 7 — Hueco futuro (no tocar por ahora)
+
+Refresco de sesión robusto, roles `admin` vs `creador` aplicados por endpoint, thumbnails/galería con imágenes reales, rate limits globales, tests e2e del flujo Studio↔API, despliegue (Docker Compose completo). Nada de esto bloquea los pasos 1–6.
+
+---
+
+## 9. Referencias cruzadas
+
+| Pieza del plan | Dónde se define |
+|---|---|
+| Contrato de respuesta API (`{success,data,error}`) y errores | ROADMAP.md §5b |
+| Reglas del entorno WSL (node.exe, curl.exe, taskkill por puerto) | AGENTS.md §Entorno |
+| Schema v3 del motor (árbol `proyecto.data`) | ROADMAP.md §5, `docs/ENGINE_COMPONENTS.md` §4 |
+| Herramientas del Studio que consumirán la API | `TOOLS.md`, `DESIGN.md` |
