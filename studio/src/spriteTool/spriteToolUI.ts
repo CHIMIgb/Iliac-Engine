@@ -126,6 +126,11 @@ export class SpriteToolUI {
   /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
   onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
 
+  /** Sprites del mundo (los mismos que pueblan `spriteSelect` del Paso 3), para
+   *  la fila de reasignación de la Biblioteca (D4): no se duplica la fuente de
+   *  datos, solo se recuerda la lista que main.ts ya inyecta al abrir el modal. */
+  private worldSpriteOptions: Array<{ id: string; label: string }> = [];
+
   constructor() {
     this.overlay = document.createElement('div');
     this.overlay.className = 'modal-overlay sprite-tool';
@@ -1191,7 +1196,55 @@ private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDi
     thumbs.appendChild(none);
   }
   card.appendChild(thumbs);
+  // D4: reasignar esta anim guardada a un sprite del mundo (reutiliza el
+  // puente onAssignSprite del Paso 3 y la misma fuente de datos del select).
+  card.appendChild(this.renderLibraryAssignRow(name));
   return card;
+}
+
+/** Fila de acción de la Biblioteca (D4): select de sprites del mundo + botón
+ *  «Asignar a sprite…». Cero lógica nueva: llama al callback `onAssignSprite`
+ *  ya conectado por main.ts (→ doc.assignSpriteAnim, con toasts de resultado). */
+private renderLibraryAssignRow(animName: string): HTMLDivElement {
+  const row = document.createElement('div');
+  row.className = 'sprite-tool__library-actions';
+  if (this.worldSpriteOptions.length === 0) {
+    const hint = document.createElement('span');
+    hint.className = 'sprite-tool__library-meta';
+    hint.textContent = 'No hay sprites en el mundo para asignar.';
+    row.appendChild(hint);
+    return row;
+  }
+  const select = document.createElement('select');
+  select.className = 'sprite-tool__input sprite-tool__select';
+  select.title = 'Sprite del mundo que mostrará esta animación';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Elegir sprite…';
+  select.appendChild(placeholder);
+  for (const it of this.worldSpriteOptions) {
+    const opt = document.createElement('option');
+    opt.value = it.id;
+    opt.textContent = it.label;
+    select.appendChild(opt);
+  }
+  const btn = document.createElement('button');
+  btn.className = 'btn btn--secondary btn--sm';
+  btn.textContent = 'Asignar a sprite…';
+  btn.addEventListener('click', () => {
+    const sid = select.value;
+    if (!sid) {
+      showToast('Elige un sprite primero', 'warning');
+      return;
+    }
+    if (!this.onAssignSprite) {
+      showToast('La Biblioteca no está conectada al proyecto', 'warning');
+      return;
+    }
+    this.onAssignSprite(sid, animName);
+  });
+  row.append(select, btn);
+  return row;
 }
 
   /** Espejo de la anim activa (7f): voltea cada frame y crea `${name}_mirror`
@@ -1370,6 +1423,7 @@ private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDi
    * Lo llama main.ts al abrir el modal (el UI no conoce EditorState).
    */
   setWorldSprites(items: Array<{ id: string; label: string }>): void {
+    this.worldSpriteOptions = items; // fuente compartida con la Biblioteca (D4)
     this.spriteSelect.textContent = '';
     if (items.length === 0) {
       const opt = document.createElement('option');

@@ -148,6 +148,20 @@ function buildDefaultDoc(): EditorState {
   // El guardián usa la animación mock de guardia (Fase D).
   doc.assignSpriteAnim('npc_guardian', 'guard_idle');
 
+  // Fase D (D4): más sprites del mundo mock para que «reasignar una anim a OTRO
+  // sprite» sea demostrable en la Biblioteca (el mundo no puede tener solo uno).
+  const wz = floorHeightAtPoint(doc.world, 38, 58);
+  doc.addSprite('mock_wolf_f0', 38, 58, wz, 'npc_lobo', {
+    entityType: 'npc', entityName: 'Lobo', collisionType: 'npc',
+  });
+  doc.assignSpriteAnim('npc_lobo', 'wolf_idle');
+
+  const pz = floorHeightAtPoint(doc.world, 56, 40);
+  doc.addSprite('mock_potion_f0', 56, 40, pz, 'prop_pocion', {
+    entityType: 'prop', entityName: 'Poción',
+  });
+  doc.assignSpriteAnim('prop_pocion', 'potion_idle');
+
   return doc;
 }
 

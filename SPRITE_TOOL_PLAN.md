@@ -477,28 +477,37 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     ✅ **implementado 2026-09-16** — `getSpriteLibrarySnapshot()` en EditorState
 >     (foto ligera con copia de `textures` + `spriteAnims`), `SpriteLibrarySnapshot`
 >     en types.ts, campo `onProjectSnapshot` + `getProjectSnapshot()` en SpriteToolUI,
->     wiring en main.ts al abrir el modal, test en serializer.test.ts (211). ⏳ **a
->     validar por el usuario**.
+>     wiring en main.ts al abrir el modal, test en serializer.test.ts (211).
+>     ✅ **validado por el usuario**.
 >   - **D2 — sustituir la tab:** renombrar STEPS[3], borrar el Paso 4 de sueltos
 >     (campos, `renderSpritesStep`, wiring) y dejar el esqueleto del Paso 4 Biblioteca.
 >     ✅ **implementado 2026-09-16** — STEPS[3] = 'Biblioteca'; tab siempre habilitada
 >     (solo lectura); eliminado Paso 4 de sueltos (spritesFileInput, constructor,
 >     wiring en loadFile/addLooseFiles); `spritesGrid` → `libraryGrid`; esqueleto
 >     `renderLibraryStep()` (estado vacío / contador). Typecheck + suite verde (211).
->     ⏳ **a validar por el usuario**.
+>     ✅ **validado por el usuario**.
 >   - **D3 — vista:** `renderLibraryStep()`: cards por sprite guardado + anims con
 >     mini-thumbs (frames desde `world.textures`).
 >     ✅ **implementado 2026-09-16** — cards por animación guardada (nombre +
 >     meta frames/fps/bucle + mini-thumbs 24px desde `world.textures`), estados
 >     de Biblioteca (sin conexión / vacío / solo texturas), clase
 >     `sprite-tool__library*` nueva, helper puro `visibleFrameKeys()` en
->     frames.ts con test (212). ⏳ **a validar por el usuario**.
+>     frames.ts con test (212). ✅ **validado por el usuario**.
 >     **Mock (2026-09-16):** como aún no hay backend ni assets, `sample-project.ts`
 >     ahora instala sprites mock (dataURLs SVG de color sólido: guard rojo, lobo,
 >     poción) + anims `*_idle` y el guardián usa `guard_idle`, para que la
 >     Biblioteca se vea poblada y se pueda validar. Test landscape actualizado.
 >   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
 >     `onAssignSprite`/`spriteSelect` existente.
+>     ✅ **implementado 2026-09-15** — fila de acción en cada card de la Biblioteca
+>     (`renderLibraryAssignRow`): select de sprites del mundo (misma fuente que
+>     `setWorldSprites` → `worldSpriteOptions`, sin duplicar datos ni lógica) +
+>     botón «Asignar a sprite…» que llama al callback `onAssignSprite` ya conectado
+>     por main.ts (→ `doc.assignSpriteAnim`, toasts de resultado incluidos); sin
+>     sprites en el mundo → aviso muted en la card. **Mock ampliado:** el proyecto
+>     inicial ahora tiene 3 sprites del mundo animados (guardián, lobo, poción)
+>     para validar «reasignar a OTRO sprite» sin backend. Test en
+>     landscape.test.ts (213). ✅ **validado por el usuario**.
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`
 >     `loadPixelFromDataUrl(url): Promise<PixelImage>` (canvas decode) + su test en
 >     `frames.test.ts`; mapeo frameKeys → `looseFrames` con dedupe; copia la anim y

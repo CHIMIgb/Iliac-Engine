@@ -74,6 +74,19 @@ describe('mapa por defecto 100×100 @ 2 m', () => {
     expect(world.sectors.every((s) => s.floorTex === 'grass')).toBe(true);
   });
 
+  it('Fase D (mock, D4): ≥2 sprites del mundo con anim y se puede reasignar entre ellos', () => {
+    // D4 necesita al menos 2 sprites del mundo animados para «reasignar una anim
+    // a OTRO sprite» en la Biblioteca; el mock los provee sin backend.
+    const doc = buildDefaultDoc();
+    const animated = doc.world.sprites.filter((s) => s.anim);
+    expect(animated.length).toBeGreaterThanOrEqual(2);
+    const a = animated[0]!;
+    const b = animated[1]!;
+    // La reasignación reutiliza el puente existente (main.ts → assignSpriteAnim).
+    expect(doc.assignSpriteAnim(a.id, b.anim ?? null)).toBe(true);
+    expect(doc.world.sprites.find((s) => s.id === a.id)?.anim).toBe(b.anim);
+  });
+
   it('landscapeHeight es determinista para la misma semilla', () => {
     const a = landscapeHeight(63, 85, createNoise(1337), createNoise(1338));
     const b = landscapeHeight(63, 85, createNoise(1337), createNoise(1338));
