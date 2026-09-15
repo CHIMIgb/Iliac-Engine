@@ -484,17 +484,15 @@ export class SpriteToolUI {
 
     // ── Paso 4: Biblioteca (Fase D) ── sprites + animaciones guardadas.
     // Solo lectura + 2 acciones (reasignar, cargar al animador); sin corte,
-    // sin animación, sin preview: todo eso vive en los Pasos 1-3.
+    // sin animación, sin preview, sin cabeceras: en este tab solo se ve el
+    // contenido guardado (mensaje de estado vacío, o las cards en D3).
     this.step4 = document.createElement('div');
     this.step4.className = 'sprite-tool__step';
     this.step4.hidden = true;
 
-    const libraryHeader = document.createElement('div');
-    libraryHeader.className = 'sprite-tool__label';
-    libraryHeader.textContent = 'Sprites y animaciones guardadas en el proyecto';
     this.libraryGrid = document.createElement('div');
     this.libraryGrid.className = 'sprite-tool__frames';
-    this.step4.append(libraryHeader, this.libraryGrid);
+    this.step4.appendChild(this.libraryGrid);
 
     body.append(this.step1, this.step2, this.step3, this.step4);
     modal.appendChild(body);
