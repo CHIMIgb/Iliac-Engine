@@ -727,3 +727,125 @@ html, body, #app {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
 }
+
+/* --- Sprite Tool · Paso 2 (Cortar) --- */
+.sprite-tool__cut-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sprite-tool__mode {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+}
+
+.sprite-tool__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.sprite-tool__number {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sprite-tool__number input {
+  width: 84px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+
+.sprite-tool__number input:focus {
+  border-color: var(--border-focus);
+}
+
+.sprite-tool__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sprite-tool__cut-status {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.sprite-tool__cut-status--warn {
+  color: var(--accent-warning);
+}
+
+.sprite-tool__canvas-wrap {
+  display: flex;
+  justify-content: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  overflow: auto;
+}
+
+.sprite-tool__canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  background: var(--bg-surface);
+}
+
+.sprite-tool__frames {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-2);
+  max-height: 180px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.sprite-tool__thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-1);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.sprite-tool__thumb img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.sprite-tool__thumb span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -27,6 +27,40 @@ export function assetIdFromFileName(name: string): string {
   return clean.toLowerCase();
 }
 
+/**
+ * Recorta una región de la hoja a un `PixelImage` nuevo (sin canvas → testeable
+ * en Node). Con `trim` recorta además al bounding box de píxeles opacos; si la
+ * región queda vacía devuelve null. Sin escalado: nunca pierde calidad.
+ */
+export function cropRegion(img: PixelImage, rect: Rect, opts: { trim?: boolean; alphaThreshold?: number } = {}): PixelImage | null {
+  const trim = opts.trim ?? false;
+  const alphaThreshold = opts.alphaThreshold ?? 8;
+  let r = rect;
+
+  if (trim) {
+    const t = trimRect(img, r, alphaThreshold);
+    if (t === null) return null;
+    r = t;
+  }
+
+  const out = new Uint8ClampedArray(r.w * r.h * 4);
+  for (let dy = 0; dy < r.h; dy++) {
+    const sy = r.y + dy;
+    if (sy < 0 || sy >= img.height) continue;
+    const src = (sy * img.width + r.x) * 4;
+    const dst = dy * r.w * 4;
+    for (let dx = 0; dx < r.w; dx++) {
+      const sx = r.x + dx;
+      if (sx < 0 || sx >= img.width) continue;
+      out[dst + dx * 4] = img.data[src + dx * 4]!;
+      out[dst + dx * 4 + 1] = img.data[src + dx * 4 + 1]!;
+      out[dst + dx * 4 + 2] = img.data[src + dx * 4 + 2]!;
+      out[dst + dx * 4 + 3] = img.data[src + dx * 4 + 3]!;
+    }
+  }
+  return { width: r.w, height: r.h, data: out };
+}
+
 /** True si la región no contiene ningún píxel con alpha ≥ umbral. */
 export function isEmptyRegion(img: PixelImage, rect: Rect, alphaThreshold = 8): boolean {
   for (let dy = 0; dy < rect.h; dy++) {
