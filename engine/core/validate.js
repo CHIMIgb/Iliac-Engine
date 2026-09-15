@@ -166,6 +166,47 @@ export function validateProject(project) {
     warnings.push('"world.walls" ausente; no habrá colisión de paredes');
   }
 
+  // Animaciones de sprites (F5): world.spriteAnims = { [id]: { frames[], fps?, loop? } }.
+  // Contrato (SPRITE_TOOL_PLAN §6): cada anim exige ≥2 frames que existen en
+  // world.textures; fps > 0; loop booleano. Aditivo: sin spriteAnims todo sigue válido.
+  const texKeys = new Set(Object.keys(world.textures || {}));
+  if (world.spriteAnims != null) {
+    if (typeof world.spriteAnims !== 'object' || Array.isArray(world.spriteAnims)) {
+      errors.push('"world.spriteAnims" debe ser un objeto { [id]: { frames, fps?, loop? } }');
+    } else {
+      for (const [animId, anim] of Object.entries(world.spriteAnims)) {
+        if (!anim || typeof anim !== 'object') {
+          errors.push(`spriteAnims "${animId}": debe ser un objeto { frames, fps?, loop? }`);
+          continue;
+        }
+        if (!Array.isArray(anim.frames) || anim.frames.length < 2) {
+          errors.push(`spriteAnims "${animId}": "frames" debe ser un array con al menos 2 texturas`);
+        } else {
+          for (const [i, f] of anim.frames.entries()) {
+            if (typeof f !== 'string' || !texKeys.has(f)) {
+              errors.push(`spriteAnims "${animId}": frame ${i} ("${String(f)}") no existe en world.textures`);
+            }
+          }
+        }
+        if (anim.fps != null && !(typeof anim.fps === 'number' && anim.fps > 0)) {
+          errors.push(`spriteAnims "${animId}": "fps" debe ser un número > 0`);
+        }
+        if (anim.loop != null && typeof anim.loop !== 'boolean') {
+          errors.push(`spriteAnims "${animId}": "loop" debe ser booleano`);
+        }
+      }
+    }
+  }
+
+  // Sprites con `anim` que referencia una animación inexistente → error.
+  if (Array.isArray(world.sprites)) {
+    for (const s of world.sprites) {
+      if (s.anim != null && (!world.spriteAnims || !world.spriteAnims[s.anim])) {
+        errors.push(`sprite "${s.id || '(sin id)'}" referencia animación inexistente "${String(s.anim)}"`);
+      }
+    }
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 

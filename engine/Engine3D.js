@@ -34,6 +34,7 @@ export class Engine3D {
     this.audio = null;   // AudioEngine (null si el proyecto no declara audio[])
     this.music = null;   // AdaptiveMusic (null si no hay project.music con layers)
     this.compass = null; // CompassOverlay (brújula HUD, opcional: solo si se activa)
+    this.spriteAnimator = null; // SpriteAnimator (F5): null si no hay sprites animados
     this._audioSig = null;
     if (this.world.vertices && this.world.sectors) {
       this.sectorIndex = buildSectorIndex(this.world);
@@ -44,7 +45,7 @@ export class Engine3D {
     this.textures = await loadTextures(this.project.world.textures);
     const renderSettings = this.project.render ?? this.project.meta?.render ?? {};
     this.renderer = new Renderer3D(canvas, renderSettings);
-    WorldMesh.build(this.renderer.scene, this.project, this.textures);
+    this.spriteAnimator = WorldMesh.build(this.renderer.scene, this.project, this.textures);
     await this._loadSky();
     this._setupSun();
     this._setupAudio();
@@ -173,7 +174,7 @@ export class Engine3D {
     this._setupSun();
     if (this.renderer && this.loaded) {
       if (!WorldMesh.applyHeightsIfOnlyChange(this.renderer.scene, prevWorld, this.world)) {
-        WorldMesh.build(this.renderer.scene, this.project, this.textures);
+        this.spriteAnimator = WorldMesh.build(this.renderer.scene, this.project, this.textures);
       }
     }
     this.sectorIndex = this.world.vertices && this.world.sectors
@@ -221,6 +222,7 @@ export class Engine3D {
     this.music = null;
     this.audio?.dispose();
     this.audio = null;
+    this.spriteAnimator = null;
     WorldMesh.clear(this.renderer.scene);
     for (const key in this.textures || {}) {
       this.textures[key].dispose();
@@ -252,6 +254,8 @@ export class Engine3D {
       moveWithSectorCollision(this.player, this.world, dirX, dirY, speed, safeDt, undefined, this.sectorIndex);
     }
     updateVerticalSector(this.player, this.world, safeDt, this.sectorIndex);
+    // Sprites animados (F5): avanza los relojes de frame de las animaciones.
+    if (this.spriteAnimator) this.spriteAnimator.update(safeDt);
     // Oído espacial y emisores que siguen a los sprites. El audio es OPCIONAL y
     // nunca puede romper el frame: cualquier fallo lo aísla aquí (el método ya
     // se auto-silencia por dentro, esto es la segunda barrera en el bucle de juego).

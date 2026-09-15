@@ -38,8 +38,8 @@ export class WorldMesh {
     WorldMesh.clear(scene);
 
     const world = project.world;
-    if (!world.vertices || !world.sectors) return;
-    WorldMesh.buildSectorWorld(scene, world, textures);
+    if (!world.vertices || !world.sectors) return null;
+    return WorldMesh.buildSectorWorld(scene, world, textures);
   }
 
   static clear(scene) {
@@ -209,6 +209,6 @@ export class WorldMesh {
     }
 
     buildStairsMeshes(scene, world, textures);
-    buildSprites(scene, world, textures);
+    return buildSprites(scene, world, textures);
   }
 }

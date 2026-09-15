@@ -167,3 +167,78 @@ test('Engine3D lanza error claro con project inválido', async () => {
   const { Engine3D } = await import('../../engine/Engine3D.js');
   assert.throws(() => new Engine3D({ world: {} }), /project.json inválido/);
 });
+
+// ── world.spriteAnims (F5) ─────────────────────────────────────────
+
+test('validateProject acepta spriteAnims válido (≥2 frames existentes)', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png', g1: 'b.png', g2: 'c.png' };
+  p.world.spriteAnims = {
+    idle: { frames: ['g0', 'g1'], fps: 4, loop: true },
+    walk: { frames: ['g1', 'g2', 'g0'], fps: 8 },
+  };
+  const r = validateProject(p);
+  assert.equal(r.valid, true, r.errors.join('\n'));
+});
+
+test('validateProject rechaza spriteAnims sin textures declaradas', () => {
+  const p = validProject();
+  p.world.spriteAnims = { idle: { frames: ['g0', 'g1'] } };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('no existe en world.textures')));
+});
+
+test('validateProject rechaza anim con menos de 2 frames', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png' };
+  p.world.spriteAnims = { idle: { frames: ['g0'] } };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('al menos 2')));
+});
+
+test('validateProject rechaza frame que referencia textura inexistente', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png', g1: 'b.png' };
+  p.world.spriteAnims = { idle: { frames: ['g0', 'fantasma'] } };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('"fantasma"')));
+});
+
+test('validateProject rechaza fps <= 0 y loop no booleano', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png', g1: 'b.png' };
+  p.world.spriteAnims = {
+    idle: { frames: ['g0', 'g1'], fps: -1 },
+    walk: { frames: ['g0', 'g1'], loop: 'sí' },
+  };
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('"fps" debe ser un número > 0')));
+  assert.ok(r.errors.some((e) => e.includes('"loop" debe ser booleano')));
+});
+
+test('validateProject rechaza sprite con anim inexistente', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png', g1: 'b.png' };
+  p.world.spriteAnims = { idle: { frames: ['g0', 'g1'] } };
+  p.world.sprites = [{ id: 'sp1', tex: 'g0', pos: { x: 1, y: 1, z: 0 } }, { id: 'sp2', tex: 'g0', anim: 'nope', pos: { x: 2, y: 2, z: 0 } }];
+  const r = validateProject(p);
+  assert.equal(r.valid, false);
+  assert.ok(r.errors.some((e) => e.includes('animación inexistente "nope"')));
+});
+
+test('validateProject acepta sprites sin anim (compatibilidad total)', () => {
+  const p = validProject();
+  p.world.textures = { g0: 'a.png' };
+  p.world.sprites = [{ id: 'sp1', tex: 'g0', pos: { x: 1, y: 1, z: 0 } }];
+  const r = validateProject(p);
+  assert.equal(r.valid, true);
+});
+
+test('validateProject acepta mundo sin spriteAnims (sin animaciones)', () => {
+  const r = validateProject(validProject());
+  assert.equal(r.valid, true);
+});
