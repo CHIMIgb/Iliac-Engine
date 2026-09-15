@@ -493,6 +493,10 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     de Biblioteca (sin conexión / vacío / solo texturas), clase
 >     `sprite-tool__library*` nueva, helper puro `visibleFrameKeys()` en
 >     frames.ts con test (212). ⏳ **a validar por el usuario**.
+>     **Mock (2026-09-16):** como aún no hay backend ni assets, `sample-project.ts`
+>     ahora instala sprites mock (dataURLs SVG de color sólido: guard rojo, lobo,
+>     poción) + anims `*_idle` y el guardián usa `guard_idle`, para que la
+>     Biblioteca se vea poblada y se pueda validar. Test landscape actualizado.
 >   - **D4 — reasignar:** por anim guardada, botón "Asignar a sprite…" → reutiliza
 >     `onAssignSprite`/`spriteSelect` existente.
 >   - **D5 — cargar al animador:** helper puro en `frames.ts`

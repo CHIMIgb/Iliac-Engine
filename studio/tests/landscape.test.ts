@@ -66,8 +66,11 @@ describe('mapa por defecto 100×100 @ 2 m', () => {
     expect(spread).toBeGreaterThan(2);
   });
 
-  it('por defecto NO declara texturas: el suelo usa el gris del motor', () => {
-    expect(Object.keys(world.textures).length).toBe(0);
+  it('declara solo texturas mock (Fase D) y suelos de césped: el paisaje no depende de ellas', () => {
+    // Fase D: el proyecto inicial trae sprites mock (dataURLs SVG de colores)
+    // para que la Biblioteca del Sprite Tool se vea poblada sin backend.
+    expect(Object.keys(world.textures).length).toBeGreaterThan(0);
+    expect(Object.keys(world.textures).every((k) => k.startsWith('mock_'))).toBe(true);
     expect(world.sectors.every((s) => s.floorTex === 'grass')).toBe(true);
   });
 
