@@ -192,10 +192,17 @@ test('buildSectorIndex escala lineal con los sectores (no reconstruye el vertexM
     }
     return { vertices, sectors, walls: [], textures: {} };
   };
-  const time = (world) => {
-    const t0 = performance.now();
-    buildSectorIndex(world);
-    return performance.now() - t0;
+  // Mediana de 5 corridas: una muestra única de performance.now() se dispara
+  // con un GC/scheduling del sistema (test flaky); la mediana descarta atípicos.
+  const median = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const time = (world, runs = 5) => {
+    const samples = [];
+    for (let i = 0; i < runs; i++) {
+      const t0 = performance.now();
+      buildSectorIndex(world);
+      samples.push(performance.now() - t0);
+    }
+    return median(samples);
   };
   const small = grid(32);   // 1024 sectores
   const big = grid(64);     // 4096 sectores (4x sectores, 4.1x vertices)
