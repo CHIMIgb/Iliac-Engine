@@ -6,6 +6,9 @@ dist/
 # build output del Studio (vite build -> ../public/studio)
 public/
 
+# Prisma Client generado (server/prisma/schema.prisma -> server/generated/)
+server/generated/
+
 # assets con copyright (sprites de Daggerfall) — nunca versionar
 assets/
 

@@ -1,0 +1,160 @@
+// schema.prisma — esquema Prisma (ORM 7) de la base iliac_engine.
+// Espejo 1:1 de server/db/schema.sql (DATABASE.md §3–§6): mismos tipos, FKs,
+// índices, defaults y enums. La conexión la resuelve prisma.config.ts desde
+// DATABASE_URL (.env). Convención: modelos/campos en PascalCase/camelCase con
+// @@map/@map a los nombres reales de Postgres (snake_case). Los uuid conservan
+// dbgenerated("gen_random_uuid()") porque así están definidos en la DB.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Rol {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre      String    @unique @db.VarChar(64)
+  descripcion String?
+  usuarios    Usuario[]
+
+  @@map("rol")
+}
+
+model Persona {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre       String   @db.VarChar(255)
+  apellido     String   @db.VarChar(255)
+  emailPublico String?  @unique @map("email_publico") @db.VarChar(254)
+  bio          String?
+  avatarPath   String?  @map("avatar_path")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  usuario      Usuario?
+
+  @@map("persona")
+}
+
+model Usuario {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId       String?          @unique @map("persona_id") @db.Uuid
+  rolId           String           @map("rol_id") @db.Uuid
+  login           String           @unique(map: "users_login_idx") @db.VarChar(64)
+  passwordHash    String           @map("password_hash") @db.VarChar(255)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  persona         Persona?         @relation(fields: [personaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rol             Rol              @relation(fields: [rolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assets          Asset[]
+  proyectos       Proyecto[]
+  refreshTokens   RefreshToken[]
+  tokensInvalidos TokenInvalido[]
+
+  @@map("usuario")
+}
+
+model Proyecto {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propietarioId String         @map("propietario_id") @db.Uuid
+  nombre        String         @db.VarChar(255)
+  slug          String?        @unique @db.VarChar(100)
+  estado        EstadoProyecto @default(EN_DESARROLLO)
+  schemaVersion Int            @default(3) @map("schema_version")
+  renderMode    String         @default("retro") @map("render_mode") @db.VarChar(16)
+  data          Json
+  thumbnailPath String?        @map("thumbnail_path")
+  publishedAt   DateTime?      @map("published_at") @db.Timestamptz(6)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  propietario   Usuario        @relation(fields: [propietarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assets        Asset[]
+  galeria       Galeria?
+
+  @@index([propietarioId], map: "projects_owner_idx")
+  @@index([estado], map: "projects_state_idx")
+  @@map("proyecto")
+}
+
+model Asset {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propietarioId String    @map("propietario_id") @db.Uuid
+  proyectoId    String?   @map("proyecto_id") @db.Uuid
+  nombre        String    @db.VarChar(255)
+  tipo          TipoAsset
+  mime          String    @db.VarChar(128)
+  tamanoBytes   Int       @map("tamano_bytes")
+  ruta          String    @unique @db.VarChar(512)
+  hash          String?   @db.VarChar(64)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  propietario   Usuario   @relation(fields: [propietarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  proyecto      Proyecto? @relation(fields: [proyectoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([proyectoId], map: "assets_project_idx")
+  @@map("asset")
+}
+
+model Galeria {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proyectoId  String   @unique @map("proyecto_id") @db.Uuid
+  slug        String   @unique(map: "gallery_slug_idx") @db.VarChar(100)
+  titulo      String   @db.VarChar(255)
+  descripcion String   @default("")
+  visitas     Int      @default(0)
+  publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+  proyecto    Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("galeria")
+}
+
+model Plantilla {
+  id          String   @id @db.VarChar(64)
+  nombre      String   @db.VarChar(255)
+  descripcion String   @default("")
+  data        Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("plantilla")
+}
+
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String    @map("usuario_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiraEn   DateTime  @map("expira_en") @db.Timestamptz(6)
+  revocadoEn DateTime? @map("revocado_en") @db.Timestamptz(6)
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([usuarioId], map: "refresh_token_usuario_idx")
+  @@map("refresh_token")
+}
+
+model TokenInvalido {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jti       String   @unique @db.VarChar(64)
+  usuarioId String   @map("usuario_id") @db.Uuid
+  expiraEn  DateTime @map("expira_en") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expiraEn], map: "token_invalido_expira_idx")
+  @@map("token_invalido")
+}
+
+enum EstadoProyecto {
+  EN_DESARROLLO
+  PUBLICADO
+
+  @@map("estado_proyecto")
+}
+
+enum TipoAsset {
+  texture
+  sprite
+  audio
+  font
+  modelo
+
+  @@map("tipo_asset")
+}

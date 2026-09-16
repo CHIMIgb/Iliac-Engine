@@ -7,7 +7,7 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
-> **Actualizado 2026-09-16:** Fases **A1 + A2 ejecutadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado. Siguiente: A3 (migración Prisma).
+> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). Siguiente: Fase B (esqueleto del servidor).
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
@@ -287,27 +287,33 @@ enum TipoAsset {
 
 ## 6. Generación de Prisma
 
-El `server/db/schema.prisma` se genera a partir de las tablas anteriores. Esquema base:
+El `server/prisma/schema.prisma` se generó en A3 a partir de la DB real (Prisma ORM 7) y es **espejo 1:1 del SQL de §3**. Boceto de su estructura:
+
+> **Fidelidad a la DB (no al boceto original):** los `@id` usan `@default(dbgenerated("gen_random_uuid()"))`, `created_at`/`updated_at` usan `@default(now())` (la DB no tiene trigger de updated_at), los strings llevan `@db.VarChar(n)` y los enums `@@map("estado_proyecto")`/`@@map("tipo_asset")`. El archivo `server/prisma/schema.prisma` es la fuente de verdad exacta; este bloque es una guía.
 
 ```prisma
+// Prisma 7: provider "prisma-client" con output explícito; la conexión la
+// resuelve prisma.config.ts desde DATABASE_URL (el datasource ya no lleva url).
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Rol {
-  id          String   @id @default(uuid()) @db.Uuid
-  nombre      String   @unique
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre      String    @unique @db.VarChar(64)
   descripcion String?
   usuarios    Usuario[]
+
+  @@map("rol")
 }
 
 model Persona {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre       String
   apellido     String
   emailPublico String?  @unique @map("email_publico")
@@ -320,7 +326,7 @@ model Persona {
 }
 
 model Usuario {
-  id           String     @id @default(uuid()) @db.Uuid
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   personaId    String?    @unique @map("persona_id") @db.Uuid
   persona      Persona?   @relation(fields: [personaId], references: [id], onDelete: Cascade)
   rolId        String     @map("rol_id") @db.Uuid
@@ -328,7 +334,7 @@ model Usuario {
   login        String     @unique
   passwordHash String     @map("password_hash")
   createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  updatedAt    DateTime   @default(now()) @map("updated_at")
   proyectos    Proyecto[]
   assets       Asset[]
   refreshTokens RefreshToken[]
@@ -338,7 +344,7 @@ model Usuario {
 }
 
 model RefreshToken {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   usuarioId   String    @map("usuario_id") @db.Uuid
   usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   tokenHash   String    @unique @map("token_hash")
@@ -351,7 +357,7 @@ model RefreshToken {
 }
 
 model TokenInvalido {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   jti         String   @unique
   usuarioId   String   @map("usuario_id") @db.Uuid
   usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -363,7 +369,7 @@ model TokenInvalido {
 }
 
 model Proyecto {
-  id            String          @id @default(uuid()) @db.Uuid
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   propietarioId String          @map("propietario_id") @db.Uuid
   propietario   Usuario         @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
   nombre        String
@@ -375,7 +381,7 @@ model Proyecto {
   thumbnailPath String?         @map("thumbnail_path")
   publishedAt   DateTime?       @map("published_at")
   createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+  updatedAt     DateTime        @default(now()) @map("updated_at")
   assets        Asset[]
   galeria       Galeria?
 
@@ -385,7 +391,7 @@ model Proyecto {
 }
 
 model Asset {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   propietarioId String    @map("propietario_id") @db.Uuid
   propietario   Usuario   @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
   proyectoId    String?   @map("proyecto_id") @db.Uuid
@@ -403,7 +409,7 @@ model Asset {
 }
 
 model Galeria {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   proyectoId  String   @unique @map("proyecto_id") @db.Uuid
   proyecto    Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
   slug        String   @unique
@@ -428,6 +434,8 @@ model Plantilla {
 enum EstadoProyecto {
   EN_DESARROLLO
   PUBLICADO
+
+  @@map("estado_proyecto")
 }
 
 enum TipoAsset {
@@ -436,6 +444,8 @@ enum TipoAsset {
   audio
   font
   modelo
+
+  @@map("tipo_asset")
 }
 ```
 
@@ -484,12 +494,13 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 > ```
 > `createdb.exe -U postgres -h 127.0.0.1 iliac_engine` crea la base; `psql -f <ruta sin espacios>` ejecuta scripts; para consultas por stdin, pipe desde bash (`printf '...' \| cmd.exe /c '...'`). La contraseña va en el `.env` (B1), nunca al repo.
 
-### A3 — Migración Prisma desde el SQL
+### A3 — Migración Prisma desde el SQL — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
-| **Qué se crea** | `schema.prisma` **espejo 1:1 del SQL** (mismos modelos, enums, únicos, índices — §6 ya lo esboza, ahora se ajusta a lo que A1/A2 dejaron en Postgres); tooling Prisma en `server/`; migración inicial versionada `prisma migrate dev --name init`. |
-| **Criterio de aceptación** | `prisma migrate dev` genera y aplica la migración sin ningún cambio pendiente (`migrate status` limpio); `prisma generate` compila el client; el esquema Prisma equivale al SQL (comprobación: sin `--create-only`, la DB ya tenía las tablas gracias a A2 → Prisma la reconcilia y queda en sync). |
+| **Qué se creó** | Tooling **Prisma 7** en `server/` (`package.json`, `prisma.config.ts`, `.env`/`.env.example`; deps `prisma` + `@prisma/client` + `@prisma/adapter-pg` + `pg` + `dotenv`). `server/prisma/schema.prisma` **espejo 1:1 del SQL** (introspección `db pull` + normalización a PascalCase/camelCase con `@@map`/`@map`; enums `EstadoProyecto`/`TipoAsset` mapeados). Baseline `prisma/migrations/0_init/migration.sql`. Test `server/tests/prisma-schema.test.js`. |
+| **Criterio de aceptación** | ✅ `migrate diff --from-config-datasource --to-schema` → *empty migration* (cero diferencias con la DB); `migrate status` → *Database schema is up to date*; `prisma generate` compila el client **7.10.0**; `prisma validate` OK; `npm test` en `server/` **3/3 verde**. |
+| **Nota (por qué baseline y no `migrate dev`)** | La DB ya tenía las tablas de A2, así que `migrate dev` habría fallado. Se usó **baseline**: `migrate diff --from-empty --to-schema` genera `0_init`, y `migrate resolve --applied 0_init` lo registra en `_prisma_migrations` sin re-ejecutar DDL. |
 
 > **Por qué SQL primero y luego Prisma:** Prisma versiona y genera SQL por sí mismo, pero escribirlo a mano primero deja el modelo mental explícito (tipos, FKs, índices) y un artefacto consultable fuera del ORM; la migración Prisma después lo fija como fuente versionada. El `schema.prisma` y el `schema.sql` deben hablar el mismo lenguaje — si divergen, gana el que esté migrado (`schema.prisma`).
 

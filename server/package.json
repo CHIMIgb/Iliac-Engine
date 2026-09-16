@@ -1,0 +1,22 @@
+{
+  "name": "iliac-engine-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend de Iliac Engine (API REST Hono + PostgreSQL/Prisma)",
+  "scripts": {
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "db:status": "prisma migrate status",
+    "test": "node --test \"tests/*.test.js\""
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "dotenv": "17.4.2",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "prisma": "7.10.0"
+  }
+}
