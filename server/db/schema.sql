@@ -16,7 +16,7 @@
 -- 0) Limpieza (idempotencia): se dropea en orden seguro y luego los tipos.
 --    CASCADE por si hay objetos dependientes; no debería haber datos reales.
 -- -----------------------------------------------------------------------------
-DROP TABLE IF EXISTS plantilla, galeria, asset, proyecto, usuario, persona, rol CASCADE;
+DROP TABLE IF EXISTS refresh_token, token_invalido, plantilla, galeria, asset, proyecto, usuario, persona, rol CASCADE;
 DROP TYPE IF EXISTS estado_proyecto CASCADE;
 DROP TYPE IF EXISTS tipo_asset CASCADE;
 
@@ -170,7 +170,48 @@ COMMENT ON TABLE  plantilla         IS 'Plantillas de proyectos nuevos (seeds); 
 COMMENT ON COLUMN plantilla.data    IS 'project.json v3 de la plantilla (incluye el demo)';
 
 -- -----------------------------------------------------------------------------
--- 9) Seeds de infraestructura (solo roles y plantilla; los datos de juego
+-- 9) refresh_token — sesión de larga duración (DATABASE.md §3.8)
+--    Rotable (login/refresh) y revocable (logout). Se guarda el SHA-256 del
+--    token opaco, NUNCA el token en claro (si se filtra la DB, no hay sesiones
+--    válidas expuestas).
+-- -----------------------------------------------------------------------------
+CREATE TABLE refresh_token (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id   UUID NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+  token_hash   VARCHAR(64) NOT NULL UNIQUE,    -- SHA-256 del token opaco (48 bytes aleatorios)
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expira_en    TIMESTAMPTZ NOT NULL,           -- now() + 7 días
+  revocado_en  TIMESTAMPTZ                     -- NOT NULL = invalidado (logout o rotación)
+);
+
+COMMENT ON TABLE  refresh_token          IS 'Refresh tokens opacos (7 días); validación: existe + no revocado + no expirado; rotación = revocar el viejo y crear uno nuevo';
+COMMENT ON COLUMN refresh_token.token_hash IS 'SHA-256 del token; almacenar el hash permite invalidar sin exponer el valor';
+COMMENT ON COLUMN refresh_token.revocado_en IS 'Marca de invalidación: logout o cuando se rota creando uno nuevo';
+
+-- Índice por usuario (listar/limpiar sesiones de un usuario)
+CREATE INDEX refresh_token_usuario_idx ON refresh_token (usuario_id);
+
+-- -----------------------------------------------------------------------------
+-- 10) token_invalido — denylist de access JWT revocados antes de expirar
+--     (DATABASE.md §3.8). Caso típico: logout o cambio de password; el access
+--     token sigue vivo 15 min por firma y hay que invalidarlo a mano.
+-- -----------------------------------------------------------------------------
+CREATE TABLE token_invalido (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  jti         VARCHAR(64) NOT NULL UNIQUE,     -- claim jti del JWT revocado
+  usuario_id  UUID NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+  expira_en   TIMESTAMPTZ NOT NULL,            -- expiración original del JWT (para purgar)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  token_invalido         IS 'Denylist de access tokens JWT revocados antes de expirar; se purga perezosamente al insertar/consultar (DELETE WHERE expira_en < now())';
+COMMENT ON COLUMN token_invalido.jti     IS 'Identificador único del JWT (claim jti); al validar un access token se rechaza si su jti está aquí';
+
+-- Índice para la purga de filas vencidas
+CREATE INDEX token_invalido_expira_idx ON token_invalido (expira_en);
+
+-- -----------------------------------------------------------------------------
+-- 11) Seeds de infraestructura (solo roles y plantilla; los datos de juego
 --    NO se siembran en SQL: vienen de demo/ y se cargan por la API en C2/C5).
 --    ON CONFLICT DO NOTHING → idempotente también al ejecutar varias veces.
 -- -----------------------------------------------------------------------------

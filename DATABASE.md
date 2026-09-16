@@ -226,6 +226,28 @@ Estructura real del `project.json` v3 tal como lo escriben las herramientas y lo
 | `data` | `JSONB` | NOT NULL | `project.json` de la plantilla (incluye el demo) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
 
+### 3.8 `refresh_token` y `token_invalido` — sesión (tokens)
+
+**Modelo de sesión:** access token = **JWT stateless de corta duración (15 min)**, validado por firma + expiración (no necesita tabla). El refresh token = **token opaco de 7 días**, guardado como **SHA-256** (nunca el valor en claro); solo así puede rotarse e invalidarse individualmente. La denylist existe para invalidar un access JWT que sigue vivo antes de expirar (logout, cambio de password).
+
+| Columna | Tipo | Restricciones | Descripción |
+|---------|------|---------------|-------------|
+| §3.8a `refresh_token` | | | |
+| `id` | `UUID` | PK | |
+| `usuario_id` | `UUID` | FK → `usuario.id`, NOT NULL, onDelete cascade | Dueño de la sesión |
+| `token_hash` | `TEXT` | **UNIQUE**, NOT NULL | SHA-256 del token opaco (48 bytes aleatorios) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
+| `expira_en` | `TIMESTAMPTZ` | NOT NULL | `now() + 7 días` |
+| `revocado_en` | `TIMESTAMPTZ` | nullable | NOT NULL = invalidado (logout o rotación) |
+| §3.8b `token_invalido` | | | |
+| `id` | `UUID` | PK | |
+| `jti` | `TEXT` | **UNIQUE**, NOT NULL | claim `jti` del JWT revocado |
+| `usuario_id` | `UUID` | FK → `usuario.id`, NOT NULL, onDelete cascade | |
+| `expira_en` | `TIMESTAMPTZ` | NOT NULL | expiración original del JWT (para purgar) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
+
+**Validación de refresh:** existe (`token_hash`), no revocado (`revocado_en IS NULL`), no expirado (`expira_en > now()`). **Rotación:** al refrescar se revoca el viejo (`revocado_en = now()`) y se crea uno nuevo. **Logout:** revoca la fila refresh + inserta el `jti` del access en `token_invalido`. **Purga:** perezosa — al insertar/consultar se borran las filas con `expira_en < now()` (sin cron por ahora).
+
 ---
 
 ## 4. Enums
@@ -256,6 +278,8 @@ enum TipoAsset {
 | `projects_state_idx` | `proyecto.estado` | Filtrar publicados/en desarrollo |
 | `assets_project_idx` | `asset.proyecto_id` | Assets de un proyecto |
 | `gallery_slug_idx` | `galeria.slug` (unique) | Resolver `/play/:slug` |
+| `refresh_token_usuario_idx` | `refresh_token.usuario_id` | Sesiones de un usuario (logout rotación) |
+| `token_invalido_expira_idx` | `token_invalido.expira_en` | Purgar denylist vencida |
 
 ---
 
@@ -305,8 +329,35 @@ model Usuario {
   updatedAt    DateTime   @updatedAt @map("updated_at")
   proyectos    Proyecto[]
   assets       Asset[]
+  refreshTokens RefreshToken[]
+  tokensInvalidos TokenInvalido[]
 
   @@map("usuario")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  usuarioId   String    @map("usuario_id") @db.Uuid
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique @map("token_hash")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  expiraEn    DateTime  @map("expira_en")
+  revocadoEn  DateTime? @map("revocado_en")
+
+  @@index([usuarioId])
+  @@map("refresh_token")
+}
+
+model TokenInvalido {
+  id          String   @id @default(uuid()) @db.Uuid
+  jti         String   @unique
+  usuarioId   String   @map("usuario_id") @db.Uuid
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEn    DateTime @map("expira_en")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([expiraEn])
+  @@map("token_invalido")
 }
 
 model Proyecto {
