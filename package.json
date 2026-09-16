@@ -2,6 +2,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "dev": "concurrently -n studio,server -c cyan,magenta \"npm:studio:dev\" \"npm:server:dev\"",
+    "server:dev": "npm --prefix server run dev",
     "test:engine": "node --test \"test/engine/*.test.js\"",
     "studio:dev": "npm --prefix studio run dev",
     "studio:test": "npm --prefix studio run test",
@@ -11,5 +13,8 @@
   "dependencies": {
     "ponytail": "^1.0.57",
     "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }

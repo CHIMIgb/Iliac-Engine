@@ -15,7 +15,7 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 | **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
 | **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + exteriores, más variantes `rooms/`, `stairs/`, `terrain/`. |
 | **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage). **90 tests** pasan. |
-| **Backend** (`server/`) | ⏳ Visión | Hono + Prisma + PostgreSQL (pendiente, tras Hito). |
+| **Backend** (`server/`) | ⏳ En curso (A1–A3 ✅, B1 ✅) | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), esquema Prisma espejo 1:1 (`migrate status` limpio), esqueleto del servidor TS strict escuchando en `:3000`. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
 
@@ -43,20 +43,33 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 ## Comandos
 
 ```bash
-# Motor (JS vanilla) — 108 tests (Node --test)
+# TODO A LA VEZ: Studio (Vite :5173) + Backend (Hono :3000), misma terminal
+npm run dev
+
+# Motor (JS vanilla) — tests (Node --test)
 npm run test:engine
 
 # Studio (TypeScript + Vite)
 npm run studio:dev        # Dev server en http://localhost:5173
-npm run studio:test       # 90 tests (Vitest)
+npm run studio:test       # Tests (Vitest)
 npm run studio:typecheck  # tsc --noEmit
 npm run studio:build      # Typecheck + build producción en studio/dist
+
+# Backend (Node + Hono + Prisma)
+npm run server:dev        # Dev server en http://localhost:3000 (tsx watch)
 
 # Dentro de studio/
 cd studio
 npm run setup:textures    # Copia texturas SVG de ../demo/textures a public/textures (1 vez)
-npm test                  # 90 tests (Vitest)
+npm test                  # Tests (Vitest)
 npm run build             # Typecheck + build
+
+# Dentro de server/
+cd server
+npm run dev               # tsx watch http://localhost:3000
+npm run typecheck         # tsc --noEmit
+npm test                  # Tests (node --test + tsx)
+npm run build             # tsc → dist/
 ```
 
 > El motor F1/F2 se abre directo en el navegador (`demo/index.html`), sin build.
@@ -154,6 +167,23 @@ studio/
                               # picking, entities, dungeons, camera-controls
 ```
 
+### Backend (`server/`) — Node + Hono + Prisma 7
+
+```
+server/
+├── package.json · tsconfig.json (strict) · prisma.config.ts · .env.example
+├── db/schema.sql              # SQL canónico (A1) — aplicado y verificado
+├── prisma/
+│   ├── schema.prisma          # Espejo 1:1 del SQL (A3): 9 modelos + 2 enums
+│   └── migrations/0_init/     # Baseline (la DB ya tenía las tablas de A1/A2)
+├── src/
+│   ├── app.ts                 # App Hono (logger + GET /) — testeable con app.request()
+│   ├── index.ts               # Arranque @hono/node-server en PORT (3000)
+│   └── db.ts                  # PrismaClient singleton con adapter PrismaPg
+├── storage/uploads/           # Blobs de assets (C3) — contenido no versionado
+└── tests/                     # prisma-schema.test.js (A3) + app.test.ts (B1)
+```
+
 ### Tests del motor (`test/engine/`) — 19 archivos · 108 tests (Node --test)
 
 ```
@@ -176,7 +206,7 @@ test/engine/
 ```
 ROADMAP.md          # Plan maestro: fases F1–F13, §12 estado, §13 capas, §15 ruta crítica, §16 deuda
 DESIGN.md           # Design System del Studio (paleta Catppuccin, tipografía, componentes, layout)
-DATABASE.md         # Esquema Prisma/PostgreSQL del backend (visión)
+DATABASE.md         # Backend: esquema Prisma/PostgreSQL + plan por fases (A1–C5)
 DATABASE_MVP.md     # Esquema mínimo para el Hito (visión parcial)
 AGENTS.md           # Instrucciones para agentes (convenciones, entorno WSL, protocolo)
 docs/ENGINE_COMPONENTS.md  # Documentación técnica del motor (API, componentes, schema v3)
@@ -261,6 +291,6 @@ cd studio && npm run dev
 
 - `ROADMAP.md` — Plan maestro (§12 estado, §13 arquitectura, §15 ruta crítica, §16 deuda técnica)
 - `DESIGN.md` — Design System (Catppuccin Mocha, componentes, layout, atajos)
-- `DATABASE.md` — Esquema Prisma/PostgreSQL (backend)
+- `DATABASE.md` — Backend: esquema Prisma/PostgreSQL + plan por fases A1–C5
 - `docs/ENGINE_COMPONENTS.md` — Documentación técnica del motor (API, componentes, schema v3)
 - `AGENTS.md` — Instrucciones para agentes (convenciones, WSL, protocolo)
