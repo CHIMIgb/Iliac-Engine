@@ -1,12 +1,13 @@
 /**
- * setup-audio.mjs — Genera assets de audio RETRO procedurales (WAV PCM) para la
- * demo/Studio de F4.5: música adaptativa (3 stems), ambiente y SFX (paso,
+ * setup-audio.mjs — Genera assets de audio RETRO procedurales (WAV PCM) para el
+ * Studio/playtest (F4.5): música adaptativa (3 stems), ambiente y SFX (paso,
  * puerta, impacto, voz). Sintetizados en el propio script → SIN copyright y
  * reproducibles/verificables sin importar Daggerfall.
  *
  * Uso:  cd studio && npm run setup:audio
  * Salida (NO versionadas, ver .gitignore):  assets/audio/*.wav
- * (la demo de audio los referencia como ../../assets/audio/…)
+ * — el motor referencia cada WAV por ruta en `project.json` (audio[].src);
+ *   Vite sirve `assets/audio/` vía middleware (GET /assets/audio/list).
  */
 import fs from 'node:fs';
 import path from 'node:path';
