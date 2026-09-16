@@ -6,7 +6,8 @@
 -- y la migración Prisma (A3) lo versiona después. Antes de la FASE A2 (ejecutar
 -- el SQL sobre Postgres) nada de esto está "vivo".
 --
--- Requisitos: PostgreSQL 13+ (usa gen_random_uuid(), nativo desde PG13).
+-- Requisitos: PostgreSQL 18 (entorno actual: 18.4 en Windows; compatible con 13+,
+-- usa gen_random_uuid(), nativo desde PG13).
 -- Idempotente: se puede re-ejecutar sin error (dropea y recrea todo).
 -- Los IDs de seeds son UUIDs literales fijos para que las referencias de
 -- código/plantillas sean estables (no se generan al azar).
