@@ -7,6 +7,8 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
+> **Actualizado 2026-09-16:** Fases **A1 + A2 ejecutadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado. Siguiente: A3 (migración Prisma).
+>
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
 > **¿Por dónde empiezo?** Mirar **§8 (Plan de construcción por pasos)** — pequeños pasos verificables para montar DB + backend poco a poco; las tablas están en §3 y el esquema Prisma en §6.
@@ -125,7 +127,7 @@ INSERT INTO rol (id, nombre, descripcion) VALUES
 | `estado` | `ENUM` | NOT NULL, default `EN_DESARROLLO` | `EN_DESARROLLO` \| `PUBLICADO` |
 | `schema_version` | `INT` | NOT NULL, default `3` | Versión del `project.json` (v3 = sectores poligonales) |
 | `render_mode` | `TEXT` | NOT NULL, default `retro` | `retro` \| `3d` |
-| `data` | `JSONB` | NOT NULL | **`project.json` v2 COMPLETO**: `meta`, `settings`, `textures`, `sprites`, `map`, `entities`, `...` |
+| `data` | `JSONB` | NOT NULL | **`project.json` v3 COMPLETO**: `meta`, `camera`, `render`, `world`, `audio`, `music`, `blueprints`, `...` |
 | `thumbnail_path` | `TEXT` | nullable | Portada del juego |
 | `published_at` | `TIMESTAMPTZ` | nullable | Fecha de publicación |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
@@ -461,19 +463,26 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 
 ### Fase A — Base de datos (primero el SQL, después Prisma)
 
-### A1 — Escribir el SQL completo del esquema
+### A1 — Escribir el SQL completo del esquema — ✅ realizada
 
 | | |
 |---|---|
 | **Qué se crea** | `server/db/schema.sql` — el esquema Postgres **escrito a mano** desde §3: `CREATE TYPE` (enums `EstadoProyecto`, `TipoAsset`), `CREATE TABLE` de `rol`, `persona`, `usuario`, `proyecto`, `asset`, `galeria`, `plantilla` (con FKs, UNIQUE, defaults, `ON DELETE CASCADE`), índices de §5, + seeds en SQL (`raíz` `admin`/`creador`, plantilla `tpl-demo`). Idempotente (re-ejecutable con `DROP ... IF EXISTS` al inicio). |
 | **Criterio de aceptación** | El SQL es completo (todas las tablas de §3, todos los índices de §5); comentado en español; sin dependencias del ORM (Postgres plano sirve). Se valida en A2 al ejecutarlo de verdad. |
 
-### A2 — Levantar Postgres y ejecutar el SQL
+### A2 — Levantar Postgres y ejecutar el SQL — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
-| **Qué se crea** | Postgres local (Docker Compose `postgres:16` o instalación WSL) + base de datos `raycast`; ejecución de `schema.sql` (psql) que crea tablas, enums, índices y seeds. |
-| **Criterio de aceptación** | `psql \dt` lista las 7 tablas; `\d proyecto` muestra `data JSONB` y FKs; consultar `rol` devuelve `admin` y `creador`; re-ejecutar `schema.sql` no da error (idempotencia). |
+| **Qué se crea** | Postgres local + base de datos **`iliac_engine`**; ejecución de `schema.sql` (psql) que crea tablas, enums, índices y seeds. **Entorno real:** PostgreSQL **18.4 instalado en Windows** (`C:\Program Files\PostgreSQL\18\bin`), puerto `5432`, usuario `postgres`. Desde WSL los binarios de Postgres NO resuelven por ruta absoluta `/mnt/c/...` (interop); se invocan con `cd` a la carpeta `bin` + `cmd.exe /c` (ver nota). |
+| **Criterio de aceptación** | `psql \dt` lista las 9 tablas (7 de dominio + `refresh_token`/`token_invalido`); `\d proyecto` muestra `data JSONB` y FKs; consultar `rol` devuelve `admin` y `creador`; re-ejecutar `schema.sql` no da error (idempotencia). **Verificado 2026-09-16:** 9 tablas, `data jsonb NOT NULL`, FKs `proyecto→usuario` (CASCADE) y `asset/galeria→proyecto`, seeds `admin`/`creador` + `tpl-demo`, re-ejecución `exit 0`. |
+
+> **Cómo ejecutar psql desde WSL (PostgreSQL de Windows):** los `.exe` de Postgres no están en el PATH de Windows, así que el interop de WSL no los resuelve por ruta absoluta. Patrón que funciona:
+> ```bash
+> cd "/mnt/c/Program Files/PostgreSQL/18/bin" && \
+>   cmd.exe /c 'set PGPASSWORD=<pw>&& set PGCLIENTENCODING=UTF8&& psql.exe -w -U postgres -h 127.0.0.1 -p 5432 -d iliac_engine -f C:\ruta\al\script.sql'
+> ```
+> `createdb.exe -U postgres -h 127.0.0.1 iliac_engine` crea la base; `psql -f <ruta sin espacios>` ejecuta scripts; para consultas por stdin, pipe desde bash (`printf '...' \| cmd.exe /c '...'`). La contraseña va en el `.env` (B1), nunca al repo.
 
 ### A3 — Migración Prisma desde el SQL
 
