@@ -11,6 +11,7 @@ import { logger } from "hono/logger";
 import { requestId } from "hono/request-id";
 import { codes } from "./lib/codes.ts";
 import { errorHandler, errorResponse, ok } from "./lib/handler.ts";
+import { authRoutes } from "./routes/auth.ts";
 
 export interface AppDeps {
   /** Sonda de readiness: solo "ok" cuando la DB responde. Inyectable en tests. */
@@ -43,6 +44,9 @@ export function createApp(deps: AppDeps = {}): Hono {
   );
 
   app.get("/", (c) => ok(c, { message: "Iliac Engine API" }));
+
+  // Auth (C1): /auth/register y /auth/login.
+  app.route("/auth", authRoutes);
 
   // Liveness: el proceso responde (no toca DB).
   app.get("/health", (c) => ok(c, { status: "ok" }));

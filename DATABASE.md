@@ -7,7 +7,7 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
-> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. Siguiente: C1 (auth).
+> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. **C1 realizada:** auth — `POST /auth/register` + `POST /auth/login` (bcrypt 12, JWT access 15 min + refresh 7 días hasheado). Siguiente: C2 (proyectos).
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
@@ -526,12 +526,12 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 
 ### Fase C — Backend (endpoints, uno por paso)
 
-### C1 — Auth: `registro` e `inicio de sesión`
+### C1 — Auth: `registro` e `inicio de sesión` — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
-| **Qué se crea** | `POST /auth/register` y `POST /auth/login` sobre las tablas de A1–A3 (`rol`, `persona`, `usuario`): bcrypt 12 rounds, JWT access (15 min) + refresh (7 días), rate limit en login, validación Zod de todos los inputs. |
-| **Criterio de aceptación** | Registrar → login → token desencripta con `JWT_SECRET`; password nunca viaja en claro ni se loguea; contrato `{success,data,error}` en toda respuesta; test Vitest de registro/login verde. |
+| **Qué se creó** | `src/schemas/auth.ts` (Zod: register/login), `src/lib/password.ts` (bcrypt 12 rounds, bcryptjs), `src/lib/jwt.ts` (hono/jwt HS256: access 15 min, refresh 7 días; `sha256hex` para el hash del refresh), `src/lib/rateLimit.ts` (`createLimiter` en memoria, `loginLimiter` 5/min por IP), `src/routes/auth.ts` (`POST /auth/register` crea Persona + Usuario rol `creador` en transacción; `POST /auth/login` → INVALID_CREDENTIALS genérico sin enumerar usuarios; refresh guardado hasheado en `RefreshToken`); `codes.ts` +`LOGIN_IN_USE` (409) y `TOO_MANY_REQUESTS` (429); rutas montadas en `app.ts` (`/auth`). |
+| **Criterio de aceptación** | ✅ `register` → 201 contrato + tokens verificados con `JWT_SECRET` (sub/login/rol, exp futuro; el hash nunca viaja); duplicado → 409 `LOGIN_IN_USE`; password corta → 422 `VALIDATION_ERROR` con issue `password`; `login` ok → 200; password mala / usuario inexistente → 401 `INVALID_CREDENTIALS` (idéntico); rate limit → 429 `TOO_MANY_REQUESTS`; `npm run typecheck` limpio, `npm test` 18/18, build OK, verificado por curl contra DB real. Los tests de auth requieren Postgres local (skip con motivo si no hay DB). |
 
 ### C2 — Proyectos: `proyecto` (data JSONB v3)
 

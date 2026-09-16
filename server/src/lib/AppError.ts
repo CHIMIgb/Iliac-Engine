@@ -6,7 +6,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { codes, type ErrorCode } from "./codes.ts";
 
 interface ZodIssueLike {
-  path: (string | number)[];
+  // Zod usa PropertyKey[] (incluye symbol); solo nos interesan string|number.
+  path: (string | number | symbol)[];
   message: string;
 }
 
