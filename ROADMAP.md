@@ -217,6 +217,9 @@ motor-raycast/
 │   │                            → SpriteSystem.js · textures.js · StairsMesh.js
 │   ├── Engine3D.js             → orquestador: carga, loop, API pública
 │   └── index.js                → API pública del motor (ESModules)
+├── contract/                   ← CONTRATO `project.json` (schema v3) · fuente única
+│   ├── project-schema.js       → validador (migrado desde engine/core/validate.js)
+│   └── project-schema.d.ts     → tipos TS para Studio/Backend (puro, sin lógica)
 ├── studio/                     ← EDITOR · TypeScript + Vite
 │   ├── src/
 │   │   ├── main.ts · style.css
@@ -592,6 +595,7 @@ Esto permite iterrar más rápido:写代码, depurar, testear — sin la fricci�
 1. **¿Deprecar schema v2 (grid) ahora?** Recomendación: **sí**. Reducir superficie a mantener.
 2. **¿Mergear geometrías manual o con `BufferGeometryUtils`?** Depende de si se quiere evitar la dependencia de `three/addons/`.
 3. **¿Input por parámetro o estado interno?** Recomendación: **por parámetro** (`Engine3D.update({ dirX, dirY, speed }, dt)`).
+4. **Tipos del contrato en el Studio** (deuda 2026-09-16): `contract/project-schema.d.ts` es la fuente única del validador (JS), pero el Studio aún modela su documento con tipos `Editable*` propios en `editor/types.ts`. Unificar: que el Studio consuma los tipos de `contract/` (alias `@contract/*`) en lugar de duplicar el schema.
 
 ### 15.6 Criterio de salida (para desbloquear F3)
 
