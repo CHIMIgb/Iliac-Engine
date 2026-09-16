@@ -7,7 +7,7 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
-> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). Siguiente: B2 (contrato de respuesta y `/health` · `/ready`).
+> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. Siguiente: C1 (auth).
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
@@ -515,12 +515,12 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 | **Qué se creó** | `package.json` (scripts `dev` tsx watch, `start`, `build` tsc, `typecheck`, `test` node+tsx), `tsconfig.json` (strict, NodeNext, `rewriteRelativeImportExtensions`), `.env` real con `PORT`/`JWT_SECRET`/`PUBLIC_URL` (+ `.env.example` de A3), `src/app.ts` (Hono con `logger()` + `GET /`), `src/index.ts` (`@hono/node-server` escucha en PORT), `src/db.ts` (singleton PrismaClient con adapter `PrismaPg`, fail-fast si falta `DATABASE_URL`), `storage/uploads/` (`.gitkeep`, blobs de C3). |
 | **Criterio de aceptación** | ✅ `npm install` sin errores; `npm run typecheck` limpio; `npm run build` compila a `dist/src/index.js`; `npm test` 5/5 verde; arranca y escucha: `curl.exe http://localhost:3000/` → «Iliac Engine API» (200), ruta inexistente → 404. Proceso verificado y limpiado por puerto. |
 
-### B2 — Contrato de respuesta y salud (la estructura respira)
+### B2 — Contrato de respuesta y salud (la estructura respira) — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
-| **Qué se crea** | Las 3 piezas de errores (ROADMAP §5b): `src/lib/codes.ts` (diccionario de códigos), `src/lib/AppError.ts`, `src/lib/handler.ts` (interceptor global `onError` — nunca filtra stacks); logger con request id; CORS; y los únicos endpoints de infraestructura: `GET /health` (liveness) y `GET /ready` (readiness, chequea DB). |
-| **Criterio de aceptación** | `curl.exe http://localhost:3000/health` → `{"success":true,"data":{"status":"ok"},"error":null}`; `curl.exe http://localhost:3000/ready` responde `ok` solo con DB conectada; una ruta inexistente responde con el contrato `{success:false, error}` en vez de HTML plano. |
+| **Qué se creó** | `src/lib/codes.ts` (diccionario: 12 códigos → status + mensaje en español, única fuente del mapeo), `src/lib/AppError.ts` (clase con `code/status/details` + `fromZod` → 422), `src/lib/handler.ts` (`ok()`, `errorResponse()`, `errorHandler()` global en `app.onError` — nunca filtra stacks en producción), `src/app.ts` → `createApp({ probeDb? })` con CORS (`PUBLIC_URL`), request-id (`X-Request-Id`), `notFound` con contrato, `GET /` envuelto en contrato, `GET /health` (liveness) y `GET /ready` (sonda inyectable; por defecto `SELECT 1` vía Prisma). |
+| **Criterio de aceptación** | ✅ `curl.exe /health` → `{"success":true,"data":{"status":"ok"},"error":null}`; `/ready` → `{"success":true,"data":{"status":"ok","db":"up"}}` con DB real (503 `DB_UNAVAILABLE` con DB caída); ruta inexistente → 404 con contrato (no HTML plano); `AppError`/`Zod` → contrato. `npm run typecheck` limpio, `npm test` 11/11, build OK. |
 
 ---
 
