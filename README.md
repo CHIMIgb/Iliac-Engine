@@ -13,7 +13,6 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 | Capa | Estado | Descripción |
 |------|--------|-------------|
 | **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
-| **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + exteriores, más variantes `rooms/`, `stairs/`, `terrain/`. |
 | **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage). **90 tests** pasan. |
 | **Backend** (`server/`) | ⏳ En curso (A1–A3 ✅, B1 ✅) | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), esquema Prisma espejo 1:1 (`migrate status` limpio), esqueleto del servidor TS strict escuchando en `:3000`. Detalle y fases en `DATABASE.md §8`. |
 
@@ -60,7 +59,6 @@ npm run server:dev        # Dev server en http://localhost:3000 (tsx watch)
 
 # Dentro de studio/
 cd studio
-npm run setup:textures    # Copia texturas SVG de ../demo/textures a public/textures (1 vez)
 npm test                  # Tests (Vitest)
 npm run build             # Typecheck + build
 
@@ -72,7 +70,7 @@ npm test                  # Tests (node --test + tsx)
 npm run build             # tsc → dist/
 ```
 
-> El motor F1/F2 se abre directo en el navegador (`demo/index.html`), sin build.
+> El motor se valida con el playtest del Studio (F5) y con `npm run test:engine`.
 
 ---
 
@@ -105,19 +103,6 @@ engine/
 ```
 
 Regla (AGENTS.md): `core/` nunca importa Three.js; `three/` nunca contiene lógica de juego; `Engine3D.js` solo orquesta.
-
-### Demo (`demo/`) — consumidor mínimo
-
-```
-demo/
-├── index.html                # Abrible directo (<script type="module">), sin build
-├── main.js                   # Importa Engine3D, define input (WASD + ratón) y arranca el loop
-├── project.js                # project.json v3 del mundo de ejemplo (2 pisos + montaña + pozos)
-├── textures/                 # Texturas SVG usadas por demo y Studio (setup:textures)
-├── rooms/                    # Variante: mundo de varias salas conectadas (main.js/project.js/index.html)
-├── stairs/                   # Variante: demo centrada en escaleras/peldaños
-└── terrain/                  # Variante: demo de terreno procedural (Simplex + sectores)
-```
 
 ### Studio (`studio/`) — TypeScript + Vite + Vitest
 
@@ -162,7 +147,7 @@ studio/
 │   │   └── assemble.ts       # assemble(): arma la mazmorra y mergeDungeon(): la vuelca al EditorState
 │   └── entities/
 │       └── entityCatalog.ts  # Catálogo de entidades colocables (NPCs + bestiario Daggerfall df_* en 6 categorías)
-├── public/textures/          # Texturas SVG copiadas por setup:textures (para el viewport del editor)
+├── public/textures/          # Texturas SVG del viewport del editor (copia local, no versionada)
 └── tests/                    # 8 archivos · 90 tests (Vitest): tools, toolmanager, serializer, placement,
                               # picking, entities, dungeons, camera-controls
 ```
@@ -266,13 +251,10 @@ Ver `ROADMAP.md` §5 para esquema completo y `docs/ENGINE_COMPONENTS.md` para AP
 ## Demo rápida
 
 ```bash
-# Motor 3D (abrir demo/index.html en navegador)
-cd demo && npx serve -p 8080
-# → http://localhost:8080  (WASD + ratón, F11 fullscreen)
-
-# Studio (Level Editor interactivo)
-cd studio && npm run dev
-# → http://localhost:5173  (atajos 1-6 = herramientas; clic izq edita u orbita en vacío, clic der orbita, medio pan, WASD+QE pan, rueda zoom/alturas)
+# Todo: Studio + Backend a la vez (misma terminal)
+npm run dev
+# → Studio http://localhost:5173 (atajos 1-6 = herramientas; playtest F5 ejecuta el motor)
+# → Backend http://localhost:3000 (API)
 ```
 
 ---

@@ -138,7 +138,7 @@ El editor contiene únicamente las herramientas necesarias para crear el mundo d
 | 6.8 | **Audio Tool** — MVP ambiente (tecla 9) | ✅ F4.6.a | Popover de bucles `bus:'ambience'` (lista desde `assets/audio/` vía middleware + botón «Cargar sonidos» que sube del explorador, volumen, preview, quitar); arrancan en bucle al entrar al playtest y callan al salir. Música/NPC/Acciones: modelo de datos vivo, editor pendiente |
 | 6.9 | **Puertas y Ventanas** (manual y automática) | 🆕 | Colocar puertas/ventanas a mano (clic en una pared) o generarlas automáticamente en huecos del mapa; animación de giro/deslizamiento y condiciones (llave, trigger, blueprint) |
 | 6.10 | **Building Browser** (edificios pre-hechos) | 🆕 | Plantas listas de casas, granjas, edificios, castillos, torres… insertables al proyecto y editables (estilo 6.7 Dungeon Browser) |
-| 6.11 | **Generador de Paisaje aleatorio** | 🆕 | Terreno procedural desde el editor: semilla controlable, amplitud, biomas y regeneración (no solo el paisaje determinista de la demo) |
+| 6.11 | **Generador de Paisaje aleatorio** | 🆕 | Terreno procedural desde el editor: semilla controlable, amplitud, biomas y regeneración (no solo el paisaje determinista de `sample-project.ts`) |
 | 6.12 | **Poblamiento por Entorno** | 🆕 | Generación automática de enemigos/población según bioma (bosque, pantano, mazmorra) con densidades configurables |
 | 6.13 | **Editor de Escenas** | 🆕 F9 | Crear varias escenas (mundos/niveles) en el editor y conectarlas: puertas de escena, transiciones y viaje entre ellas |
 | 6.14 | **Panel Debug / Performance** | 🆕 | Overlay de FPS, memoria, VRAM, CPU en tiempo real + consola de errores del juego durante el playtest |
@@ -217,10 +217,6 @@ motor-raycast/
 │   │                            → SpriteSystem.js · textures.js · StairsMesh.js
 │   ├── Engine3D.js             → orquestador: carga, loop, API pública
 │   └── index.js                → API pública del motor (ESModules)
-├── demo/                       ← consumidor: arma un project.json y lanza el loop
-│   ├── index.html              → se abre directo (<script type="module">)
-│   ├── main.js                 → importa engine, lanza el juego
-│   └── project.js              → mapa + texturas de la demo (datos)
 ├── studio/                     ← EDITOR · TypeScript + Vite
 │   ├── src/
 │   │   ├── main.ts · style.css
@@ -240,7 +236,7 @@ motor-raycast/
 └── package.json · opencode.json
 ```
 
-> **Nota:** `engine/` y `demo/` son lo primero. El editor (`studio/`) se construye encima consumiendo el motor.
+> **Nota:** `engine/` es lo primero; el editor (`studio/`) se construye encima consumiendo el motor. (La antigua `demo/` se eliminó en 2026-09-16: el consumo de ejemplo vive en el playtest del Studio y en `test/engine/`.)
 
 ---
 

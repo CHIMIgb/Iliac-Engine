@@ -7,7 +7,7 @@
 El motor sigue una arquitectura de **dos capas desacopladas** definida en `ROADMAP.md` §13:
 
 - **`engine/` — Motor del juego**: JS vanilla puro. Contiene toda la lógica de juego (matemáticas, física, sectores) y todo lo que toca Three.js/WebGL (render, mallas, materiales).
-- **`demo/` — Consumidor de ejemplo**: importa el motor, define un `project.json` (schema v3) y ejecuta el loop de juego.
+- **Studio (`studio/`) — Consumidor**: importa el motor (bridge de tipos `engine.d.ts`), escribe un `project.json` (schema v3) y lo ejecuta en playtest (F5). La antigua carpeta `demo/` se eliminó en 2026-09-16.
 - **`studio/` — Herramientas de creación** (visión futura): TypeScript + Vite. Será otro consumidor que escribe `project.json` y se lo pasa al motor.
 
 El contrato entre capas es únicamente **`project.json`**. Las herramientas escriben datos; el motor los lee y renderiza. Nunca se duplica lógica de motor en la UI ni viceversa.
@@ -48,7 +48,7 @@ Regla: **nunca importar Three.js dentro de `core/`, ni poner lógica de juego de
 export { Engine3D } from './Engine3D.js';
 ```
 
-El punto de entrada público expone **solo la clase `Engine3D`**. Todos los demás módulos (`core/*`, `three/*`) son internos del motor; los tests los importan directamente, pero los consumidores (demo/Studio) no deben depender de ellos.
+El punto de entrada público expone **solo la clase `Engine3D`**. Todos los demás módulos (`core/*`, `three/*`) son internos del motor; los tests los importan directamente, pero los consumidores (Studio) no deben depender de ellos.
 
 ---
 
@@ -236,7 +236,7 @@ Características soportadas:
 **Sí, pero con deuda técnica conocida.**
 
 ### Fortalezas
-1. **Separación de capas clara**: motor puro vs. demo vs. futuro Studio. El contrato por `project.json` es sólido.
+1. **Separación de capas clara**: motor puro vs. consumidores (Studio). El contrato por `project.json` es sólido.
 2. **Sector system funcional**: point-in-polygon, portales, alturas por vértice, slopes y física continua círculo-segmento están implementados y testeados.
 3. **Generación procedural**: `noise.js` + `terrain.js` permiten generar mundos exteriores automáticamente.
 4. **Tests**: 86 tests pasan cubriendo física, geometría, sectores, escaleras, ruido, terreno y UV repeat.
@@ -277,7 +277,7 @@ Siguiente paso crítico: **F3 — Studio MVP** (Base + Level Editor Mínimo).
 - El motor **solo lee** esos datos, por lo que cualquier herramienta que genere `project.json` v3 funcionará sin cambios en el motor.
 
 ### Qué falta del lado de herramientas
-Actualmente no existe `studio/`; la única forma de crear mundos es editar `demo/project.js` o generarlos con `generateTerrain()`. Para cumplir la visión del ROADMAP hace falta:
+Actualmente el Studio (F3/F4) ya edita sectores, alturas, entidades y mazmorras; los consumidores escriben `project.json` v3. Para cumplir la visión completa del ROADMAP hace falta:
 - Editor visual de sectores (vista top-down, arrastrar vértices, crear portales).
 - Inspector de propiedades por sector (alturas, slopes, texturas).
 - Previsualización 3D en tiempo real.

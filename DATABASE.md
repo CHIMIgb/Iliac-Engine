@@ -225,7 +225,7 @@ Estructura real del `project.json` v3 tal como lo escriben las herramientas y lo
 | `id` | `TEXT` | PK (slug legible, p.ej. `tpl-demo`) | Identificador único |
 | `nombre` | `TEXT` | NOT NULL | Nombre de la plantilla |
 | `descripcion` | `TEXT` | NOT NULL, default '' | |
-| `data` | `JSONB` | NOT NULL | `project.json` de la plantilla (incluye el demo) |
+| `data` | `JSONB` | NOT NULL | `project.json` de la plantilla (proyecto de ejemplo) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
 
 ### 3.8 `refresh_token` y `token_invalido` — sesión (tokens)
@@ -537,7 +537,7 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 
 | | |
 |---|---|
-| **Qué se crea** | CRUD de proyectos sobre la tabla `proyecto` (auth, solo propietario): `POST /api/projects`, `GET /api/projects`, `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`; validación del `data` con Zod + `validateProject` del motor; seed `tpl-demo` desde `demo/project.js`. |
+| **Qué se crea** | CRUD de proyectos sobre la tabla `proyecto` (auth, solo propietario): `POST /api/projects`, `GET /api/projects`, `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`; validación del `data` con Zod + `validateProject` del motor; seed `tpl-demo` desde el proyecto de ejemplo del Studio (`sample-project.ts`). |
 | **Criterio de aceptación** | Crear proyecto → el JSONB v3 completo (`world`, `audio`, …) se persiste y `GET` devuelve el mismo árbol; proyecto ajeno → `PROJECT_NOT_FOUND` (404); endpoints protegidos por auth. |
 
 ### C3 — Assets: `asset` + blobs en filesystem
@@ -552,7 +552,7 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 | | |
 |---|---|
 | **Qué se crea** | Publicación/despublicación transaccional (estado + fila en `galeria`): `PATCH /api/projects/:id/publish` (+ `unpublish`); galería pública: `GET /api/gallery`, `GET /api/gallery/:slug`; plantillas: `GET /api/templates`, `GET /api/templates/:id`. |
-| **Criterio de aceptación** | Publicar → aparece públicamente con slug único (`SLUG_TAKEN` en conflicto); despublícar → desaparece; crear proyecto desde `tpl-demo` carga el demo jugable. |
+| **Criterio de aceptación** | Publicar → aparece públicamente con slug único (`SLUG_TAKEN` en conflicto); despublícar → desaparece; crear proyecto desde `tpl-demo` carga el proyecto de ejemplo jugable. |
 
 ### C5 — Integración del Studio (frente real)
 

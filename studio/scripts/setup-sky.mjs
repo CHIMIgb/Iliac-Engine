@@ -1,7 +1,7 @@
 /**
  * setup-sky.mjs — Copia los 31 sets de cielo de Daggerfall (assets NO
- * versionados por copyright) a las rutas limpias que esperan el Studio y el
- * demo:  studio/public/sky/SKYnn/{capa}-{frame}.PNG  y  demo/sky/SKYnn/…
+ * versionados por copyright) a la ruta limpia que espera el Studio:
+ * studio/public/sky/SKYnn/{capa}-{frame}.PNG
  *
  * Uso:  cd studio && npm run setup:sky
  */
@@ -14,7 +14,6 @@ const repo = path.resolve(here, '..', '..');
 const src = path.join(repo, 'assets', 'images', 'daggerfall', 'Environment', 'The Sky');
 const dests = [
   path.join(repo, 'studio', 'public', 'sky'),
-  path.join(repo, 'demo', 'sky'),
 ];
 
 if (!fs.existsSync(src)) {
@@ -41,4 +40,4 @@ for (const dir of fs.readdirSync(src)) {
   }
   sets++;
 }
-console.log(`[setup:sky] ${sets} sets · ${files / dests.length} PNG copiados a studio/public/sky y demo/sky`);
+console.log(`[setup:sky] ${sets} sets · ${files} PNG copiados a studio/public/sky`);
