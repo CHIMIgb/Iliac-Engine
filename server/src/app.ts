@@ -12,6 +12,7 @@ import { requestId } from "hono/request-id";
 import { codes } from "./lib/codes.ts";
 import { errorHandler, errorResponse, ok } from "./lib/handler.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { projectsRoutes } from "./routes/projects.ts";
 
 export interface AppDeps {
   /** Sonda de readiness: solo "ok" cuando la DB responde. Inyectable en tests. */
@@ -47,6 +48,9 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   // Auth (C1): /auth/register y /auth/login.
   app.route("/auth", authRoutes);
+
+  // Proyectos (C2): CRUD protegido por JWT sobre proyecto.data (JSONB v3).
+  app.route("/api/projects", projectsRoutes);
 
   // Liveness: el proceso responde (no toca DB).
   app.get("/health", (c) => ok(c, { status: "ok" }));

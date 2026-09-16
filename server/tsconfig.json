@@ -13,6 +13,7 @@
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "rootDir": ".",
     "outDir": "dist",
     "sourceMap": true

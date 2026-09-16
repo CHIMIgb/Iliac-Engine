@@ -7,7 +7,7 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
-> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. **C1 realizada:** auth — `POST /auth/register` + `POST /auth/login` (bcrypt 12, JWT access 15 min + refresh 7 días hasheado). Siguiente: C2 (proyectos).
+> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. **C1 realizada:** auth — `POST /auth/register` + `POST /auth/login` (bcrypt 12, JWT access 15 min + refresh 7 días hasheado+`jti`). **C2 realizada:** CRUD de proyectos — `POST/GET/GET:id/PATCH/DELETE /api/projects` con `data` JSONB v3 validado por `validateProject` del contrato (sin duplicar validación) y JWT obligatorio. Siguiente: C3 (assets).
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
@@ -508,12 +508,14 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 
 ### Fase B — Estructura de carpetas y archivos (sin lógica de negocio)
 
-### B1 — Esqueleto del servidor — ✅ realizada (2026-09-16)
+### B1 — Esqueleto del servidor
+
+> **Nota (C2):** `npm start` ejecuta `tsx src/index.ts` en vez de `node dist/src/index.js`. El server importa el validador del contrato en `contract/` (fuera de `server/`) y la emisión de tsc a `dist/` añade un nivel de directorio que rompe esa ruta relativa (dev resuelve con 3 `../`, dist necesita 4). Con tsx, producción y dev comparten resolución de imports y no hay que duplicar el validador. `npm run build` queda como chequeo de compilación (`--noEmit`). Si algún día se quiere `dist/` de verdad, usar un bundler (tsup/esbuild) que embeba el contrato en el bundle. — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
 | **Qué se creó** | `package.json` (scripts `dev` tsx watch, `start`, `build` tsc, `typecheck`, `test` node+tsx), `tsconfig.json` (strict, NodeNext, `rewriteRelativeImportExtensions`), `.env` real con `PORT`/`JWT_SECRET`/`PUBLIC_URL` (+ `.env.example` de A3), `src/app.ts` (Hono con `logger()` + `GET /`), `src/index.ts` (`@hono/node-server` escucha en PORT), `src/db.ts` (singleton PrismaClient con adapter `PrismaPg`, fail-fast si falta `DATABASE_URL`), `storage/uploads/` (`.gitkeep`, blobs de C3). |
-| **Criterio de aceptación** | ✅ `npm install` sin errores; `npm run typecheck` limpio; `npm run build` compila a `dist/src/index.js`; `npm test` 5/5 verde; arranca y escucha: `curl.exe http://localhost:3000/` → «Iliac Engine API» (200), ruta inexistente → 404. Proceso verificado y limpiado por puerto. |
+| **Criterio de aceptación** | ✅ `npm install` sin errores; `npm run typecheck` limpio; `npm run build` (chequeo de compilación); `npm test` 5/5 verde; arranca y escucha: `curl.exe http://localhost:3000/` → «Iliac Engine API» (200), ruta inexistente → 404. Proceso verificado y limpiado por puerto. |
 
 ### B2 — Contrato de respuesta y salud (la estructura respira) — ✅ realizada (2026-09-16)
 
@@ -533,12 +535,12 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 | **Qué se creó** | `src/schemas/auth.ts` (Zod: register/login), `src/lib/password.ts` (bcrypt 12 rounds, bcryptjs), `src/lib/jwt.ts` (hono/jwt HS256: access 15 min, refresh 7 días; `sha256hex` para el hash del refresh), `src/lib/rateLimit.ts` (`createLimiter` en memoria, `loginLimiter` 5/min por IP), `src/routes/auth.ts` (`POST /auth/register` crea Persona + Usuario rol `creador` en transacción; `POST /auth/login` → INVALID_CREDENTIALS genérico sin enumerar usuarios; refresh guardado hasheado en `RefreshToken`); `codes.ts` +`LOGIN_IN_USE` (409) y `TOO_MANY_REQUESTS` (429); rutas montadas en `app.ts` (`/auth`). |
 | **Criterio de aceptación** | ✅ `register` → 201 contrato + tokens verificados con `JWT_SECRET` (sub/login/rol, exp futuro; el hash nunca viaja); duplicado → 409 `LOGIN_IN_USE`; password corta → 422 `VALIDATION_ERROR` con issue `password`; `login` ok → 200; password mala / usuario inexistente → 401 `INVALID_CREDENTIALS` (idéntico); rate limit → 429 `TOO_MANY_REQUESTS`; `npm run typecheck` limpio, `npm test` 18/18, build OK, verificado por curl contra DB real. Los tests de auth requieren Postgres local (skip con motivo si no hay DB). |
 
-### C2 — Proyectos: `proyecto` (data JSONB v3)
+### C2 — Proyectos: `proyecto` (data JSONB v3) — ✅ realizada (2026-09-16)
 
 | | |
 |---|---|
-| **Qué se crea** | CRUD de proyectos sobre la tabla `proyecto` (auth, solo propietario): `POST /api/projects`, `GET /api/projects`, `GET /api/projects/:id`, `PATCH /api/projects/:id` (merge parcial del JSONB), `DELETE /api/projects/:id`; validación del `data` con Zod + `validateProject` del motor; seed `tpl-demo` desde el proyecto de ejemplo del Studio (`sample-project.ts`). |
-| **Criterio de aceptación** | Crear proyecto → el JSONB v3 completo (`world`, `audio`, …) se persiste y `GET` devuelve el mismo árbol; proyecto ajeno → `PROJECT_NOT_FOUND` (404); endpoints protegidos por auth. |
+| **Qué se creó** | CRUD protegido por JWT sobre `proyecto` (`src/routes/projects.ts` + `src/lib/auth.ts` `requireAuth` + `src/schemas/project.ts` + `src/lib/parseBody.ts`): `POST /api/projects` (201, `data` opcional → esqueleto v3 mínimo), `GET /api/projects` (lista metadata sin `data`), `GET /api/projects/:id` (árbol completo), `PATCH /api/projects/:id` (nombre y/o `data` — **reemplazo** del JSONB, no merge; decisión del plan), `DELETE /api/projects/:id`. El `data` se valida con **`validateProject` del contrato** (`contract/project-schema.js` importado desde el server — cero duplicación de validación). Bonificación: `allowJs` en tsconfig; `start` pasa a correr con **tsx** (el build tsc no puede resolver `contract/` fuera de `server/` — ver nota B1); se corrigió un bug de C1: tokens sin `jti` colisionaban en `token_hash` si dos sesiones del mismo usuario caían en el mismo segundo (500 intermitente). |
+| **Criterio de aceptación** | ✅ Crear proyecto → el JSONB v3 completo se persiste y `GET /:id` devuelve el MISMO árbol (deepEqual en tests); `data` inválido → 422 `VALIDATION_ERROR` con detalle del validador; proyecto ajeno → `404 PROJECT_NOT_FOUND`; sin token/token malo → 401 `UNAUTHORIZED`; `npm run typecheck` limpio y `npm test` **27/27** (9 nuevos de proyectos, integración contra DB local, skip con motivo si no hay DB); verificado por curl contra el server de producción. Seed `tpl-demo` **diferido a C4** (decisión: sin consumidor en C2; `sample-project.ts` depende del Studio). |
 
 ### C3 — Assets: `asset` + blobs en filesystem
 

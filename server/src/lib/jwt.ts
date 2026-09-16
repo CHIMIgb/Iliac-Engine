@@ -1,7 +1,7 @@
 // jwt.ts — Firma/verificación de tokens con hono/jwt (HS256, incluye Hono).
 // Access: 15 min. Refresh: 7 días con `sid` (id del registro RefreshToken) para
 // rotación/revocación futuras. El secret vive en JWT_SECRET (.env, gitignored).
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { sign, verify } from "hono/jwt";
 
 const SECRET = process.env.JWT_SECRET ?? "";
@@ -17,8 +17,11 @@ export interface TokenPayload {
 }
 
 export function signToken(payload: TokenPayload, expiresInSec: number): Promise<string> {
+  // jti aleatorio por token: dos sesiones del mismo usuario en el mismo segundo
+  // tendrían exp idéntico → payload idéntico → JWT idéntico → colisión del
+  // unique token_hash en RefreshToken (bug C1, corregido aquí).
   return sign(
-    { ...payload, exp: Math.floor(Date.now() / 1000) + expiresInSec },
+    { ...payload, jti: randomUUID(), exp: Math.floor(Date.now() / 1000) + expiresInSec },
     SECRET,
     "HS256",
   );
