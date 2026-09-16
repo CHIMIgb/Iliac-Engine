@@ -9,6 +9,11 @@ public/
 # Prisma Client generado (server/prisma/schema.prisma -> server/generated/)
 server/generated/
 
+# Backend: blobs de assets (suben en runtime) y build TypeScript
+server/storage/uploads/*
+!server/storage/uploads/.gitkeep
+server/dist/
+
 # assets con copyright (sprites de Daggerfall) — nunca versionar
 assets/
 
