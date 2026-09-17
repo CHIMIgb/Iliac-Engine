@@ -7,23 +7,31 @@
 
 ## 1. Contrato de respuesta estándar
 
-Toda respuesta (éxito o error) usa el mismo envoltorio (ROADMAP §5b, `server/src/lib/handler.ts`):
+**ESTÁNDAR PINNED (2026-09-16)** — Toda respuesta (éxito o error) usa el mismo envoltorio, sin excepción (ROADMAP §5b, `server/src/lib/handler.ts`):
 
 ```jsonc
 // Éxito
 { "success": true, "data": { ... }, "error": null }
 
-// Error
+// Error  (error.details SIEMPRE presente: null si no hay detalle)
 {
   "success": false,
   "data": null,
   "error": {
     "code": "PROJECT_NOT_FOUND",
     "message": "El proyecto no existe",
-    "details": { "id": "abc123" }   // opcional, depende del código
+    "details": { "id": "abc123" }  // o null cuando el código no aporta detalle
   }
 }
 ```
+
+**Shape canónico** (el front NO hace undefined-checks sobre `error.details`):
+
+| Campo | Éxito | Error |
+|---|---|---|
+| `success` | `true` | `false` |
+| `data` | objeto | `null` |
+| `error` | `null` | `{ code, message, details }` (claves siempre presentes) |
 
 **Reglas:**
 - Los errores de validación Zod devuelven `422 VALIDATION_ERROR` con `details.issues: [{ path, message }]`.

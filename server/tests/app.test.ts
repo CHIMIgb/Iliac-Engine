@@ -77,10 +77,11 @@ test("GET /ready responde 503 con contrato cuando la DB falla", async () => {
 test("una ruta inexistente responde 404 con el contrato (no HTML plano)", async () => {
   const res = await app.request("/no-existe");
   assert.equal(res.status, 404);
+  // Estándar pinnado: error.details SIEMPRE presente (null sin detalle).
   assert.deepEqual(await body(res), {
     success: false,
     data: null,
-    error: { code: "NOT_FOUND", message: codes.NOT_FOUND.message },
+    error: { code: "NOT_FOUND", message: codes.NOT_FOUND.message, details: null },
   });
 });
 
@@ -97,6 +98,22 @@ test("app.onError transforma AppError al contrato (403 FORBIDDEN)", async () => 
   assert.ok(err);
   assert.equal(err.code, "FORBIDDEN");
   assert.deepEqual(err.details, { por: "test" });
+});
+
+test("contrato pinnado: error SIN detalles → error.details es null (no se omite)", async () => {
+  const appThrowing = createApp();
+  appThrowing.get("/boom2", () => {
+    throw new AppError("NOT_FOUND");
+  });
+  const res = await appThrowing.request("/boom2");
+  const b = await body(res);
+  assert.equal(b.success, false);
+  assert.equal(b.data, null);
+  assert.ok(b.error);
+  assert.equal(b.error.code, "NOT_FOUND");
+  // El estándar fija details SIEMPRE presente: accesible sin undefined-checks.
+  assert.equal(b.error.details, null);
+  assert.ok("details" in b.error, "la clave details existe");
 });
 
 test("AppError.fromZod genera VALIDATION_ERROR 422 con issues aplanados", () => {

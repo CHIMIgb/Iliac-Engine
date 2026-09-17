@@ -261,7 +261,7 @@ server/
 │   └── schemas/
 │       ├── auth.ts       # registerSchema, loginSchema (Zod)
 │       └── project.ts    # createProjectSchema (+plantillaId), updateProjectSchema, publishSchema, validateProjectData (→ contract), DEFAULT_PROJECT_DATA
-├── tests/               # node --test: auth (7), projects (9), assets (9), gallery+plantillas (11) + infra = 47 tests
+├── tests/               # node --test: auth (7), projects (9), assets (9), gallery+plantillas (11) + infra = 48 tests
 ├── db/schema.sql        # SQL canónico (A1)
 ├── prisma/              # schema.prisma espejo 1:1 + baseline 0_init
 ├── storage/uploads/     # Blobs <assetId>.<ext> (gitignored, solo .gitkeep)

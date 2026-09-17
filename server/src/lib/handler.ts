@@ -1,7 +1,9 @@
 // handler.ts — Contrato de respuesta estándar (ROADMAP §5b) + interceptor.
-//
-//  éxito  → { success: true,  data,                         error: null }
-//  error  → { success: false, data: null, error: { code, message, details? } }
+// ESTÁNDAR PINNED (2026-09-16, aprobado por el usuario):
+//   éxito  → { success: true,  data: T,          error: null }
+//   error  → { success: false, data: null, error: { code, message, details } }
+// `details` SIEMPRE está presente (null si no hay detalle) — el front puede
+// acceder a error.details sin undefined-checks.
 //
 // errorHandler se registra con app.onError() y transforma AppError, ZodError y
 // errores desconocidos al contrato. NUNCA filtra stack traces en producción.
@@ -24,7 +26,7 @@ export function errorResponse(
     {
       success: false,
       data: null,
-      error: { code, message, ...(details !== undefined ? { details } : {}) },
+      error: { code, message, details: details ?? null },
     },
     status,
   );
