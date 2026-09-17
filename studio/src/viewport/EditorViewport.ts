@@ -20,7 +20,6 @@ import { CameraControls, CameraMode } from './CameraControls';
 import { Overlay2D } from './Overlay2D';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { hiddenTerrainVertices } from '../tools/tools';
-import { sampleProject } from '../sample-project';
 import { buildEntityBoxes } from './EntityPreviewMesh';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -85,8 +84,8 @@ export class EditorViewport {
 
   // ── Ciclo de vida ────────────────────────────────────────────
 
-  /** Inicializa el motor con un proyecto. */
-  async init(project = sampleProject): Promise<void> {
+  /** Inicializa el motor con un proyecto (C5d: sin default — lo da la plantilla de la API). */
+  async init(project: unknown): Promise<void> {
     const engine = new Engine3D(project);
     await engine.load(this.canvas);
     this.engine = engine;

@@ -66,6 +66,7 @@ let ownerToken = "";
 let otherToken = "";
 let projectId = "";
 let publishedSlug = "";
+const PRIVATE_TPL = `tpl_c5d_${Date.now()}`; // plantilla personal de OWNER (C5d)
 
 test.before(async () => {
   if (!DB_UP) return;
@@ -77,6 +78,12 @@ test.before(async () => {
     body: { nombre: "Mi Juego", data: VALID_DATA },
   });
   projectId = (created.body.data?.project as { id: string }).id;
+
+  // Plantilla personal de OWNER (C5d): se borra en cascada con el usuario.
+  const owner = await prisma.usuario.findUniqueOrThrow({ where: { login: OWNER } });
+  await prisma.plantilla.create({
+    data: { id: PRIVATE_TPL, propietarioId: owner.id, nombre: "Escenario privado", data: VALID_DATA },
+  });
 });
 
 test.after(async () => {
@@ -217,4 +224,56 @@ test("POST /api/projects con plantillaId inexistente → 404 TEMPLATE_NOT_FOUND"
   });
   assert.equal(status, 404);
   assert.equal(body.error?.code, "TEMPLATE_NOT_FOUND");
+});
+
+// --- C5d: plantillas con dueño (visibilidad y propiedad) ---
+
+function idsOf(body: ApiBody): string[] {
+  return (body.data?.templates as { id: string }[]).map((t) => t.id);
+}
+
+test("C5d: sin sesión la lista solo trae las del sistema", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const { status, body } = await api("/api/templates");
+  assert.equal(status, 200);
+  assert.ok(idsOf(body).includes("tpl-demo"), "la del sistema sí");
+  assert.ok(!idsOf(body).includes(PRIVATE_TPL), "la personal no se filtra a anónimos");
+});
+
+test("C5d: con sesión la lista trae las propias, nunca las ajenas", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const mine = idsOf((await api("/api/templates", { token: ownerToken })).body);
+  assert.ok(mine.includes("tpl-demo") && mine.includes(PRIVATE_TPL), "dueño ve sistema + propia");
+  const ajenas = idsOf((await api("/api/templates", { token: otherToken })).body);
+  assert.ok(!ajenas.includes(PRIVATE_TPL), "otra cuenta no ve la personal ajena");
+});
+
+test("C5d: plantilla personal → 200 para el dueño; 404 para otros y anónimos", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const propia = await api(`/api/templates/${PRIVATE_TPL}`, { token: ownerToken });
+  assert.equal(propia.status, 200);
+  assert.deepEqual((propia.body.data?.template as { data: unknown }).data, VALID_DATA);
+
+  const anon = await api(`/api/templates/${PRIVATE_TPL}`);
+  assert.equal(anon.status, 404);
+  assert.equal(anon.body.error?.code, "TEMPLATE_NOT_FOUND");
+
+  const ajena = await api(`/api/templates/${PRIVATE_TPL}`, { token: otherToken });
+  assert.equal(ajena.status, 404);
+  assert.equal(ajena.body.error?.code, "TEMPLATE_NOT_FOUND", "no filtra que la plantilla exista");
+});
+
+test("C5d: crear proyecto desde plantilla personal solo puede el dueño", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const propia = await api("/api/projects", {
+    method: "POST",
+    token: ownerToken,
+    body: { plantillaId: PRIVATE_TPL },
+  });
+  assert.equal(propia.status, 201);
+  assert.equal((propia.body.data?.project as { nombre: string }).nombre, "Escenario privado");
+
+  const ajena = await api("/api/projects", {
+    method: "POST",
+    token: otherToken,
+    body: { plantillaId: PRIVATE_TPL },
+  });
+  assert.equal(ajena.status, 404);
+  assert.equal(ajena.body.error?.code, "TEMPLATE_NOT_FOUND");
 });

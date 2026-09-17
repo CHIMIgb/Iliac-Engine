@@ -126,6 +126,29 @@ export function apiDeleteProject(id: string) {
   return apiFetch<{ deleted: boolean }>(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
+// ── Plantillas (C5d: el documento de partida viene de la API) ──
+
+/** Resumen de una plantilla (la lista NO incluye `data`). */
+export interface TemplateMeta {
+  id: string;
+  nombre: string;
+  descripcion: string;
+}
+
+/** Plantilla completa: metadata + project.json (para el editor). */
+export interface FullTemplate extends TemplateMeta {
+  data: Record<string, unknown>;
+}
+
+/** Plantillas visibles: del sistema + las propias si hay sesión. */
+export function apiListTemplates() {
+  return apiFetch<{ templates: TemplateMeta[] }>('/api/templates');
+}
+
+export function apiGetTemplate(id: string) {
+  return apiFetch<{ template: FullTemplate }>(`/api/templates/${id}`);
+}
+
 // ── Assets (C5c: sprites y audio van a la API, no al disco local) ──
 
 /** Tipo de asset del backend (enum TipoAsset). */

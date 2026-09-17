@@ -7,7 +7,9 @@
 >
 > Regla rectora: **toda la información del juego (mapas, texturas, sprites, entidades, rutas de assets, estado) vive en la base de datos. Nada hardcodeado ni almacenado solo localmente.**
 >
-> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. **C1 realizada:** auth — `POST /auth/register` + `POST /auth/login` (bcrypt 12, JWT access 15 min + refresh 7 días hasheado+`jti`). **C2 realizada:** CRUD de proyectos — `POST/GET/GET:id/PATCH/DELETE /api/projects` con `data` JSONB v3 validado por `validateProject` del contrato (sin duplicar validación) y JWT obligatorio. Fix 2026-09-16: un `:id` no-UUID devolvía 500 (P2023 escapaba como INTERNAL_ERROR); ahora `assertProjectId` responde **404 PROJECT_NOT_FOUND** igual que un id ajeno (tests 49/49). **C3 realizada:** assets — `POST/GET/GET:id/file/DELETE /api/assets` (multipart, MIME por magic bytes con `file-type`, tope 20 MB, dedupe por hash sha256, blobs en `storage/uploads/<id>.<ext>`). **C4 realizada:** galería y plantillas — `PATCH publish/unpublish` + `GET /api/gallery` + `GET /api/gallery/:slug` (visitas) + `GET /api/templates` + `POST /api/projects {plantillaId}`; seed `tpl-demo` → sala v3 jugable; **48/48 tests**. **C5a realizada (2026-09-16):** autenticación integrada en el Studio (apiFetch + sesión + AuthModal + proxy dev; verificado end-to-end; Studio 226/226). **C5b realizada (2026-09-16):** guardar/cargar el proyecto por API (nube = fuente de verdad con sesión; Studio 232/232). **C5c realizada (2026-09-17):** assets del Studio por API — sprites y audio suben a `POST /api/assets` (multipart, dedupe por hash) y el documento guarda su URL servida `/api/assets/<id>/file` **pública (D1)**; `GET /api/assets` lista por `?tipo` (D6); MIMEs de audio ampliados a mp3/flac/m4a/aac/webm (D5); **localStorage eliminado** — todo guardado exige sesión (`requireSession`); el middleware de Vite queda solo como servido estático de `assets/`. Tests: server 55/55 + Studio 227/227. Detalle en §8 sub-bloque C5c.
+> **Actualizado 2026-09-16:** Fases **A1 + A2 + A3 ejecutadas y validadas** — `server/db/schema.sql` aplicado sobre la base **`iliac_engine`** (PostgreSQL 18.4 en Windows): 9 tablas + enums + índices + seeds, idempotente y verificado; y **Prisma (ORM 7)** introspeccionado como espejo 1:1 con **baseline `0_init`** (`migrate status` limpio, client generado, tests verdes). **B1 realizada:** esqueleto del servidor (Hono + tsx + tsconfig strict + Prisma singleton + blobs). **B2 realizada:** contrato de respuesta `{success,data,error}` + `GET /health` + `GET /ready`. **C1 realizada:** auth — `POST /auth/register` + `POST /auth/login` (bcrypt 12, JWT access 15 min + refresh 7 días hasheado+`jti`). **C2 realizada:** CRUD de proyectos — `POST/GET/GET:id/PATCH/DELETE /api/projects` con `data` JSONB v3 validado por `validateProject` del contrato (sin duplicar validación) y JWT obligatorio. Fix 2026-09-16: un `:id` no-UUID devolvía 500 (P2023 escapaba como INTERNAL_ERROR); ahora `assertProjectId` responde **404 PROJECT_NOT_FOUND** igual que un id ajeno (tests 49/49). **C3 realizada:** assets — `POST/GET/GET:id/file/DELETE /api/assets` (multipart, MIME por magic bytes con `file-type`, tope 20 MB, dedupe por hash sha256, blobs en `storage/uploads/<id>.<ext>`). **C4 realizada:** galería y plantillas — `PATCH publish/unpublish` + `GET /api/gallery` + `GET /api/gallery/:slug` (visitas) + `GET /api/templates` + `POST /api/projects {plantillaId}`; seed `tpl-demo` → sala v3 jugable; **48/48 tests**. **C5a realizada (2026-09-16):** autenticación integrada en el Studio (apiFetch + sesión + AuthModal + proxy dev; verificado end-to-end; Studio 226/226). **C5b realizada (2026-09-16):** guardar/cargar el proyecto por API (nube = fuente de verdad con sesión; Studio 232/232). **C5c validada (2026-09-17):** assets del Studio por API — sprites y audio suben a `POST /api/assets` (multipart, dedupe por hash) y el documento guarda su URL servida `/api/assets/<id>/file` **pública (D1)**; `GET /api/assets` lista por `?tipo` (D6); MIMEs de audio ampliados a mp3/flac/m4a/aac/webm (D5); **localStorage eliminado** — todo guardado exige sesión (`requireSession`); el middleware de Vite queda solo como servido estático de `assets/`. Tests: server 55/55 + Studio 227/227. **C5d realizada (2026-09-17):** plantilla de arranque servida por la API y vinculada a **`chimi`** (`plantilla.propietario_id`) — el Studio ya no arranca con `sample-project.ts`; tests server **59/59** + Studio **233/233**. Detalle en §8 sub-bloques C5c y C5d.
+>
+> **C5d y C5e definidas (2026-09-17):** C5d = plantilla de arranque servida por la API y vinculada a `chimi` (la tabla `plantilla` gana `propietario_id`) — implementada y pendiente de validación del usuario (ver sub-bloque en §8). C5e = selector de proyectos del usuario autenticado, siguiente paso.
 >
 > **Actualizado 2026-09-15:** alineado con el `project.json` **schema v3** real (sectores poligonales) + lo añadido por audio (F4.5), cielo realista (F4.7) y el **Sprite Tool (F5)**.
 >
@@ -52,7 +54,7 @@
                     └───────────┘
 
                     ┌───────────┐
-                    │ plantilla │   (independiente, seed)
+                    │ plantilla │   (usuario 1 ─ N plantilla; NULL = del sistema)
                     └───────────┘
 ```
 
@@ -66,7 +68,7 @@
 | `usuario` → `asset` | 1 : N |
 | `proyecto` → `asset` | 1 : N |
 | `proyecto` → `galeria` | 1 : 1 (sólo si publicado) |
-| `plantilla` | standalone |
+| `usuario` → `plantilla` | 1 : N (`propietario_id` NULL = plantilla del sistema) |
 
 ---
 
@@ -222,11 +224,16 @@ Estructura real del `project.json` v3 tal como lo escriben las herramientas y lo
 
 | Columna | Tipo | Restricciones | Descripción |
 |---------|------|---------------|-------------|
-| `id` | `TEXT` | PK (slug legible, p.ej. `tpl-demo`) | Identificador único |
+| `id` | `TEXT` | PK (slug legible, p.ej. `tpl-studio`) | Identificador único |
+| `propietario_id` | `UUID` | FK → `usuario.id`, **nullable**, onDelete cascade | Dueño de la plantilla. `NULL` = plantilla **del sistema** (visible para todos) |
 | `nombre` | `TEXT` | NOT NULL | Nombre de la plantilla |
 | `descripcion` | `TEXT` | NOT NULL, default '' | |
 | `data` | `JSONB` | NOT NULL | `project.json` de la plantilla (proyecto de ejemplo) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, default | |
+
+**Notas:**
+- `NULL` = plantilla del sistema (p.ej. `tpl-demo`, la sala mínima): la lista cualquier visitante.
+- Con dueño = plantilla personal (p.ej. `tpl-studio`, el escenario de trabajo de `chimi`): solo la ve y la usa su dueño (C5d).
 
 ### 3.8 `refresh_token` y `token_invalido` — sesión (tokens)
 
@@ -279,6 +286,7 @@ enum TipoAsset {
 | `projects_owner_idx` | `proyecto.propietario_id` | Listar proyectos de un usuario |
 | `projects_state_idx` | `proyecto.estado` | Filtrar publicados/en desarrollo |
 | `assets_project_idx` | `asset.proyecto_id` | Assets de un proyecto |
+| `plantillas_owner_idx` | `plantilla.propietario_id` | Listar plantillas propias de un usuario |
 | `gallery_slug_idx` | `galeria.slug` (unique) | Resolver `/play/:slug` |
 | `refresh_token_usuario_idx` | `refresh_token.usuario_id` | Sesiones de un usuario (logout rotación) |
 | `token_invalido_expira_idx` | `token_invalido.expira_en` | Purgar denylist vencida |
@@ -337,6 +345,7 @@ model Usuario {
   updatedAt    DateTime   @default(now()) @map("updated_at")
   proyectos    Proyecto[]
   assets       Asset[]
+  plantillas   Plantilla[]
   refreshTokens RefreshToken[]
   tokensInvalidos TokenInvalido[]
 
@@ -422,12 +431,15 @@ model Galeria {
 }
 
 model Plantilla {
-  id          String   @id
-  nombre      String
-  descripcion String   @default("")
-  data        Json
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id
+  propietarioId String?  @map("propietario_id") @db.Uuid
+  propietario   Usuario? @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
+  nombre        String
+  descripcion   String   @default("")
+  data          Json
+  createdAt     DateTime @default(now()) @map("created_at")
 
+  @@index([propietarioId])
   @@map("plantilla")
 }
 
@@ -566,7 +578,14 @@ Orden de ejecución para montar el backend + DB en **pasos pequeños, verificabl
 **Sub-bloques:**
 - **C5a ✅ (2026-09-16) — Autenticación integrada (prerrequisito):** `studio/src/io/api.ts` (apiFetch tipado que importa `ApiResponse` de `contract/api-response.d.ts` — contrato único, sin duplicados; Bearer automático; `ApiError {code,message,details}`), `studio/src/io/session.ts` (sesión en **cookie** `raycast_session` Path=/ 7 días — decisión del usuario, no localStorage; store inyectable), `studio/src/ui/AuthModal.ts` (login/registro, DESIGN.md), botón Cuenta en la toolbar, proxy dev `/api`+`/auth` → 3000 (same-origin). Verificado end-to-end contra el server real (registro/login → `/api/projects` 401 sin token / 200 con token). Tests: `studio/tests/api.test.ts` + `session.test.ts` (server 48/48 + Studio **226**). Cuenta dev `chimi` documentada en `README.md`.
 - **C5b ✅ (2026-09-16) — Guardar/cargar el proyecto por API (fuente de verdad):** endpoints tipados del CRUD en `api.ts` (`apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` + tipos `ProjectMeta`/`FullProject`); `studio/src/io/CloudProject.ts` (pegamento editor↔API: `createCloudProject` POST, `saveCloudProject` PATCH `{nombre, data}` — data reemplaza el árbol v3 completo y `nombre`/`data.meta.name` se mantienen sincronizados, `loadCloudMostRecent` abre el último por `updatedAt` descendente; prevalida con `validateProjectJson` del contrato, sin duplicar la validación del server). `main.ts`: arranque con sesión → abre el último proyecto o crea uno con el documento actual; Guardar (Ctrl+S/botón) → nube con sesión / localStorage con aviso sin sesión; 401 → sesión expirada (logout + toast + fallback local). Importar JSON también persiste a la nube con sesión. Verificado end-to-end vía API real (POST → PATCH nombre+data → GET :id → DELETE; la data inválida se rechaza tanto cliente como server). Tests: `studio/tests/cloud-project.test.ts` (Studio **232/232**). Sin cambios de schema ni de contrato.
-- **C5c ✅ (2026-09-17) — Assets del Studio por API (sprites + audio, fin del guardado local):** el guardado de assets (frames del Sprite Tool y audios del popover) sale del middleware de Vite y pasa al backend. **Server** (`routes/assets.ts`): `GET /api/assets/:id/file` ahora es **PÚBLICO** — D1, el motor carga `TextureLoader`/`fetch` sin sesión (la metadata `GET /:id` y el borrado siguen exigiendo JWT+propiedad); nuevo `GET /api/assets` (D6) lista solo los del usuario con filtro opcional `?tipo=audio` (422 si el tipo no es del enum) y orden `createdAt desc`; MIMEs de audio ampliados (D5): `application/ogg`/`audio/ogg`/`wav`/`mpeg`/`flac`/`mp4`/`x-m4a`/`aac`/`video/webm` (lo que ya admitía el middleware viejo); `assertUuid` extraído a `server/src/lib/ids.ts` y aplicado también en assets (id no-UUID → 404 ASSET_NOT_FOUND, nunca 500; misma guarda que C2 hizo en proyectos). **Studio**: `io/assetApi.ts` (nuevo) — `uploadSpriteFrames` (key→dataURL → `POST /api/assets` tipo sprite, `dataUrlToBlob`), `uploadAudioFiles` (File[] → tipo audio), `listAudioUrls`, `assetUrl(id)` = `/api/assets/<id>/file`; `api.ts` añade `apiUploadAsset` (multipart) y `apiListAssets` + fix: con `FormData` NO se fuerza `Content-Type` (el navegador pone el boundary — forzarlo a JSON rompía la subida); **FileManager.ts pierde localStorage** (`saveToLocal`/`loadFromLocal`/`clearLocal` eliminados; queda solo export/import `.json`); `main.ts` introduce `requireSession(accion)` — **todo guardado (proyecto, exportar, importar, sprites, audio) exige sesión**: sin sesión → toast + modal de Cuenta y se aborta (decisión C5c, sin fallback local); `ToolManager` recibe puente `AudioAssetBridge` (inyectado por main: `requireSession`/`upload`/`listUrls`) y el popover de Audio sube/lista por la API — el def guarda `/api/assets/<id>/file` y marca en rojo los `src` que ya no existen en la cuenta; middleware de Vite (`vite.config.ts` + `assetServer.ts`) reducido a servido estático de `assets/` (compatibilidad con proyectos antiguos que guardaban rutas locales) — `POST /assets/audio|sprites/upload` y `GET /assets/audio|sprites/list` eliminados. Tests: server `assets.test.ts` **55/55** (blob público sin token = round-trip idéntico, metadata/borrado 401, id no-UUID 404, MP3 → `audio/mpeg`, listado + `?tipo` + 422, nunca assets ajenos) y Studio `asset-api.test.ts` **227/227** (dataUrl→Blob, POST multipart por frame, dedupe `reused`, fallo por frame sin lanzar, listado de audios). Sin cambios de schema ni de contrato (los assets se referencian por URL servida en `world.textures`/`audio[].src`).
+- **C5c ✅ validada (2026-09-17) — Assets del Studio por API (sprites + audio, fin del guardado local):** el guardado de assets (frames del Sprite Tool y audios del popover) sale del middleware de Vite y pasa al backend. **Server** (`routes/assets.ts`): `GET /api/assets/:id/file` ahora es **PÚBLICO** — D1, el motor carga `TextureLoader`/`fetch` sin sesión (la metadata `GET /:id` y el borrado siguen exigiendo JWT+propiedad); nuevo `GET /api/assets` (D6) lista solo los del usuario con filtro opcional `?tipo=audio` (422 si el tipo no es del enum) y orden `createdAt desc`; MIMEs de audio ampliados (D5): `application/ogg`/`audio/ogg`/`wav`/`mpeg`/`flac`/`mp4`/`x-m4a`/`aac`/`video/webm` (lo que ya admitía el middleware viejo); `assertUuid` extraído a `server/src/lib/ids.ts` y aplicado también en assets (id no-UUID → 404 ASSET_NOT_FOUND, nunca 500; misma guarda que C2 hizo en proyectos). **Studio**: `io/assetApi.ts` (nuevo) — `uploadSpriteFrames` (key→dataURL → `POST /api/assets` tipo sprite, `dataUrlToBlob`), `uploadAudioFiles` (File[] → tipo audio), `listAudioUrls`, `assetUrl(id)` = `/api/assets/<id>/file`; `api.ts` añade `apiUploadAsset` (multipart) y `apiListAssets` + fix: con `FormData` NO se fuerza `Content-Type` (el navegador pone el boundary — forzarlo a JSON rompía la subida); **FileManager.ts pierde localStorage** (`saveToLocal`/`loadFromLocal`/`clearLocal` eliminados; queda solo export/import `.json`); `main.ts` introduce `requireSession(accion)` — **todo guardado (proyecto, exportar, importar, sprites, audio) exige sesión**: sin sesión → toast + modal de Cuenta y se aborta (decisión C5c, sin fallback local); `ToolManager` recibe puente `AudioAssetBridge` (inyectado por main: `requireSession`/`upload`/`listUrls`) y el popover de Audio sube/lista por la API — el def guarda `/api/assets/<id>/file` y marca en rojo los `src` que ya no existen en la cuenta; middleware de Vite (`vite.config.ts` + `assetServer.ts`) reducido a servido estático de `assets/` (compatibilidad con proyectos antiguos que guardaban rutas locales) — `POST /assets/audio|sprites/upload` y `GET /assets/audio|sprites/list` eliminados. Tests: server `assets.test.ts` **55/55** (blob público sin token = round-trip idéntico, metadata/borrado 401, id no-UUID 404, MP3 → `audio/mpeg`, listado + `?tipo` + 422, nunca assets ajenos) y Studio `asset-api.test.ts` **227/227** (dataUrl→Blob, POST multipart por frame, dedupe `reused`, fallo por frame sin lanzar, listado de audios). Sin cambios de schema ni de contrato (los assets se referencian por URL servida en `world.textures`/`audio[].src`).
+
+- **C5d ✅ realizada (2026-09-17) — Plantilla de arranque desde la API (el documento de partida deja de ser código):** el Studio ya no arranca con `studio/src/sample-project.ts` (721 KB generados en código, siempre el mismo mundo): el documento de partida lo sirve la API.
+  - **Schema (aplicado):** `plantilla` gana **`propietario_id`** (`UUID` nullable, FK → `usuario.id` onDelete cascade; índice `plantillas_owner_idx`). `NULL` = plantilla **del sistema** (visible para todos, p.ej. `tpl-demo`); con dueño = plantilla **personal** (p.ej. `tpl-studio`, el escenario de trabajo del usuario **`chimi`**). Aplicado en `schema.sql`, `prisma/schema.prisma` y migración `prisma/migrations/20260917000000_plantilla_propietario`.
+  - **Server (hecho):** `optionalAuth` en `lib/auth.ts`; `GET /api/templates` filtra por dueño — sin auth solo las del sistema (`propietario_id IS NULL`); con auth, las del sistema + las propias. `GET /api/templates/:id` respeta la propiedad: del sistema → público; personal → solo su dueño (ajena → `404 TEMPLATE_NOT_FOUND`); `POST /api/projects {plantillaId}` busca con `OR (propietario_id IS NULL OR propietario_id = userId)`. Seed del escenario en `server/db/seeds/tpl-studio.json` (~721 KB, generado por `studio/scripts/export-template.ts`) + `server/src/scripts/seed-templates.ts` (`npm run seed:templates`, idempotente con `ON CONFLICT DO UPDATE`, resuelve el dueño por login — `chimi` por defecto vía `SEED_OWNER_LOGIN`; si el usuario no existe, avisa y **no** inserta la plantilla). Sembrado y verificado contra la DB real.
+  - **Studio (hecho):** `apiListTemplates`/`apiGetTemplate` en `io/api.ts`; `io/StartProject.ts` (`loadStartProject` → `{state, projectId}`: con sesión abre el último proyecto o crea uno desde `tpl-studio`; sin sesión baja la plantilla del sistema); `main.ts` con arranque **async** (top-level await → `vite.config.ts` con `build.target: 'esnext'`); `EditorViewport.init(project: unknown)` sin default hardcodeado; `sample-project.ts` sale del runtime y queda como script de autoría (solo regenera la plantilla). **D-C: el arranque depende del backend** — si no responde, toast de error y sin documento (nada de mundo vacío silencioso).
+  - **Criterio de aceptación (cumplido):** con la sesión de `chimi` el Studio arranca con `tpl-studio`; sin sesión arranca con la plantilla del sistema; editar el JSON de la plantilla en la DB cambia el mundo al recargar **sin recompilar** el Studio; cuenta nueva → primer proyecto con `POST /api/projects {plantillaId}` (no se suben 721 KB desde el navegador); backend caído → aviso, sin documento. Tests: server **59/59** (`gallery-templates.test.ts`: lista filtrada por dueño, `:id` ajeno → 404, crear desde plantilla personal) + Studio **233/233** (`start-project.test.ts`, `fetch` mockeado) + fixtures `landscape.test.ts`/`serializer.test.ts` sin tocar; `npx vite build` OK y `sample-project` tree-shaken del bundle (0 rastros de `prop_pocion` en `dist/`).
+- **C5e — Mis proyectos: cargar proyectos del usuario autenticado — ⏳ pendiente (siguiente a C5d):** C5b abre siempre el **último** proyecto (`updatedAt` descendente) y no hay forma de elegir otro. C5e añade el **selector de proyectos** para usuarios con sesión: lista con nombre y fecha (`apiListProjects` ya existe en C5b), acciones **Abrir / Nuevo / Borrar** (con confirmación), botón en la toolbar + atajo de teclado; `main.ts` gana `openProject(id)` reutilizable por el arranque y por el selector. Sin cambios de schema ni de contrato. Criterio de aceptación: abrir un proyecto distinto del último carga su árbol v3 completo; borrar pide confirmación y refresca la lista; sin sesión el selector no aparece (pide iniciar sesión).
 
 ### Hueco futuro (fuera de estas fases)
 

@@ -175,7 +175,8 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 
 - Consume el backend real: `POST /auth/register` y `/auth/login` (proxy `/api`+`/auth` de Vite → `127.0.0.1:3000`, same-origin).
 - La sesión (user + tokens) vive en una **cookie** (`raycast_session`, 7 días) — no localStorage; el contrato `{success,data,error}` lo valida `api.ts` y los errores se muestran con `message` amigable.
-- **C5b+C5c (realizado):** con sesión el proyecto se guarda en la nube — arranque abre el último proyecto de la cuenta (`GET /api/projects` + `GET /api/projects/:id`), Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). **C5c: la sesión es obligatoria** — sin sesión, Guardar/Exportar/Importar/sprites/audio muestran toast y abren el modal de Cuenta (`requireSession`); ya no hay guardado local (localStorage eliminado). Los assets (frames, audio) suben a la API (`POST /api/assets`) y el documento guarda su URL servida (`/api/assets/<id>/file`, pública). 401 → sesión expirada (logout + toast).
+- **C5b+C5c (realizado):** con sesión el proyecto se guarda en la nube — Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). **C5c: la sesión es obligatoria** — sin sesión, Guardar/Exportar/Importar/sprites/audio muestran toast y abren el modal de Cuenta (`requireSession`); ya no hay guardado local (localStorage eliminado). Los assets (frames, audio) suben a la API (`POST /api/assets`) y el documento guarda su URL servida (`/api/assets/<id>/file`, pública). 401 → sesión expirada (logout + toast).
+- **C5d (realizado):** al abrir, el Studio pide el **documento de partida a la API** (`loadStartProject`): con sesión abre el último proyecto o crea uno desde su plantilla (`tpl-studio`, la del usuario `chimi`); sin sesión baja la plantilla del sistema (`tpl-demo`) para poder explorar (guardar sigue exigiendo sesión). **El arranque depende del backend**: si no responde, toast de error y el editor no se monta. Al iniciar sesión en caliente, la nube toma el relevo (carga el último proyecto o sube el actual).
 
 ## Dónde está cada cosa
 
@@ -190,7 +191,9 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 | Cielo clásico (telón) y realista (día/noche): sun/moon/niebla | `engine/core/sky.js`, `engine/three/SkySystem.js`, `engine/core/daylight.js`, `engine/three/SunSystem.js` |
 | Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
 | Cliente API + sesión (C5a): `apiFetch`, `apiLogin`/`apiRegister`, tokens; modal Cuenta | `studio/src/io/api.ts`, `studio/src/io/session.ts`, `studio/src/ui/AuthModal.ts` |
-| Guardar/cargar en la nube (C5b): CRUD proyectos, arranque abre el último, PATCH data completo, manejo 401 | `studio/src/io/CloudProject.ts`, `main.ts` (saveCurrent/initCloudProject) |
+| Guardar/cargar en la nube (C5b): CRUD proyectos, PATCH data completo, manejo 401 | `studio/src/io/CloudProject.ts`, `main.ts` (saveCurrent/initCloudProject) |
+| Documento de partida (C5d): plantilla de la API, creación desde plantilla, aviso sin backend | `studio/src/io/StartProject.ts`, `main.ts` (arranque) |
+| Autoría de la plantilla (C5d): `npx vite-node scripts/export-template.ts` → `server/db/seeds/tpl-studio.json`; seed con `npm run seed:templates` | `studio/scripts/export-template.ts`, `server/src/scripts/seed-templates.ts` |
 | Assets por API (C5c): sprites/audio → `POST /api/assets`, listar por `?tipo`, URL servida `/api/assets/<id>/file`; sin localStorage | `studio/src/io/assetApi.ts`, `studio/src/io/api.ts` (apiUploadAsset/apiListAssets) |
 | Audio popover: puente API (C5c): `AudioAssetBridge` (requireSession/upload/listUrls) | `studio/src/tools/ToolManager.ts`, `main.ts` (inyecta bridge) |
 | Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |

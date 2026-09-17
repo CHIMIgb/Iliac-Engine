@@ -157,18 +157,25 @@ COMMENT ON COLUMN galeria.proyecto_id IS 'UNIQUE → un proyecto, una entrada en
 CREATE UNIQUE INDEX gallery_slug_idx ON galeria (slug);
 
 -- -----------------------------------------------------------------------------
--- 8) plantilla — seed de proyectos nuevos (DATABASE.md §3.7) — standalone
+-- 8) plantilla — seed de proyectos nuevos (DATABASE.md §3.7)
+--    propietario_id NULL = plantilla del sistema (visible para todos); con
+--    dueño = plantilla personal (solo su dueño la ve y la usa).
 -- -----------------------------------------------------------------------------
 CREATE TABLE plantilla (
-  id          VARCHAR(64) PRIMARY KEY,                -- Slug legible: 'tpl-demo'
-  nombre      VARCHAR(255) NOT NULL,
-  descripcion TEXT         NOT NULL DEFAULT '',
-  data        JSONB        NOT NULL,                  -- project.json de la plantilla
-  created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+  id             VARCHAR(64) PRIMARY KEY,             -- Slug legible: 'tpl-demo'
+  propietario_id UUID REFERENCES usuario (id) ON DELETE CASCADE,  -- NULL = del sistema
+  nombre         VARCHAR(255) NOT NULL,
+  descripcion    TEXT         NOT NULL DEFAULT '',
+  data           JSONB        NOT NULL,               -- project.json de la plantilla
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE  plantilla         IS 'Plantillas de proyectos nuevos (seeds); id es un slug legible, no un UUID';
-COMMENT ON COLUMN plantilla.data    IS 'project.json v3 de la plantilla (incluye el demo)';
+COMMENT ON TABLE  plantilla                IS 'Plantillas de proyectos nuevos (seeds); id es un slug legible, no un UUID';
+COMMENT ON COLUMN plantilla.data           IS 'project.json v3 de la plantilla (incluye el demo)';
+COMMENT ON COLUMN plantilla.propietario_id IS 'Dueño de la plantilla; NULL = del sistema (pública)';
+
+-- Índice por dueño (listar plantillas propias — DATABASE.md §5)
+CREATE INDEX plantillas_owner_idx ON plantilla (propietario_id);
 
 -- -----------------------------------------------------------------------------
 -- 9) refresh_token — sesión de larga duración (DATABASE.md §3.8)

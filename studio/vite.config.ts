@@ -59,6 +59,12 @@ export default defineConfig({
     dedupe: ['three'],
   },
   plugins: [assetsMiddleware()],
+  build: {
+    // C5d: el arranque usa top-level await (espera la plantilla de la API antes
+    // de montar el editor). El target por defecto (es2020/chrome87) no lo admite;
+    // esnext lo cubre — el Studio exige un navegador moderno (WebGL/Three).
+    target: 'esnext',
+  },
   server: {
     port: 5173,
     open: '/studio/',

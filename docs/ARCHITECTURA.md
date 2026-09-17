@@ -62,8 +62,9 @@ Los consumidores del motor importan **solo** `engine/index.js` (`export { Engine
 1. **Editar:** el usuario dibuja en el viewport del Studio (herramientas 1–7). `ToolManager` muta `EditorState` (el documento en memoria = `project.json` v3 editable).
 2. **Recarga en vivo:** `EditorState.onChange` → throttle (`reloadMs()`: 120 ms, 250 ms si > 40.000 sectores) → `validateProjectJson` (contrato) → `viewport.reload(raw)` → `Engine3D.setWorld(project)` **sin recrear el renderer** (camino barato si solo cambió el mundo) o `new Engine3D` si cambió el bloque `render`/cielo.
 3. **Playtest (F5):** `EditorViewport.setMode('game')` → pointer lock, `engine.resumeAudio()` (gesto del usuario desbloquea el AudioContext), `engine.setCompass(true, viewport)` (brújula HUD). WASD + ratón → `engine.update(input, dt)`. F5 otra vez / Tab → vuelve al modo orbit (editor), `stopAudio()`.
-4. **Guardar (C5b + C5c):** **la API es la fuente de verdad y la sesión es obligatoria**: `PATCH /api/projects/:id` con `{nombre, data}` (data = árbol v3 completo; el server lo reemplaza entero y lo revalida contra el contrato). Sin sesión **no hay guardado** (decisión C5c): Guardar/Exportar/Importar/sprites/audio avisan con toast y abren el modal de Cuenta (`requireSession` en `main.ts`); `exportJson()` (descarga `.json`) también exige sesión. En el arranque con sesión se abre el último proyecto del usuario (`GET /api/projects` → `GET /api/projects/:id`) o se crea uno con el documento actual si la cuenta está vacía. 401 → sesión expirada (logout + toast). **C5a** ya había conectado auth (registro/login/sesión vía `api.ts` + proxy dev).
-5. **Assets (C5c):** el Sprite Tool sube frames y el popover de Audio sube audios vía **`POST /api/assets`** (multipart, sesión obligatoria, dedupe por hash en el server) y el documento guarda la URL servida **`/api/assets/<id>/file` — pública (D1)**, porque el motor carga texturas/audio con `TextureLoader`/`fetch` y no conoce sesiones. El middleware de Vite ya no sube nada: solo sirve estáticamente `assets/` local (proyectos antiguos).
+4. **Guardar (C5b + C5c):** **la API es la fuente de verdad y la sesión es obligatoria**: `PATCH /api/projects/:id` con `{nombre, data}` (data = árbol v3 completo; el server lo reemplaza entero y lo revalida contra el contrato). Sin sesión **no hay guardado** (decisión C5c): Guardar/Exportar/Importar/sprites/audio avisan con toast y abren el modal de Cuenta (`requireSession` en `main.ts`); `exportJson()` (descarga `.json`) también exige sesión. 401 → sesión expirada (logout + toast). **C5a** ya había conectado auth (registro/login/sesión vía `api.ts` + proxy dev).
+5. **Arranque (C5d):** el documento de partida ya no está en el código — `main.ts` espera a `loadStartProject()` (top-level await; `build.target: 'esnext'` en `vite.config.ts`). Con sesión abre el último proyecto propio (`GET /api/projects` → `GET /api/projects/:id`) o, si la cuenta está vacía, crea uno desde su plantilla (`POST /api/projects { plantillaId: 'tpl-studio' }`). Sin sesión baja la plantilla del sistema (`tpl-demo`) para explorar el editor. D-C: si el backend no responde, toast de error y el Studio no arranca (nada de mundo vacío silencioso). La plantilla se autoría con `npx vite-node scripts/export-template.ts` → `server/db/seeds/tpl-studio.json` + `npm run seed:templates` (server).
+6. **Assets (C5c):** el Sprite Tool sube frames y el popover de Audio sube audios vía **`POST /api/assets`** (multipart, sesión obligatoria, dedupe por hash en el server) y el documento guarda la URL servida **`/api/assets/<id>/file` — pública (D1)**, porque el motor carga texturas/audio con `TextureLoader`/`fetch` y no conoce sesiones. El middleware de Vite ya no sube nada: solo sirve estáticamente `assets/` local (proyectos antiguos).
 
 ---
 
@@ -181,7 +182,7 @@ TypeScript + Vite + Vitest. Editor documental: el **`EditorState` es la fuente d
 studio/src/
 ├── main.ts               # Bootstrap: layout, toolbar, atajos, wiring, persistencia, reload en vivo
 ├── style.css             # Design System (tokens Catppuccin Mocha en CSS)
-├── sample-project.ts     # Proyecto demo: montaña + río + terreno procedural (2.500 sectores)
+├── sample-project.ts     # Autoría (C5d): genera la plantilla `tpl-studio` (montaña + río, 2.500 sectores). NO entra al runtime ni al bundle
 ├── engine.d.ts           # Tipos del motor (`@engine/*`) para el editor + playtest
 ├── editor/               # editor/types.ts (Editable*) + editor/EditorState.ts (documento + mutadores + onChange)
 ├── tools/                # tools/ToolManager.ts (1493 líneas: 7 herramientas + pickers + entorno F4.7)
@@ -190,7 +191,7 @@ studio/src/
 │                         # CameraControls.ts (orbit/game) + Overlay2D.ts (gizmos) + EntityPreviewMesh.ts (cajas)
 ├── spriteTool/           # Pipeline F4.6: detectSprites (componentes conexas), gridSlice, frames, animator, spriteToolUI
 ├── dungeons/             # Generador de mazmorras por bloques 16×16: definitions, blocks, placement, assemble
-├── io/                   # FileManager (export/import JSON, C5c sin localStorage), Serializer (↔ project.json v3), CloudProject (C5b: guardar/cargar por API), assetApi (C5c: sprites/audio por API), api (cliente HTTP C5a/C5b/C5c), session (tokens)
+├── io/                   # FileManager (export/import JSON, C5c sin localStorage), Serializer (↔ project.json v3), StartProject (C5d: documento de partida desde la API), CloudProject (C5b: guardar/cargar por API), assetApi (C5c: sprites/audio por API), api (cliente HTTP C5a–C5d), session (tokens)
 ├── ui/                   # Panel, Icon (lucide SVG), Toast, DungeonBrowser (preview automap), AuthModal (login/registro C5a)
 └── entities/             # entityCatalog.ts — NPCs + bestiario Daggerfall (~60 enemigos en 6 categorías)
 ```
@@ -227,9 +228,10 @@ Bloques prefabricados 16×16 (`blk-open`, `blk-passage`, `blk-room`) con conecto
 - `FileManager`: exportar/importar JSON (descarga `${nombre}.json`, carga desde archivo). **C5c: sin guardado local** — `saveToLocal`/`loadFromLocal`/`clearLocal` (localStorage `raycast-studio:project`) fueron eliminados; todo guardado pasa por la API con sesión.
 - `Serializer`: `toProjectJson(state)` / `fromProjectJson(json)` (normaliza, ignora desconocidos) / `validateProjectJson` (usa el validador del contrato).
 - `assetServer.ts`: lógica pura del servido estático de `assets/` (vite.config.ts): solo `resolveAssetPath` (anti-traversal). **C5c: la subida ya no vive aquí** — los `POST /assets/audio|sprites/upload` y `GET /assets/audio|sprites/list` del middleware fueron eliminados (la subida es `POST /api/assets`).
-- `api.ts` (C5a/C5b/C5c): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa; `apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` cubren el CRUD (C5b); `apiUploadAsset`/`apiListAssets` cubren los assets (C5c; con `FormData` no fuerza `Content-Type` — el navegador pone el boundary).
+- `api.ts` (C5a–C5d): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa; `apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` cubren el CRUD (C5b); `apiUploadAsset`/`apiListAssets` cubren los assets (C5c; con `FormData` no fuerza `Content-Type` — el navegador pone el boundary); `apiListTemplates`/`apiGetTemplate` cubren las plantillas (C5d).
 - `assetApi.ts` (C5c): pegamento assets↔API — `uploadSpriteFrames` (key→dataURL → multipart tipo `sprite`, `dataUrlToBlob`), `uploadAudioFiles` (File[] → tipo `audio`), `listAudioUrls` (audios de la cuenta), `assetUrl(id)` = `/api/assets/<id>/file` (pública). Server deduplica por hash → re-subir no duplica bytes.
 - `CloudProject.ts` (C5b): pegamento editor↔API — `createCloudProject(state)` (POST), `saveCloudProject(state, id)` (PATCH data + nombre, sincronizado con `meta.name`), `loadCloudMostRecent()` (abre el último por `updatedAt`). Prevalida con `validateProjectJson` (mismo contrato que el server, sin duplicar) y propaga `ApiError` (401 → logout en `main.ts`).
+- `StartProject.ts` (C5d): **documento de partida desde la API** — `loadStartProject()` devuelve `{ state, projectId }`. Con sesión usa `loadCloudMostRecent()` o, si la cuenta está vacía, crea el proyecto con `POST /api/projects { plantillaId }` (prefiere `tpl-studio`, la plantilla personal; el server copia su `data` — el navegador no sube 720 KB). Sin sesión baja la plantilla del sistema (`tpl-demo`) con `apiGetTemplate`. D-C: si el backend no responde lanza → `main.ts` avisa y no arranca con un mundo inventado.
 - `session.ts` (C5a): `getSession`/`setSession`/`clearSession`/`isAuthenticated`. **Cookie** (`raycast_session`, Path=/, Max-Age 7 días = TTL refresh) por decisión del usuario 2026-09-16 — no localStorage; store inyectable (tests en node). Legible por JS (Bearer manual vía `api.ts`); httpOnly exigiría Set-Cookie desde el backend (cambio de C1) y queda para el hueco futuro junto a la rotación de refresh.
 - `AuthModal` (C5a): modal Login/Registro (pestañas + inputs DESIGN.md) que consume `apiLogin`/`apiRegister`; errores mostrados con `message` amigable (el `code` solo para el código). Botón "Cuenta" en la toolbar (`main.ts`): sin sesión abre el modal; con sesión, cierra sesión.
 - **Proxy dev** (`vite.config.ts`): `/api` y `/auth` → `http://127.0.0.1:3000` — el Studio habla same-origin (sin CORS en desarrollo).
@@ -255,7 +257,7 @@ server/
 │   │   ├── jwt.ts        # signToken/verifyToken (HS256, access 15 min, refresh 7 días, jti aleatorio)
 │   │   ├── password.ts   # bcryptjs 12 rounds (hash/verify)
 │   │   ├── rateLimit.ts  # createLimiter por IP en memoria (ventana deslizante) — # ponytail: multi-instancia → Redis
-│   │   ├── auth.ts       # requireAuth middleware (JWT → c.get('userId'))
+│   │   ├── auth.ts       # requireAuth (JWT → c.get('userId')) + optionalAuth (C5d: sesión si la hay, sin cortar)
 │   │   ├── parseBody.ts  # parseBody(c, schema): lee JSON y valida con Zod → AppError 422
 │   │   └── storage.ts    # Blobs: writeBlob/readBlob/removeBlob (STORAGE_PATH o <server>/storage/uploads por import.meta.dirname)
 │   ├── routes/
@@ -263,13 +265,14 @@ server/
 │   │   ├── projects.ts   # CRUD /api/projects + publish/unpublish (JWT, propietario, data JSONB v3 validado por el contrato; plantillaId en POST)
 │   │   ├── assets.ts     # POST /api/assets (multipart, MIME magic bytes, dedupe hash) + GET list (?tipo, D6) + GET/:id + GET/:id/file (PÚBLICO, D1) + DELETE (JWT+propiedad; id no-UUID → 404 vía ids.ts)
 │   │   ├── gallery.ts    # GET /api/gallery (lista pública) y /api/gallery/:slug (data + visitas+1) — sin auth
-│   │   └── templates.ts  # GET /api/templates y /api/templates/:id (plantillas con data) — sin auth
+│   │   └── templates.ts  # GET /api/templates y /api/templates/:id (plantillas con data; visibilidad: sistema + propias, C4/C5d)
 │   └── schemas/
 │       ├── auth.ts       # registerSchema, loginSchema (Zod)
 │       └── project.ts    # createProjectSchema (+plantillaId), updateProjectSchema, publishSchema, validateProjectData (→ contract), DEFAULT_PROJECT_DATA
-├── tests/               # node --test: auth (7), projects (9), assets (9), gallery+plantillas (11) + infra = 48 tests
-├── db/schema.sql        # SQL canónico (A1)
-├── prisma/              # schema.prisma espejo 1:1 + baseline 0_init
+├── tests/               # node --test: auth (7), projects (9), assets (9), gallery+plantillas (15) + infra = 59 tests
+├── db/schema.sql        # SQL canónico (A1) + db/seeds/*.json (plantillas de autoría, C5d)
+├── scripts/             # seed-templates.ts (C5d: upsert de db/seeds/*.json con dueño por login)
+├── prisma/              # schema.prisma espejo 1:1 + baseline 0_init + migración plantilla_propietario (C5d)
 ├── storage/uploads/     # Blobs <assetId>.<ext> (gitignored, solo .gitkeep)
 └── .env.example         # DATABASE_URL, JWT_SECRET, PORT, PUBLIC_URL, STORAGE_PATH
 ```

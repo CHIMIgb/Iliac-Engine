@@ -16,13 +16,13 @@ import { SpriteToolUI } from './spriteTool/spriteToolUI';
 import { DUNGEONS } from './dungeons/definitions';
 import { assemble, mergeDungeon } from './dungeons/assemble';
 import { findSpot } from './dungeons/placement';
-import { sampleProject } from './sample-project';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { exportJson, importJson } from './io/FileManager';
 import { AuthModal } from './ui/AuthModal';
 import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
 import { ApiError } from './io/api';
 import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
+import { loadStartProject } from './io/StartProject';
 import { listAudioUrls, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
 
 // ── Layout ─────────────────────────────────────────────────────
@@ -32,16 +32,23 @@ const layout = new AppLayout();
 layout.mount(app);
 
 // ── Estado editable ────────────────────────────────────────────
-// C5c: sin persistencia local (guardar exige sesión → API). El documento de
-// partida sigue siendo el del código hasta C5d (plantilla de la API).
-const doc: EditorState = fromProjectJson(sampleProject as unknown as Record<string, unknown>);
+// C5d: el documento de partida sale de una plantilla de la API (la personal del
+// usuario si hay sesión; la del sistema si no). D-C: el arranque depende del
+// backend — sin él se avisa y el Studio no abre con un mundo inventado.
+const start = await loadStartProject().catch((e: unknown) => {
+  showToast(
+    e instanceof Error ? `No se pudo cargar el proyecto inicial: ${e.message}` : 'No se pudo cargar el proyecto inicial',
+    'error',
+  );
+  throw e;
+});
+const doc: EditorState = start.state;
 
 // ── C5b/C5c: la fuente de verdad es la API (sesión obligatoria) ─
-// Con sesión: el proyecto vive en la API → se abre el último de la cuenta
-// (updatedAt desc) o se crea uno con el documento actual. Guardar (proyecto,
-// exportar, importar, sprites, audio) exige sesión (decisión C5c): sin ella se
-// avisa y se abre el modal de Cuenta; ya no hay guardado local.
-let cloudProjectId: string | null = null;
+// Con sesión, el proyecto vive en la API. Guardar (proyecto, exportar,
+// importar, sprites, audio) exige sesión (decisión C5c): sin ella se avisa y
+// se abre el modal de Cuenta; ya no hay guardado local.
+let cloudProjectId: string | null = start.projectId;
 
 /** Errores de API: 401 → sesión expirada (logout); resto → toast. */
 function handleApiFailure(e: unknown, accion: string): void {
@@ -57,16 +64,18 @@ function handleApiFailure(e: unknown, accion: string): void {
   );
 }
 
-/** Abre el último proyecto de la nube; si la cuenta está vacía sube el actual. */
+/**
+ * Al iniciar sesión, la nube toma el relevo (C5b): carga el último proyecto de
+ * la cuenta o sube el actual si la cuenta está vacía. El arranque con sesión ya
+ * lo resuelve `loadStartProject` (C5d); esto es solo el cambio en caliente.
+ */
 async function initCloudProject(): Promise<void> {
   try {
     const recent = await loadCloudMostRecent();
     if (recent) {
-      if (recent.projectId !== cloudProjectId) {
-        Object.assign(doc, recent.state);
-        viewport.reload(toRawProject(doc));
-        nameLabel.textContent = doc.meta.name;
-      }
+      Object.assign(doc, recent.state);
+      viewport.reload(toRawProject(doc));
+      nameLabel.textContent = doc.meta.name;
       cloudProjectId = recent.projectId;
       showToast(`Proyecto «${doc.meta.name}» cargado de la nube`, 'success');
     } else {
@@ -92,8 +101,6 @@ async function saveCurrent(): Promise<void> {
     handleApiFailure(e, 'guardar');
   }
 }
-
-if (isAuthenticated()) void initCloudProject();
 
 // ── Herramientas (ToolManager) ─────────────────────────────────
 function showToolNotice(msg: string, type: 'info' | 'warning' | 'error' | 'success' = 'info'): void {

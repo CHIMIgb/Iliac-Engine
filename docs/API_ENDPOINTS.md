@@ -48,7 +48,7 @@
 | `NOT_FOUND` | 404 | recurso no encontrado | Ruta inexistente |
 | `PROJECT_NOT_FOUND` | 404 | El proyecto no existe | GET/PATCH/DELETE de proyecto ajeno o inexistente |
 | `ASSET_NOT_FOUND` | 404 | El asset no existe | GET/DELETE de asset ajeno o inexistente; blob huérfano |
-| `TEMPLATE_NOT_FOUND` | 404 | La plantilla no existe | `GET /api/templates/:id` o `POST /api/projects` con `plantillaId` inexistente (C4) |
+| `TEMPLATE_NOT_FOUND` | 404 | La plantilla no existe | `GET /api/templates/:id` o `POST /api/projects` con `plantillaId` inexistente **o personal ajena** (C4/C5d) |
 | `EMAIL_IN_USE` | 409 | email ya registrado | `emailPublico` duplicado (reservado) |
 | `LOGIN_IN_USE` | 409 | login ya registrado | Register con login existente |
 | `INVALID_CREDENTIALS` | 401 | credenciales inválidas | Login con login/password incorrectos |
@@ -170,7 +170,7 @@ Body:
 |---|---|---|
 | `nombre` | string · opcional | (1–255). **Opcional si se crea desde plantilla** (hereda `plantilla.nombre`) |
 | `data` | object · opcional | `project.json` v3; si se omite (y no hay `plantillaId`) → esqueleto mínimo `{ world: { vertices: [], sectors: [], walls: [] } }` |
-| `plantillaId` | string · opcional | **C4:** crea el proyecto con `data` = `plantilla.data` (p. ej. `tpl-demo`) |
+| `plantillaId` | string · opcional | **C4:** crea el proyecto con `data` = `plantilla.data` (p. ej. `tpl-demo`). **C5d:** solo plantillas del sistema o propias |
 
 **201** — devuelve el proyecto **completo** (con `data`), `renderMode: "retro"`, `schemaVersion: 3`.
 
@@ -348,17 +348,19 @@ Devuelve el `data` íntegro + **incrementa `visitas`** (una visita = abrir el ju
 
 ---
 
-## 8. Plantillas (`/api/templates`) — sin auth (C4)
+## 8. Plantillas (`/api/templates`) — público (C4 + C5d)
+
+Visibilidad (C5d): sin sesión solo las **del sistema** (`propietario_id` NULL, p.ej. `tpl-demo`); con `Authorization: Bearer` también las **propias** (`tpl-studio` es la personal del usuario `chimi`).
 
 ### `GET /api/templates` — Lista (sin `data`)
 
-**200** → `{ templates: [{ id, nombre, descripcion }] }` (incluye el seed `tpl-demo`).
+**200** → `{ templates: [{ id, nombre, descripcion }] }` (siempre incluye el seed `tpl-demo`).
 
 ### `GET /api/templates/:id` — Plantilla completa
 
-**200** → `{ template: { id, nombre, descripcion, data } }` — `data` válido según `validateProject` (la sala jugable de `tpl-demo`).
+**200** → `{ template: { id, nombre, descripcion, propietarioId, data } }` — `data` válido según `validateProject`. Una plantilla personal solo la ve su dueño; para el resto (anónimos incluidos) es como si no existiera.
 
-**Errores:** `404 TEMPLATE_NOT_FOUND`.
+**Errores:** `404 TEMPLATE_NOT_FOUND` (inexistente **o** personal ajena).
 
 ---
 
@@ -389,6 +391,7 @@ curl.exe -X PATCH http://localhost:3000/api/projects/<ID>/publish -H "Authorizat
 curl.exe http://localhost:3000/api/gallery
 curl.exe http://localhost:3000/api/gallery/<SLUG>          # incrementa visitas
 curl.exe http://localhost:3000/api/templates/tpl-demo
+curl.exe http://localhost:3000/api/templates -H "Authorization: Bearer <TOKEN>"  # + las propias (C5d)
 curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <TOKEN>" \
   -H "content-type: application/json" -d '{"plantillaId":"tpl-demo"}'
 ```
@@ -404,6 +407,7 @@ curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <T
 | C2 | `/api/projects` CRUD | realizada |
 | C3 | `/api/assets` CRUD + `/file` (requiere JWT) | realizada |
 | C4 | `publish`/`unpublish`, `/api/gallery`, `/api/templates` | realizada |
+| C5d | `/api/templates` con dueño (`propietario_id`; seed `tpl-studio`) | realizada |
 | C5a | Autenticación integrada en el Studio (C5a) | realizada |
 | C5b | Guardar/Cargar el proyecto por API | realizada |
 | C5c | `GET /api/assets` (list+tipo), `GET /:id/file` público (D1), audio MIME ampliado (D5), sin localStorage | realizada |

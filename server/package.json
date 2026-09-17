@@ -12,6 +12,7 @@
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
     "db:status": "prisma migrate status",
+    "seed:templates": "tsx src/scripts/seed-templates.ts",
     "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.js\""
   },
   "dependencies": {

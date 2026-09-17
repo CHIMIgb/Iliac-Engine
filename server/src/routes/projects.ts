@@ -89,9 +89,13 @@ projectsRoutes.post("/", async (c) => {
   const input = await parseBody(c, createProjectSchema);
 
   // Crear desde plantilla (C4): data = plantilla.data; nombre default = plantilla.nombre.
+  // C5d: solo plantillas del sistema (propietario NULL) o propias; una ajena → 404.
   if (input.plantillaId) {
-    const plantilla = await prisma.plantilla.findUnique({
-      where: { id: input.plantillaId },
+    const plantilla = await prisma.plantilla.findFirst({
+      where: {
+        id: input.plantillaId,
+        OR: [{ propietarioId: null }, { propietarioId: userId }],
+      },
     });
     if (!plantilla) {
       throw new AppError("TEMPLATE_NOT_FOUND", { plantillaId: input.plantillaId });
