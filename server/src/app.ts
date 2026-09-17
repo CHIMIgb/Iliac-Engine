@@ -13,6 +13,7 @@ import { codes } from "./lib/codes.ts";
 import { errorHandler, errorResponse, ok } from "./lib/handler.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { projectsRoutes } from "./routes/projects.ts";
+import { assetsRoutes } from "./routes/assets.ts";
 
 export interface AppDeps {
   /** Sonda de readiness: solo "ok" cuando la DB responde. Inyectable en tests. */
@@ -51,6 +52,9 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   // Proyectos (C2): CRUD protegido por JWT sobre proyecto.data (JSONB v3).
   app.route("/api/projects", projectsRoutes);
+
+  // Assets (C3): subida/lectura/borrado de blobs (multipart, MIME por magic bytes).
+  app.route("/api/assets", assetsRoutes);
 
   // Liveness: el proceso responde (no toca DB).
   app.get("/health", (c) => ok(c, { status: "ok" }));

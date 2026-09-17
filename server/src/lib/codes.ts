@@ -13,6 +13,7 @@ export const codes = {
   LOGIN_IN_USE: { status: 409, message: "El login ya está registrado" },
   INVALID_CREDENTIALS: { status: 401, message: "Credenciales inválidas" },
   SLUG_TAKEN: { status: 409, message: "El slug ya está en uso" },
+  ASSET_TOO_LARGE: { status: 413, message: "El archivo supera el tamaño máximo (20 MB)" },
   TOO_MANY_REQUESTS: { status: 429, message: "Demasiados intentos, espera un momento" },
   STORAGE_WRITE_ERROR: { status: 500, message: "No se pudo escribir el archivo" },
   DB_UNAVAILABLE: { status: 503, message: "Base de datos no disponible" },
