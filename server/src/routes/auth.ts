@@ -8,10 +8,10 @@ import { Hono } from "hono";
 import type { z } from "zod";
 import { prisma } from "../db.ts";
 import { AppError } from "../lib/AppError.ts";
-import { sha256hex, signToken } from "../lib/jwt.ts";
+import { sha256hex, signToken, verifyToken, type TokenPayload } from "../lib/jwt.ts";
 import { hashPassword, verifyPassword } from "../lib/password.ts";
-import { loginLimiter } from "../lib/rateLimit.ts";
-import { loginSchema, registerSchema } from "../schemas/auth.ts";
+import { loginLimiter, refreshLimiter } from "../lib/rateLimit.ts";
+import { loginSchema, refreshSchema, registerSchema } from "../schemas/auth.ts";
 
 const ACCESS_TTL_SEC = 15 * 60; // 15 min
 const REFRESH_TTL_SEC = 7 * 24 * 60 * 60; // 7 días
@@ -132,6 +132,84 @@ authRoutes.post("/login", loginLimiter.middleware, async (c) => {
       },
     })
   ).id;
+
+  return c.json({
+    success: true,
+    data: {
+      user: userSummary(usuario),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      refreshTokenId: sid,
+    },
+    error: null,
+  });
+});
+
+// C5f — renovación de sesión con ROTACIÓN del refresh token (DATABASE.md §3.8):
+// al refrescar se revoca el refresh viejo y se firma uno nuevo; reusar un token
+// ya rotado indica posible robo → se revocan TODAS las sesiones del usuario.
+// El access vuelve a durar 15 min; el front re-guarda la sesión y reintenta.
+authRoutes.post("/refresh", refreshLimiter.middleware, async (c) => {
+  let json: unknown;
+  try {
+    json = await c.req.json();
+  } catch {
+    throw AppError.fromZod({ issues: [{ path: [], message: "Body JSON inválido" }] });
+  }
+  const { refreshToken } = parseBody(refreshSchema, json);
+
+  // 1. Firma + expiración del JWT refresh (7 días). La sesión se identifica por
+  //    tokenHash (unique) — el payload no necesita `sid`: jwt.ts anunciaba el
+  //    sid para rotación futura pero tokensFor() nunca lo firmó (el id de la
+  //    fila se crea después); buscar por hash es suficiente y más simple.
+  let payload: TokenPayload;
+  try {
+    payload = await verifyToken<TokenPayload>(refreshToken);
+  } catch {
+    throw new AppError("UNAUTHORIZED", undefined, "Refresh token inválido o expirado");
+  }
+  if (!payload.sub) {
+    throw new AppError("UNAUTHORIZED", undefined, "Refresh token inválido");
+  }
+
+  // 2. La fila respalda al token (mismo 401 genérico para no enumerar sesiones).
+  const row = await prisma.refreshToken.findUnique({
+    where: { tokenHash: sha256hex(refreshToken) },
+  });
+  if (!row || row.expiraEn <= new Date()) {
+    throw new AppError("UNAUTHORIZED", undefined, "Refresh token inválido o expirado");
+  }
+  if (row.revocadoEn !== null) {
+    // Token viejo reusado tras rotar → posible robo: revocar todas las sesiones.
+    await prisma.refreshToken.updateMany({
+      where: { usuarioId: row.usuarioId, revocadoEn: null },
+      data: { revocadoEn: new Date() },
+    });
+    throw new AppError("UNAUTHORIZED", undefined, "Sesión revocada");
+  }
+
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: row.usuarioId },
+    include: { persona: true, rol: true },
+  });
+  if (!usuario) throw new AppError("UNAUTHORIZED", undefined, "Sesión inválida");
+
+  // 3. Rotación atómica: revocar el viejo + crear el nuevo (mismo usuario).
+  const tokens = await tokensFor({ id: usuario.id, login: usuario.login, rol: usuario.rol.nombre });
+  const sid = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.update({
+      where: { id: row.id },
+      data: { revocadoEn: new Date() },
+    });
+    const nuevo = await tx.refreshToken.create({
+      data: {
+        usuarioId: usuario.id,
+        tokenHash: sha256hex(tokens.refreshToken),
+        expiraEn: new Date(Date.now() + REFRESH_TTL_SEC * 1000),
+      },
+    });
+    return nuevo.id;
+  });
 
   return c.json({
     success: true,

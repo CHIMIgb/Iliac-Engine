@@ -26,5 +26,11 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Obligatorio").max(100),
 });
 
+// C5f: renovación de sesión — el body es solo el refresh token opaco.
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(1, "Obligatorio").max(4096, "Token demasiado largo"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type RefreshInput = z.infer<typeof refreshSchema>;

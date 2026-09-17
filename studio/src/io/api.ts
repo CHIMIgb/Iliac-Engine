@@ -12,7 +12,7 @@
  * /api y /auth al backend (3000).
  */
 import type { ApiResponse } from '../../../contract/api-response';
-import { getSession, type AuthSession } from './session';
+import { clearSession, getSession, setSession, type AuthSession } from './session';
 
 /** Error de la API con el shape del contrato (siempre details presente). */
 export class ApiError extends Error {
@@ -27,6 +27,41 @@ export class ApiError extends Error {
   }
 }
 
+/** Init propio: añade el flag interno de reintento (evita bucles de renovación). */
+interface ApiInit extends RequestInit {
+  /** true en el reintento tras renovar sesión (C5f): no vuelve a renovar. */
+  _retried?: boolean;
+}
+
+// Rutas que NUNCA se auto-renuevan: un 401 ahí es credencial mala o token
+// inválido, no una sesión caducada; renovar solo haría bucles.
+const NO_RENEW = new Set(['/auth/login', '/auth/register', '/auth/refresh']);
+
+// C5f: deduplicación de renovación — si varias peticiones reciben 401 a la vez,
+// todas esperan la MISMA promesa y reintentan con el token recién renovado.
+let renewPromise: Promise<AuthSession> | null = null;
+
+/**
+ * Renueva la sesión con el refresh token de la cookie (POST /auth/refresh,
+ * rotación en el server) y re-guarda la sesión. Una sola llamada por ráfaga.
+ */
+function renewSession(): Promise<AuthSession> {
+  if (!renewPromise) {
+    renewPromise = (async () => {
+      const sesion = getSession();
+      if (!sesion?.refreshToken) {
+        throw new ApiError({ code: 'UNAUTHORIZED', message: 'Sesión expirada', details: null });
+      }
+      const nueva = await apiRefresh(sesion.refreshToken);
+      setSession(nueva);
+      return nueva;
+    })().finally(() => {
+      renewPromise = null;
+    });
+  }
+  return renewPromise;
+}
+
 export interface RegisterFields {
   login: string;
   password: string;
@@ -39,7 +74,7 @@ export interface RegisterFields {
  * Petición tipada al backend. Devuelve `data` del contrato; lanza ApiError
  * en respuestas de error, respuestas malformadas o fallo de red.
  */
-export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiFetch<T = unknown>(path: string, init: ApiInit = {}): Promise<T> {
   const token = getSession()?.accessToken;
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
@@ -62,8 +97,30 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
     throw new ApiError({ code: 'INVALID_RESPONSE', message: 'Respuesta del servidor inválida', details: null });
   }
 
-  if (!body.success) throw new ApiError(body.error);
+  if (!body.success) {
+    // C5f: access token caducado (15 min) → renovar con el refresh y reintentar
+    // UNA vez. Si la renovación falla, limpiar la sesión y fallar con el 401
+    // original (el caller ya hace logout/toast).
+    if (body.error?.code === 'UNAUTHORIZED' && !init._retried && !NO_RENEW.has(path)) {
+      try {
+        await renewSession();
+        return await apiFetch<T>(path, { ...init, _retried: true });
+      } catch {
+        clearSession();
+        throw new ApiError(body.error);
+      }
+    }
+    throw new ApiError(body.error);
+  }
   return body.data;
+}
+
+/** Renovación de sesión (C5f): refresh token → access nuevo + refresh rotado. */
+export function apiRefresh(refreshToken: string) {
+  return apiFetch<AuthSession>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  });
 }
 
 /** Registro de usuario → sesión completa. */

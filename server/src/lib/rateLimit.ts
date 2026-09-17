@@ -28,3 +28,6 @@ export function createLimiter({ windowMs, max }: Options) {
 }
 
 export const loginLimiter = createLimiter({ windowMs: 60_000, max: 5 });
+// C5f: refresh token — límite holgado (renovaciones legítimas de varios tabs);
+// el refresh expone el oráculo "¿es válido este token?": no abrir sin tope.
+export const refreshLimiter = createLimiter({ windowMs: 60_000, max: 10 });

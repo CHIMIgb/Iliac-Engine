@@ -139,6 +139,28 @@ Rate limit: 5/min por IP. Body: `{ login, password }`.
 
 **Errores:** `401 INVALID_CREDENTIALS` (login o password incorrectos; el mismo error para ambos casos — no se enumeran usuarios) · `429 TOO_MANY_REQUESTS`.
 
+### `POST /auth/refresh` — Renovar sesión (C5f)
+
+Rate limit: 10/min por IP. Body: `{ refreshToken }`.
+
+Rotación de refresh: cada uso **revoca** el token anterior y entrega uno nuevo (con su `refreshTokenId`/`sid`). Detección de robo: si llega un token **ya revocado**, se revocan TODAS las sesiones del usuario (el atacante tenía un token viejo).
+
+**200** (mismo shape que login)
+```json
+{
+  "success": true,
+  "data": {
+    "user": { "id": "uuid", "login": "alice", "nombre": "Alicia", "apellido": "G.", "emailPublico": null, "rol": "creador" },
+    "accessToken": "eyJ...",
+    "refreshToken": "eyJ...",
+    "refreshTokenId": "uuid"
+  },
+  "error": null
+}
+```
+
+**Errores:** `401 UNAUTHORIZED` (token inválido, expirado, revocado o reuso detectado) · `422 VALIDATION_ERROR` (sin `refreshToken`) · `429 TOO_MANY_REQUESTS`.
+
 ---
 
 ## 5. Proyectos (`/api/projects`) — requiere JWT
@@ -373,6 +395,10 @@ curl.exe -X POST http://localhost:3000/auth/register -H "content-type: applicati
 curl.exe -X POST http://localhost:3000/auth/login -H "content-type: application/json" \
   -d '{"login":"alice","password":"secreto-123"}'   # → data.accessToken
 
+# Renovar sesión (C5f): el refresh rota; el viejo queda revocado
+curl.exe -X POST http://localhost:3000/auth/refresh -H "content-type: application/json" \
+  -d '{"refreshToken":"<REFRESH_TOKEN>"}'           # → data.accessToken nuevo
+
 # Proyectos
 curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <TOKEN>" \
   -H "content-type: application/json" -d '{"nombre":"Mi juego"}'
@@ -411,5 +437,6 @@ curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <T
 | C5a | Autenticación integrada en el Studio (C5a) | realizada |
 | C5b | Guardar/Cargar el proyecto por API | realizada |
 | C5c | `GET /api/assets` (list+tipo), `GET /:id/file` público (D1), audio MIME ampliado (D5), sin localStorage | realizada |
+| C5f | `POST /auth/refresh` (rotación + detección de reuso) | realizada |
 
 Detalle del plan y criterios de aceptación: `DATABASE.md §8`.
