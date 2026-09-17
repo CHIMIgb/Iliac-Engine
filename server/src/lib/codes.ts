@@ -9,6 +9,7 @@ export const codes = {
   NOT_FOUND: { status: 404, message: "Recurso no encontrado" },
   PROJECT_NOT_FOUND: { status: 404, message: "El proyecto no existe" },
   ASSET_NOT_FOUND: { status: 404, message: "El asset no existe" },
+  TEMPLATE_NOT_FOUND: { status: 404, message: "La plantilla no existe" },
   EMAIL_IN_USE: { status: 409, message: "El email ya está registrado" },
   LOGIN_IN_USE: { status: 409, message: "El login ya está registrado" },
   INVALID_CREDENTIALS: { status: 401, message: "Credenciales inválidas" },

@@ -240,11 +240,11 @@ Node + **Hono** + **Prisma 7** (driver `pg`) + **PostgreSQL 18**. Fuente única 
 server/
 ├── src/
 │   ├── index.ts        # Arranque @hono/node-server en PORT (tsx)
-│   ├── app.ts          # createApp(): logger, requestId, CORS, onError, notFound, rutas (/, /auth, /api/projects, /api/assets, /health, /ready)
+│   ├── app.ts          # createApp(): logger, requestId, CORS, onError, notFound, rutas (/, /auth, /api/projects, /api/assets, /api/gallery, /api/templates, /health, /ready)
 │   ├── db.ts           # PrismaClient singleton + adapter PrismaPg (lazy connect)
 │   ├── lib/
 │   │   ├── AppError.ts   # Error de negocio {code, status, message, details}; fromZod()
-│   │   ├── codes.ts      # Diccionario de 15 códigos de error (código → status+mensaje)
+│   │   ├── codes.ts      # Diccionario de 16 códigos de error (código → status+mensaje)
 │   │   ├── handler.ts    # ok() / errorResponse() / errorHandler — contrato {success,data,error}
 │   │   ├── jwt.ts        # signToken/verifyToken (HS256, access 15 min, refresh 7 días, jti aleatorio)
 │   │   ├── password.ts   # bcryptjs 12 rounds (hash/verify)
@@ -254,12 +254,14 @@ server/
 │   │   └── storage.ts    # Blobs: writeBlob/readBlob/removeBlob (STORAGE_PATH o <server>/storage/uploads por import.meta.dirname)
 │   ├── routes/
 │   │   ├── auth.ts       # POST /auth/register, POST /auth/login (con loginLimiter 5/min)
-│   │   ├── projects.ts   # CRUD /api/projects (JWT, propietario, data JSONB v3 validado por el contrato)
-│   │   └── assets.ts     # POST/GET/GET:file/DELETE /api/assets (multipart, MIME magic bytes, dedupe hash)
+│   │   ├── projects.ts   # CRUD /api/projects + publish/unpublish (JWT, propietario, data JSONB v3 validado por el contrato; plantillaId en POST)
+│   │   ├── assets.ts     # POST/GET/GET:file/DELETE /api/assets (multipart, MIME magic bytes, dedupe hash)
+│   │   ├── gallery.ts    # GET /api/gallery (lista pública) y /api/gallery/:slug (data + visitas+1) — sin auth
+│   │   └── templates.ts  # GET /api/templates y /api/templates/:id (plantillas con data) — sin auth
 │   └── schemas/
 │       ├── auth.ts       # registerSchema, loginSchema (Zod)
-│       └── project.ts    # createProjectSchema, updateProjectSchema, validateProjectData (→ contract), DEFAULT_PROJECT_DATA
-├── tests/               # node --test: auth (7), projects (9), assets (9) + infra (B) = 36 tests
+│       └── project.ts    # createProjectSchema (+plantillaId), updateProjectSchema, publishSchema, validateProjectData (→ contract), DEFAULT_PROJECT_DATA
+├── tests/               # node --test: auth (7), projects (9), assets (9), gallery+plantillas (11) + infra = 47 tests
 ├── db/schema.sql        # SQL canónico (A1)
 ├── prisma/              # schema.prisma espejo 1:1 + baseline 0_init
 ├── storage/uploads/     # Blobs <assetId>.<ext> (gitignored, solo .gitkeep)

@@ -40,10 +40,11 @@ Toda respuesta (éxito o error) usa el mismo envoltorio (ROADMAP §5b, `server/s
 | `NOT_FOUND` | 404 | recurso no encontrado | Ruta inexistente |
 | `PROJECT_NOT_FOUND` | 404 | El proyecto no existe | GET/PATCH/DELETE de proyecto ajeno o inexistente |
 | `ASSET_NOT_FOUND` | 404 | El asset no existe | GET/DELETE de asset ajeno o inexistente; blob huérfano |
+| `TEMPLATE_NOT_FOUND` | 404 | La plantilla no existe | `GET /api/templates/:id` o `POST /api/projects` con `plantillaId` inexistente (C4) |
 | `EMAIL_IN_USE` | 409 | email ya registrado | `emailPublico` duplicado (reservado) |
 | `LOGIN_IN_USE` | 409 | login ya registrado | Register con login existente |
 | `INVALID_CREDENTIALS` | 401 | credenciales inválidas | Login con login/password incorrectos |
-| `SLUG_TAKEN` | 409 | slug en uso | Publicación con slug duplicado (C4, futuro) |
+| `SLUG_TAKEN` | 409 | slug en uso | Publicación con slug duplicado (C4) |
 | `ASSET_TOO_LARGE` | 413 | archivo supera el tope (20 MB) | Subida de asset mayor al máximo |
 | `TOO_MANY_REQUESTS` | 429 | demasiados intentos | Rate limit (login: 5/min por IP) |
 | `STORAGE_WRITE_ERROR` | 500 | no se pudo escribir el archivo | Fallo de filesystem al escribir blob |
@@ -159,12 +160,13 @@ Body:
 
 | Campo | Tipo | Notas |
 |---|---|---|
-| `nombre` | string | requerido (1–255) |
-| `data` | object · opcional | `project.json` v3; si se omite → esqueleto mínimo `{ world: { vertices: [], sectors: [], walls: [] } }` |
+| `nombre` | string · opcional | (1–255). **Opcional si se crea desde plantilla** (hereda `plantilla.nombre`) |
+| `data` | object · opcional | `project.json` v3; si se omite (y no hay `plantillaId`) → esqueleto mínimo `{ world: { vertices: [], sectors: [], walls: [] } }` |
+| `plantillaId` | string · opcional | **C4:** crea el proyecto con `data` = `plantilla.data` (p. ej. `tpl-demo`) |
 
 **201** — devuelve el proyecto **completo** (con `data`), `renderMode: "retro"`, `schemaVersion: 3`.
 
-**Errores:** `422 VALIDATION_ERROR` (con `details.issues` del validador del contrato si `data` inválido) · `401 UNAUTHORIZED`.
+**Errores:** `422 VALIDATION_ERROR` (con `details.issues` del validador del contrato si `data` inválido) · `404 TEMPLATE_NOT_FOUND` (plantilla inexistente) · `401 UNAUTHORIZED`.
 
 ### `GET /api/projects/:id` — Obtener proyecto completo
 
@@ -193,6 +195,34 @@ Body (parcial):
 ```json
 { "success": true, "data": { "deleted": true }, "error": null }
 ```
+
+**Errores:** `404 PROJECT_NOT_FOUND` · `401`.
+
+### `PATCH /api/projects/:id/publish` — Publicar en galería (C4)
+
+Transacción: `estado → PUBLICADO` + `publishedAt` + fila en `galeria` (upsert: re-publicar actualiza la entrada). El `data` se **revalida** contra el contrato antes de publicar (no se publican juegos rotos). `. thumbnailPath` va al proyecto (`proyecto.thumbnail_path`).
+
+Body:
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `slug` | string · opcional | `^[a-z0-9][a-z0-9-]*$` (minúsculas, números, guiones), ≤ 100. Si se omite → autogenerado desde `nombre` con sufijo `-2/-3` si está ocupado |
+| `titulo` | string · opcional | default `nombre` |
+| `descripcion` | string · opcional | default `""` |
+| `thumbnailPath` | string · opcional | ruta del thumbnail del proyecto |
+
+**200:**
+```json
+{ "success": true, "data": { "published": { "proyectoId": "uuid", "slug": "mi-juego", "titulo": "Mi juego", "visitas": 0 } }, "error": null }
+```
+
+**Errores:** `409 SLUG_TAKEN` (slug explícito ya usado por otra publicación) · `404 PROJECT_NOT_FOUND` (inexistente/ajeno) · `422 VALIDATION_ERROR` (data inválida o body malo) · `401`.
+
+### `PATCH /api/projects/:id/unpublish` — Despublicar (C4)
+
+Reverte la transacción: `estado → EN_DESARROLLO` + borra la fila de `galeria`. **Idempotente**: despublicar un proyecto ya despublicado devuelve éxito igual (el estado final es el que importa).
+
+**200:** `{ "unpublished": true }`
 
 **Errores:** `404 PROJECT_NOT_FOUND` · `401`.
 
@@ -254,7 +284,52 @@ Borra la fila + el archivo del filesystem.
 
 ---
 
-## 7. Ejemplos rápidos (curl)
+## 7. Galería pública (`/api/gallery`) — sin auth (C4)
+
+Juegos con `estado: PUBLICADO` (publicados con `PATCH /:id/publish`).
+
+### `GET /api/gallery` — Lista pública de juegos
+
+**200** → `{ games: [{ slug, titulo, descripcion, visitas, publicadoEn, autor }], total }` (sin `data`, ordenado por `publishedAt desc`; `autor` = nombre público o login).
+
+### `GET /api/gallery/:slug` — Juego completo (para cargar en el motor)
+
+Devuelve el `data` íntegro + **incrementa `visitas`** (una visita = abrir el juego).
+
+**200:**
+```json
+{
+  "success": true,
+  "data": {
+    "juego": {
+      "slug": "mi-juego", "titulo": "Mi juego", "descripcion": "",
+      "visitas": 3, "publicadoEn": "...", "renderMode": "retro",
+      "schemaVersion": 3, "nombre": "Mi juego", "data": { "world": { ... } }
+    }
+  },
+  "error": null
+}
+```
+
+**Errores:** `404 NOT_FOUND` (slug no publicado o despublicado).
+
+---
+
+## 8. Plantillas (`/api/templates`) — sin auth (C4)
+
+### `GET /api/templates` — Lista (sin `data`)
+
+**200** → `{ templates: [{ id, nombre, descripcion }] }` (incluye el seed `tpl-demo`).
+
+### `GET /api/templates/:id` — Plantilla completa
+
+**200** → `{ template: { id, nombre, descripcion, data } }` — `data` válido según `validateProject` (la sala jugable de `tpl-demo`).
+
+**Errores:** `404 TEMPLATE_NOT_FOUND`.
+
+---
+
+## 9. Ejemplos rápidos (curl)
 
 ```bash
 # Register + login (token de acceso)
@@ -272,11 +347,20 @@ curl.exe http://localhost:3000/api/projects -H "Authorization: Bearer <TOKEN>"
 curl.exe -X POST http://localhost:3000/api/assets -H "Authorization: Bearer <TOKEN>" \
   -F "file=@C:/ruta/guard_f0.png;type=image/png" -F "tipo=sprite"
 curl.exe http://localhost:3000/api/assets/<ID>/file -H "Authorization: Bearer <TOKEN>" -o salida.png
+
+# Galería + plantillas (público)
+curl.exe -X PATCH http://localhost:3000/api/projects/<ID>/publish -H "Authorization: Bearer <TOKEN>" \
+  -H "content-type: application/json" -d '{"titulo":"Mi juego","descripcion":"Demo de C4"}'
+curl.exe http://localhost:3000/api/gallery
+curl.exe http://localhost:3000/api/gallery/<SLUG>          # incrementa visitas
+curl.exe http://localhost:3000/api/templates/tpl-demo
+curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <TOKEN>" \
+  -H "content-type: application/json" -d '{"plantillaId":"tpl-demo"}'
 ```
 
 ---
 
-## 8. Estado por fase
+## 10. Estado por fase
 
 | Fase | Endpoints | Estado |
 |---|---|---|
@@ -284,7 +368,7 @@ curl.exe http://localhost:3000/api/assets/<ID>/file -H "Authorization: Bearer <T
 | C1 | `/auth/register`, `/auth/login` | realizada |
 | C2 | `/api/projects` CRUD | realizada |
 | C3 | `/api/assets` CRUD + `/file` | realizada |
-| C4 | `/api/gallery` (`/play/:slug`), `/api/templates` | futura |
+| C4 | `publish`/`unpublish`, `/api/gallery`, `/api/templates` | realizada |
 | C5 | Guardar/Cargar desde el Studio | futura |
 
 Detalle del plan y criterios de aceptación: `DATABASE.md §8`.

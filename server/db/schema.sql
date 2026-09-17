@@ -221,12 +221,13 @@ INSERT INTO rol (id, nombre, descripcion) VALUES
   ('00000000-0000-4000-8000-000000000002', 'creador', 'Crea y gestiona sus propios proyectos y assets')
 ON CONFLICT (nombre) DO NOTHING;
 
--- Plantilla base: cáscara mínima válida de project.json v3.
--- El contenido real (mundo demo) se reemplazará al cargar demo/project.js en C2.
+-- Plantilla base: sala jugable mínima de schema v3 (mismo shape que el test
+-- canónico del motor test/engine/engine3d.test.js: una sala 10x10, 4 paredes).
+-- ON CONFLICT DO NOTHING → idempotente también al ejecutar varias veces.
 INSERT INTO plantilla (id, nombre, descripcion, data) VALUES (
   'tpl-demo',
   'Demo base',
-  'Proyecto inicial con el demo de referencia (schema v3)',
-  '{"meta":{"name":"Mi juego","schemaVersion":3,"renderMode":"3d"},"camera":{"posX":5,"posY":5,"posZ":0.6,"yaw":0.78,"pitch":0},"render":{"fov":70,"backgroundColor":0,"fog":{"color":0,"density":0.01}},"world":{"vertices":[],"sectors":[],"walls":[],"ramps":[],"sprites":[],"textures":{},"sky":{"style":"classic"},"spriteAnims":{}},"audio":[],"music":null}'
+  'Proyecto inicial: sala jugable de referencia (schema v3)',
+  '{"meta":{"name":"Mi juego","schemaVersion":3,"renderMode":"3d"},"camera":{"posX":2,"posY":2,"posZ":0.5,"yaw":0,"pitch":0},"world":{"vertices":[{"id":"v0","x":0,"y":0},{"id":"v1","x":10,"y":0},{"id":"v2","x":10,"y":10},{"id":"v3","x":0,"y":10}],"sectors":[{"id":"s0","vertexIds":["v0","v1","v2","v3"],"floorH":0,"ceilH":3,"floorTex":"floor","ceilTex":"","wallTex":"wall"}],"walls":[{"id":"w0","a":"v0","b":"v1","sectorFront":"s0","sectorBack":null,"tex":"wall"},{"id":"w1","a":"v1","b":"v2","sectorFront":"s0","sectorBack":null,"tex":"wall"},{"id":"w2","a":"v2","b":"v3","sectorFront":"s0","sectorBack":null,"tex":"wall"},{"id":"w3","a":"v3","b":"v0","sectorFront":"s0","sectorBack":null,"tex":"wall"}],"ramps":[],"sprites":[],"textures":{"wall":0x8b7355,"floor":0x3b3b3b},"sky":{"style":"classic","set":0,"frame":0},"spriteAnims":{}},"render":{"fov":70,"backgroundColor":0},"audio":[],"music":null}'
 )
 ON CONFLICT (id) DO NOTHING;
