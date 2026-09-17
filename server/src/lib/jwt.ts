@@ -14,6 +14,8 @@ export interface TokenPayload {
   login: string;
   rol: string;
   sid?: string; // id del RefreshToken en DB (solo refresh)
+  jti?: string; // identificador único del token (signToken); clave de la denylist
+  exp?: number; // expiración en segundos (signToken); el access vencido va a la denylist
 }
 
 export function signToken(payload: TokenPayload, expiresInSec: number): Promise<string> {

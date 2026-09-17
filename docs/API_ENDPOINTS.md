@@ -163,6 +163,28 @@ Rotación de refresh: cada uso **revoca** el token anterior y entrega uno nuevo 
 
 ---
 
+### `POST /auth/logout` — Cerrar sesión (C5g)
+
+Requiere `Authorization: Bearer <accessToken>`. Body: `{ refreshToken? }` (opcional; sin él solo se invalida el access).
+
+Cierra **solo esa sesión** (otros navegadores/dispositivos siguen dentro):
+
+1. **Refresh:** borra la fila de `refresh_token` de esa sesión (filtrada por hash **+ dueño**, así que pasar el refresh de otro usuario no revoca nada ajeno).
+2. **Access:** inserta su `jti` en `token_invalido` con el `exp` real → el access muere **ya** (sin esto seguiría sirviendo hasta 15 min). Purga perezosa de las filas vencidas en la misma transacción.
+
+Es **idempotente**: cerrar dos veces responde `401` la segunda (el access ya está en la denylist) y el front limpia la cookie igualmente.
+
+**200**
+```json
+{ "success": true, "data": { "loggedOut": true }, "error": null }
+```
+
+**Errores:** `401 UNAUTHORIZED` (sin token, token inválido o access ya revocado) · `422 VALIDATION_ERROR` (`refreshToken` malformado).
+
+> Nota (C5f): la revocación **global** de todas las sesiones solo ocurre en `/auth/refresh` al detectar el **reuso de un refresh rotado** (señal de robo). Un refresh de una sesión **cerrada con logout** da `401` simple — no dispara la alarma — para no tumbar las demás sesiones de un cliente legítimo.
+
+---
+
 ## 5. Proyectos (`/api/projects`) — requiere JWT
 
 Todas las rutas exigen `Authorization: Bearer <accessToken>`. El `data` es el `project.json` completo (schema v3) y se valida con el MISMO validador del contrato.

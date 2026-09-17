@@ -8,10 +8,12 @@ import { Hono } from "hono";
 import type { z } from "zod";
 import { prisma } from "../db.ts";
 import { AppError } from "../lib/AppError.ts";
+import { requireAuth, type AuthEnv } from "../lib/auth.ts";
+import { ok } from "../lib/handler.ts";
 import { sha256hex, signToken, verifyToken, type TokenPayload } from "../lib/jwt.ts";
 import { hashPassword, verifyPassword } from "../lib/password.ts";
 import { loginLimiter, refreshLimiter } from "../lib/rateLimit.ts";
-import { loginSchema, refreshSchema, registerSchema } from "../schemas/auth.ts";
+import { loginSchema, logoutSchema, refreshSchema, registerSchema } from "../schemas/auth.ts";
 
 const ACCESS_TTL_SEC = 15 * 60; // 15 min
 const REFRESH_TTL_SEC = 7 * 24 * 60 * 60; // 7 días
@@ -48,7 +50,7 @@ function userSummary(u: {
   };
 }
 
-export const authRoutes = new Hono();
+export const authRoutes = new Hono<AuthEnv>();
 
 authRoutes.post("/register", async (c) => {
   let json: unknown;
@@ -221,4 +223,55 @@ authRoutes.post("/refresh", refreshLimiter.middleware, async (c) => {
     },
     error: null,
   });
+});
+
+// C5g — Logout: cierra SOLO esta sesión (DATABASE.md §3.8).
+//  1. Revoca la fila de refresh de ESTA sesión (por hash + dueño): las demás
+//     sesiones del mismo usuario siguen vivas. Idempotente y sin filtrar si el
+//     token es ajeno/inexistente (mismo 200: cerrar sesión nunca falla).
+//  2. Mete el `jti` del access en `token_invalido` con su expiración real: sin
+//     esto el access seguiría sirviendo hasta 15 min tras cerrar sesión.
+//     Purga perezosa de las filas vencidas en la misma transacción.
+// (La revocación GLOBAL solo ocurre al detectar reuso de un refresh rotado en
+// /auth/refresh: eso es robo de token, no un logout.)
+authRoutes.post("/logout", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const jti = c.get("accessJti");
+  const exp = c.get("accessExp");
+
+  // El body es opcional: sin refresh solo se denylista el access.
+  let json: unknown = {};
+  try {
+    json = await c.req.json();
+  } catch {
+    // Sin body → se trata como {} (logout del access a secas).
+  }
+  const { refreshToken } = parseBody(logoutSchema, json ?? {});
+
+  const ahora = new Date();
+  if (refreshToken) {
+    // Se BORRA la fila (no se marca `revocadoEn`): una fila revocada que alguien
+    // venga a usar es la señal de ROBO que revoca todas las sesiones en
+    // /auth/refresh — y el refresh de una sesión ya cerrada lo puede reintentar
+    // un cliente legítimo (pestaña abierta, petición en vuelo) sin que haya
+    // robo alguno. Sin fila, ese token es simplemente inválido (401) y las
+    // demás sesiones siguen intactas.
+    await prisma.refreshToken.deleteMany({
+      where: { tokenHash: sha256hex(refreshToken), usuarioId: userId },
+    });
+  }
+
+  if (jti) {
+    const expiraEn = exp ? new Date(exp * 1000) : new Date(Date.now() + ACCESS_TTL_SEC * 1000);
+    await prisma.$transaction([
+      prisma.tokenInvalido.deleteMany({ where: { expiraEn: { lt: ahora } } }),
+      prisma.tokenInvalido.upsert({
+        where: { jti },
+        create: { jti, usuarioId: userId, expiraEn },
+        update: {}, // ya denylistado: no-op (logout repetido)
+      }),
+    ]);
+  }
+
+  return ok(c, { loggedOut: true });
 });

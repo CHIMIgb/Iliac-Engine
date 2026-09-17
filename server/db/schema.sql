@@ -212,7 +212,7 @@ CREATE TABLE token_invalido (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE  token_invalido         IS 'Denylist de access tokens JWT revocados antes de expirar; se purga perezosamente al insertar/consultar (DELETE WHERE expira_en < now())';
+COMMENT ON TABLE  token_invalido         IS 'Denylist de access tokens JWT revocados antes de expirar (logout, C5g); se purga perezosamente al insertar (DELETE WHERE expira_en < now())';
 COMMENT ON COLUMN token_invalido.jti     IS 'Identificador único del JWT (claim jti); al validar un access token se rechaza si su jti está aquí';
 
 -- Índice para la purga de filas vencidas

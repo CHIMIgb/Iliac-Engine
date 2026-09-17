@@ -34,8 +34,9 @@ interface ApiInit extends RequestInit {
 }
 
 // Rutas que NUNCA se auto-renuevan: un 401 ahí es credencial mala o token
-// inválido, no una sesión caducada; renovar solo haría bucles.
-const NO_RENEW = new Set(['/auth/login', '/auth/register', '/auth/refresh']);
+// inválido, no una sesión caducada; renovar solo haría bucles. (/auth/logout:
+// un 401 significa que el access ya está revocado — la sesión está cerrada.)
+const NO_RENEW = new Set(['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout']);
 
 // C5f: deduplicación de renovación — si varias peticiones reciben 401 a la vez,
 // todas esperan la MISMA promesa y reintentan con el token recién renovado.
@@ -136,6 +137,18 @@ export function apiLogin(login: string, password: string) {
   return apiFetch<AuthSession>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ login, password }),
+  });
+}
+
+/**
+ * C5g — Cierra la sesión en el servidor: revoca el refresh de ESTA sesión
+ * (las demás siguen vivas) y mete el access en la denylist para que muera ya.
+ * El caller limpia la cookie igualmente (aunque falle la red).
+ */
+export function apiLogout(refreshToken: string) {
+  return apiFetch<{ loggedOut: boolean }>('/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
   });
 }
 

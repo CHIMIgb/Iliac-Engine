@@ -31,6 +31,13 @@ export const refreshSchema = z.object({
   refreshToken: z.string().min(1, "Obligatorio").max(4096, "Token demasiado largo"),
 });
 
+// C5g: logout — el refresh es opcional (se revoca si viene); el access va en
+// el header y su jti entra en la denylist (token_invalido).
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, "Obligatorio").max(4096, "Token demasiado largo").optional(),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;

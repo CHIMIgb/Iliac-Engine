@@ -22,7 +22,7 @@ import { AuthModal } from './ui/AuthModal';
 import { ProjectPicker } from './ui/ProjectPicker';
 import { confirmDialog } from './ui/ConfirmDialog';
 import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
-import { ApiError } from './io/api';
+import { ApiError, apiLogout } from './io/api';
 import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
 import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
 import { openMyProject } from './io/MyProjects';
@@ -448,8 +448,19 @@ function requireSession(accion: string): boolean {
 
 const accountBtn = layout.toolbar.addAction({
   icon: 'user', label: 'Cuenta',
-  onClick: () => {
+  onClick: async () => {
     if (isAuthenticated()) {
+      // C5g: cerrar sesión en el servidor (revoca el refresh de ESTA sesión y
+      // denylista su access). Si la red falla, se cierra en local igual: el
+      // usuario no puede quedarse atrapado con la sesión abierta.
+      const refresh = getSession()?.refreshToken;
+      if (refresh) {
+        try {
+          await apiLogout(refresh);
+        } catch {
+          // Sin conexión o sesión ya revocada: la cookie se borra igualmente.
+        }
+      }
       clearSession();
       cloudProjectId = null;
       updateAccountButton();
