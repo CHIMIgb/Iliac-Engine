@@ -174,7 +174,6 @@ export class ProjectPicker {
     openBtn.className = 'btn btn--icon';
     openBtn.title = 'Abrir';
     openBtn.appendChild(Icon('folder-open', 16));
-    openBtn.disabled = this.busy;
     openBtn.addEventListener('click', () => {
       if (!this.callbacks) return;
       this.callbacks.onOpen(p.id);
@@ -185,7 +184,6 @@ export class ProjectPicker {
     delBtn.className = 'btn btn--icon';
     delBtn.title = 'Borrar';
     delBtn.appendChild(Icon('trash-2', 16));
-    delBtn.disabled = this.busy;
     delBtn.addEventListener('click', () => {
       void this.confirmDelete(p);
     });
