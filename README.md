@@ -12,8 +12,8 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 | Capa | Estado | Descripción |
 |------|--------|-------------|
-| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**, **C5d: arranque desde la plantilla de la API**. **233 tests** pasan. |
+| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **192 tests** pasan. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**, **C5d: arranque desde la API (editor vacío sin sesión)**. **234 tests** pasan. |
 | **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a–C5d** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt, CRUD proyectos (`data` JSONB v3), assets (blobs, `/file` público para el motor), galería/plantillas (con dueño desde C5d), contrato `{success,data,error}`. **59 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
@@ -131,7 +131,7 @@ studio/
 │   │   ├── Serializer.ts     # project.json ↔ EditorState (export/import, schema v3)
 │   │   ├── FileManager.ts    # Exportar/importar JSON (sin guardado local — C5c: el guardado va por API)
 │   │   ├── CloudProject.ts   # C5b: guardar/cargar el proyecto por API (nube = fuente de verdad)
-│   │   ├── StartProject.ts   # C5d: documento de partida desde la plantilla de la API (personal si hay sesión)
+│   │   ├── StartProject.ts   # C5d: documento de partida desde la API (vacío sin sesión; plantilla con sesión)
 │   │   ├── assetApi.ts       # C5c: subir sprites/audio a la API + listar audios (POST /api/assets)
 │   │   ├── api.ts            # Cliente HTTP tipado (C5a–C5d): apiFetch + auth + CRUD + assets + plantillas
 │   ├── layout/
@@ -173,7 +173,7 @@ server/
 └── tests/                     # prisma-schema.test.js (A3) + app.test.ts (B1)
 ```
 
-### Tests del motor (`test/engine/`) — 19 archivos · 108 tests (Node --test)
+### Tests del motor (`test/engine/`) — 27 archivos · 192 tests (Node --test)
 
 ```
 test/engine/
@@ -277,7 +277,7 @@ El Studio autentica contra el backend real (botón **Cuenta** en la toolbar). Cu
 
 > **Solo desarrollo local** — no usar en producción. La sesión se guarda en una **cookie** (`raycast_session`, 7 días = TTL del refresh token), no en localStorage.
 
-**Plantilla de arranque (C5d):** `tpl-studio` (el escenario de 100×100 con montaña y río) es la plantilla **personal de esta cuenta**: con la sesión de `chimi` el Studio abre ese mundo; sin sesión abre la plantilla del sistema `tpl-demo`. Se siembra con `npm run seed:templates` (en `server/`, idempotente; `SEED_OWNER_LOGIN` cambia el dueño).
+**Plantilla de arranque (C5d):** `tpl-studio` (el escenario de 100×100 con montaña y río) es la plantilla **personal de esta cuenta**: con la sesión de `chimi` el Studio abre ese mundo. **Sin sesión el editor arranca vacío** (solo grid, sin peticiones a la API) y al iniciar sesión se carga la cuenta. Se siembra con `npm run seed:templates` (en `server/`, idempotente; `SEED_OWNER_LOGIN` cambia el dueño).
 
 ---
 

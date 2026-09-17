@@ -22,7 +22,7 @@ import { AuthModal } from './ui/AuthModal';
 import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
 import { ApiError } from './io/api';
 import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
-import { loadStartProject } from './io/StartProject';
+import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
 import { listAudioUrls, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
 
 // ── Layout ─────────────────────────────────────────────────────
@@ -33,8 +33,9 @@ layout.mount(app);
 
 // ── Estado editable ────────────────────────────────────────────
 // C5d: el documento de partida sale de una plantilla de la API (la personal del
-// usuario si hay sesión; la del sistema si no). D-C: el arranque depende del
-// backend — sin él se avisa y el Studio no abre con un mundo inventado.
+// usuario si hay sesión). Sin sesión el editor arranca vacío, sin peticiones;
+// con sesión el arranque depende del backend (D-C) — sin él se avisa y el
+// Studio no abre con un mundo inventado.
 const start = await loadStartProject().catch((e: unknown) => {
   showToast(
     e instanceof Error ? `No se pudo cargar el proyecto inicial: ${e.message}` : 'No se pudo cargar el proyecto inicial',
@@ -64,24 +65,37 @@ function handleApiFailure(e: unknown, accion: string): void {
   );
 }
 
+/** Vuelca un documento en el editor (estado + viewport + nombre en la toolbar). */
+function applyDoc(state: EditorState): void {
+  Object.assign(doc, state);
+  viewport.reload(toRawProject(doc));
+  nameLabel.textContent = doc.meta.name;
+}
+
 /**
  * Al iniciar sesión, la nube toma el relevo (C5b): carga el último proyecto de
- * la cuenta o sube el actual si la cuenta está vacía. El arranque con sesión ya
- * lo resuelve `loadStartProject` (C5d); esto es solo el cambio en caliente.
+ * la cuenta; si está vacía, sube lo que el usuario haya dibujado sin sesión o,
+ * si el editor sigue vacío, crea el primer proyecto desde su plantilla (C5d).
+ * El arranque con sesión ya lo resuelve `loadStartProject`; esto es el cambio en caliente.
  */
 async function initCloudProject(): Promise<void> {
   try {
     const recent = await loadCloudMostRecent();
     if (recent) {
-      Object.assign(doc, recent.state);
-      viewport.reload(toRawProject(doc));
-      nameLabel.textContent = doc.meta.name;
+      applyDoc(recent.state);
       cloudProjectId = recent.projectId;
       showToast(`Proyecto «${doc.meta.name}» cargado de la nube`, 'success');
-    } else {
-      cloudProjectId = await createCloudProject(doc);
-      showToast('Proyecto creado en la nube', 'success');
+      return;
     }
+    if (isEmptyDoc(doc)) {
+      const tpl = await createFromTemplate();
+      applyDoc(tpl.state);
+      cloudProjectId = tpl.projectId;
+      showToast(`Proyecto «${doc.meta.name}» creado en la nube`, 'success');
+      return;
+    }
+    cloudProjectId = await createCloudProject(doc);
+    showToast('Proyecto creado en la nube', 'success');
   } catch (e) {
     handleApiFailure(e, 'cargar el proyecto');
   }

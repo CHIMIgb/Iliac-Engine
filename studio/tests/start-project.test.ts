@@ -1,11 +1,12 @@
 /**
  * start-project.test.ts — arranque del Studio (C5d): el documento de partida
- * sale de una plantilla de la API (personal si hay sesión, del sistema si no),
- * nunca de un mundo hardcodeado en el código.
+ * sale de una plantilla de la API con sesión; sin sesión el editor arranca
+ * vacío y sin peticiones (nunca un mundo hardcodeado en el código).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { loadStartProject } from '../src/io/StartProject';
+import { isEmptyDoc, loadStartProject } from '../src/io/StartProject';
 import { setSession, type AuthSession } from '../src/io/session';
+import { fromProjectJson } from '../src/io/Serializer';
 
 /** project.json mínimo que el Serializer acepta. */
 const DATA = {
@@ -41,18 +42,14 @@ function stubFetch(responses: unknown[]): ReturnType<typeof vi.fn> {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('loadStartProject (C5d)', () => {
-  it('sin sesión carga la plantilla del sistema y no asocia proyecto', async () => {
-    const fetchMock = stubFetch([
-      { success: true, data: { templates: [{ id: 'tpl-demo', nombre: 'Demo', descripcion: '' }] }, error: null },
-      { success: true, data: { template: { id: 'tpl-demo', nombre: 'Demo', descripcion: '', data: DATA } }, error: null },
-    ]);
+  it('sin sesión arranca vacío y no llama a la API', async () => {
+    const fetchMock = stubFetch([]);
 
     const start = await loadStartProject();
     expect(start.projectId).toBeNull();
-    expect(start.state.meta.name).toBe('Escenario');
-
-    const urls = fetchMock.mock.calls.map((c) => c[0]);
-    expect(urls).toEqual(['/api/templates', '/api/templates/tpl-demo']);
+    expect(isEmptyDoc(start.state)).toBe(true);
+    expect(start.state.world.sectors).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('con sesión abre el último proyecto de la cuenta', async () => {
@@ -107,17 +104,33 @@ describe('loadStartProject (C5d)', () => {
     expect(body.plantillaId).toBe('tpl-studio');
   });
 
-  it('sin respuesta del backend lanza (D-C: el Studio no arranca con un mundo inventado)', async () => {
+  it('con sesión y backend caído lanza (D-C: el Studio no arranca con un mundo inventado)', async () => {
+    withSession();
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
     const err = await loadStartProject().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect((err as { code?: string }).code).toBe('NETWORK_ERROR');
   });
 
-  it('sin plantillas en el servidor lanza un error claro', async () => {
+  it('con sesión y sin plantillas en el servidor lanza un error claro', async () => {
+    withSession();
     stubFetch([
+      { success: true, data: { projects: [] }, error: null },
       { success: true, data: { templates: [] }, error: null },
     ]);
     await expect(loadStartProject()).rejects.toThrow('no hay ninguna plantilla');
+  });
+});
+
+describe('isEmptyDoc (C5d)', () => {
+  it('distingue el documento vacío de uno con sectores', () => {
+    expect(isEmptyDoc(fromProjectJson({ world: { vertices: [], sectors: [], walls: [] } }))).toBe(true);
+    expect(
+      isEmptyDoc(
+        fromProjectJson({
+          world: { vertices: [{ id: 0, x: 0, y: 0 }], sectors: [{ id: 0, vertexIds: [0] }], walls: [] },
+        }),
+      ),
+    ).toBe(false);
   });
 });
