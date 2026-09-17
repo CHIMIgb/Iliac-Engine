@@ -19,10 +19,13 @@ import { findSpot } from './dungeons/placement';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { exportJson, importJson } from './io/FileManager';
 import { AuthModal } from './ui/AuthModal';
+import { ProjectPicker } from './ui/ProjectPicker';
+import { confirmDialog } from './ui/ConfirmDialog';
 import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
 import { ApiError } from './io/api';
 import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
 import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
+import { openMyProject } from './io/MyProjects';
 import { listAudioUrls, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
 
 // ── Layout ─────────────────────────────────────────────────────
@@ -46,6 +49,14 @@ const doc: EditorState = start.state;
 // se abre el modal de Cuenta; ya no hay guardado local.
 let cloudProjectId: string | null = start.projectId;
 
+// C5e: flag de cambios sin guardar — al abrir otro proyecto se avisa antes de
+// perder el trabajo. Se marca con cada mutación del documento y se resetea al
+// aplicar un documento cargado (applyDoc) o al guardar con éxito (saveCurrent).
+let dirty = false;
+doc.onChange(() => {
+  dirty = true;
+});
+
 /** Errores de API: 401 → sesión expirada (logout); resto → toast. */
 function handleApiFailure(e: unknown, accion: string): void {
   if (e instanceof ApiError && e.code === 'UNAUTHORIZED') {
@@ -65,6 +76,7 @@ function applyDoc(state: EditorState): void {
   Object.assign(doc, state);
   viewport.reload(toRawProject(doc));
   nameLabel.textContent = doc.meta.name;
+  dirty = false;
 }
 
 /**
@@ -77,9 +89,7 @@ async function initCloudProject(): Promise<void> {
   try {
     const recent = await loadCloudMostRecent();
     if (recent) {
-      applyDoc(recent.state);
-      cloudProjectId = recent.projectId;
-      showToast(`Proyecto «${doc.meta.name}» cargado de la nube`, 'success');
+      await openProject(recent.projectId);
       return;
     }
     if (isEmptyDoc(doc)) {
@@ -90,9 +100,46 @@ async function initCloudProject(): Promise<void> {
       return;
     }
     cloudProjectId = await createCloudProject(doc);
+    dirty = false;
     showToast('Proyecto creado en la nube', 'success');
   } catch (e) {
     handleApiFailure(e, 'cargar el proyecto');
+  }
+}
+
+/**
+ * Abre en el editor el proyecto indicado (C5e). Reutilizable por el arranque
+ * (initCloudProject) y por el selector «Mis proyectos». Si hay cambios sin
+ * guardar, pide confirmación antes de descartarlos (decisión C5e: avisar).
+ */
+async function openProject(id: string): Promise<void> {
+  if (!requireSession('abrir otro proyecto')) return;
+  if (dirty) {
+    const ok = await confirmDialog(
+      'El proyecto actual tiene cambios sin guardar. ¿Abrir otro proyecto de todos modos?',
+      'Abrir',
+    );
+    if (!ok) return;
+  }
+  try {
+    const { state, projectId } = await openMyProject(id);
+    applyDoc(state);
+    cloudProjectId = projectId;
+    showToast(`Proyecto «${state.meta.name}» cargado`, 'success');
+  } catch (e) {
+    handleApiFailure(e, 'abrir el proyecto');
+  }
+}
+
+/** Crea un proyecto nuevo desde la plantilla y lo abre (botón «Nuevo proyecto»). */
+async function createNewProject(): Promise<void> {
+  try {
+    const tpl = await createFromTemplate();
+    applyDoc(tpl.state);
+    cloudProjectId = tpl.projectId;
+    showToast(`Proyecto «${tpl.state.meta.name}» creado en la nube`, 'success');
+  } catch (e) {
+    handleApiFailure(e, 'crear el proyecto');
   }
 }
 
@@ -105,6 +152,7 @@ async function saveCurrent(): Promise<void> {
   try {
     if (!cloudProjectId) cloudProjectId = await createCloudProject(doc);
     else await saveCloudProject(doc, cloudProjectId);
+    dirty = false;
     showToast('Proyecto guardado en la nube', 'success');
   } catch (e) {
     handleApiFailure(e, 'guardar');
@@ -320,6 +368,23 @@ layout.toolbar.addSeparator();
 // ── Toolbar: archivo ───────────────────────────────────────────
 const fileGroup = layout.toolbar.addGroup();
 
+// C5e: selector «Mis proyectos» (abrir/nuevo/borrar los del usuario con sesión).
+const projectPicker = new ProjectPicker();
+
+/** Abre el selector de proyectos; sin sesión pide iniciar sesión (criterio C5e). */
+function openPicker(): void {
+  if (!requireSession('ver tus proyectos')) return;
+  void projectPicker.open({
+    onOpen: (id) => void openProject(id),
+    onNew: () => void createNewProject(),
+  });
+}
+
+fileGroup.appendChild(layout.toolbar.addAction({
+  icon: 'folder-open', label: 'Mis proyectos', shortcut: 'Ctrl+Shift+O',
+  onClick: () => openPicker(),
+}));
+
 fileGroup.appendChild(layout.toolbar.addAction({
   icon: 'save', label: 'Guardar', shortcut: 'Ctrl+S',
   onClick: () => void saveCurrent(),
@@ -345,9 +410,7 @@ async function importCurrent(): Promise<void> {
     showToast(result.error, 'error');
     return;
   }
-  Object.assign(doc, result.state);
-  viewport.reload(toRawProject(doc));
-  nameLabel.textContent = doc.meta.name;
+  applyDoc(result.state);
   await saveCurrent();
 }
 
@@ -519,8 +582,14 @@ document.addEventListener('keydown', (e) => {
     void saveCurrent();
     return;
   }
+  // Ctrl+Shift+O → Mis proyectos (C5e: elegir otro proyecto de la cuenta)
+  if ((e.ctrlKey || e.metaKey) && key === 'O' && e.shiftKey) {
+    e.preventDefault();
+    openPicker();
+    return;
+  }
   // Ctrl+O → importar
-  if ((e.ctrlKey || e.metaKey) && key === 'O') {
+  if ((e.ctrlKey || e.metaKey) && key === 'O' && !e.shiftKey) {
     e.preventDefault();
     void importCurrent();
     return;

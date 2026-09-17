@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo**; **tecla 9 = popover de Audio (MVP: bucles de ambiente)**; `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo**; **tecla 9 = popover de Audio (MVP: bucles de ambiente)**; `Ctrl+Shift+O` = **Mis proyectos** (C5e); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -177,6 +177,7 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 - La sesión (user + tokens) vive en una **cookie** (`raycast_session`, 7 días) — no localStorage; el contrato `{success,data,error}` lo valida `api.ts` y los errores se muestran con `message` amigable.
 - **C5b+C5c (realizado):** con sesión el proyecto se guarda en la nube — Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). **C5c: la sesión es obligatoria** — sin sesión, Guardar/Exportar/Importar/sprites/audio muestran toast y abren el modal de Cuenta (`requireSession`); ya no hay guardado local (localStorage eliminado). Los assets (frames, audio) suben a la API (`POST /api/assets`) y el documento guarda su URL servida (`/api/assets/<id>/file`, pública). 401 → sesión expirada (logout + toast).
 - **C5d (realizado):** al abrir, el Studio pide el **documento de partida a la API** (`loadStartProject`): con sesión abre el último proyecto de la cuenta o crea el primero desde su plantilla (`tpl-studio`); **sin sesión no hay nada cargado** — el editor arranca con un documento vacío (solo grid y ejes) y sin peticiones, ni siquiera hace falta el backend. Si con sesión el backend falla (o la sesión caducó), **el editor abre igual vacío con un toast de aviso** — nunca se queda la pantalla en blanco. Al iniciar sesión, la nube toma el relevo: carga el último proyecto, sube lo que hayas dibujado en vacío o, si sigue vacío, crea el primer proyecto desde tu plantilla.
+- **Mis proyectos (C5e, realizado):** botón en la toolbar (`folder-open`) o `Ctrl+Shift+O` abre el **selector de proyectos** del usuario con sesión: lista con **nombre + fecha de edición** (`updatedAt`), acciones por fila **Abrir** (carga el árbol v3 completo del proyecto elegido) y **Borrar** (con **diálogo de confirmación**; al borrar la lista se refresca) + botón **Nuevo proyecto** (crea desde la plantilla personal y lo abre). Sin sesión el selector no aparece: `requireSession('ver tus proyectos')` pide iniciar sesión (toast + modal de Cuenta). Detalle: si el documento actual tiene **cambios sin guardar**, abrir otro pide confirmación antes de descartarlos (`dirty` flag en `main.ts`). Lógica de datos en `studio/src/io/MyProjects.ts` (testeable, sin DOM), UI en `studio/src/ui/ProjectPicker.ts` + `ConfirmDialog.ts`, `openProject(id)` reutilizado por el arranque (`initCloudProject`) y por el selector.
 
 ## Dónde está cada cosa
 
@@ -193,6 +194,7 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 | Cliente API + sesión (C5a): `apiFetch`, `apiLogin`/`apiRegister`, tokens; modal Cuenta | `studio/src/io/api.ts`, `studio/src/io/session.ts`, `studio/src/ui/AuthModal.ts` |
 | Guardar/cargar en la nube (C5b): CRUD proyectos, PATCH data completo, manejo 401 | `studio/src/io/CloudProject.ts`, `main.ts` (saveCurrent/initCloudProject) |
 | Documento de partida (C5d): plantilla de la API con sesión, editor vacío sin sesión, aviso si el backend falla con sesión | `studio/src/io/StartProject.ts`, `main.ts` (arranque, initCloudProject) |
+| Selector Mis proyectos (C5e): lista/abrir/borrar por API, confirmación de borrado y de cambios sin guardar, `openProject(id)` | `studio/src/io/MyProjects.ts`, `studio/src/ui/ProjectPicker.ts`, `studio/src/ui/ConfirmDialog.ts`, `main.ts` (openProject/initCloudProject) |
 | Autoría de la plantilla (C5d): `npx vite-node scripts/export-template.ts` → `server/db/seeds/tpl-studio.json`; seed con `npm run seed:templates` | `studio/scripts/export-template.ts`, `server/src/scripts/seed-templates.ts` |
 | Assets por API (C5c): sprites/audio → `POST /api/assets`, listar por `?tipo`, URL servida `/api/assets/<id>/file`; sin localStorage | `studio/src/io/assetApi.ts`, `studio/src/io/api.ts` (apiUploadAsset/apiListAssets) |
 | Audio popover: puente API (C5c): `AudioAssetBridge` (requireSession/upload/listUrls) | `studio/src/tools/ToolManager.ts`, `main.ts` (inyecta bridge) |

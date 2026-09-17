@@ -676,6 +676,103 @@ html, body, #app {
   image-rendering: pixelated;
 }
 
+/* --- Mis proyectos (C5e) --- */
+.project-picker__modal {
+  width: 480px;
+  max-height: 70vh;
+}
+
+.project-picker__error {
+  display: none;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent-danger);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  color: var(--accent-danger);
+  font-size: var(--font-size-sm);
+}
+
+.project-picker__error--visible {
+  display: block;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  overflow-y: auto;
+  min-height: 120px;
+}
+
+.project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.project-item:hover {
+  background: var(--bg-hover);
+}
+
+.project-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.project-item__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-item__date {
+  font-size: 11px;
+  font-family: var(--font-code);
+  color: var(--text-muted);
+}
+
+.project-item__actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.project-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* --- Confirmación de borrado (C5e) --- */
+.confirm-dialog__modal {
+  min-width: 340px;
+  max-width: 90vw;
+}
+
+.confirm-dialog__body {
+  padding: var(--space-4);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.confirm-dialog__body p {
+  margin: 0;
+}
+
 /* --- Sprite Tool (F5) --- */
 .sprite-tool__modal {
   width: 720px;
