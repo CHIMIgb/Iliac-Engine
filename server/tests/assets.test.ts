@@ -28,12 +28,17 @@ const PNG_1x1 = Buffer.from(
   "base64",
 );
 
+// MP3 mínimo con frame sync válido (FF FB): file-type lo detecta como
+// audio/mpeg por contenido (un `ID3` suelto no basta en file-type v22).
+const MP3 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400)]);
+
 let storageTmp = "";
 
 interface ApiBody {
   success: boolean;
   data: {
     asset?: { id: string; nombre: string; tipo: string; mime: string; tamanBytes?: number; hash: string | null };
+    assets?: { id: string; tipo: string; mime: string }[];
     reused?: boolean;
     deleted?: boolean;
   } | null;
@@ -157,6 +162,60 @@ test("re-subir el MISMO archivo reutiliza el asset (dedupe por hash) → 200 mis
   assert.equal(status, 200);
   assert.equal(body.data?.reused, true);
   assert.equal(body.data?.asset?.id, assetId, "mismo asset, sin duplicar fila ni bytes");
+});
+
+// ── C5c ────────────────────────────────────────────────────────
+
+test("GET /:id/file sirve el blob SIN token (D1: el motor no tiene sesión)", { skip: !DB_UP && "DB no disponible" }, async () => {
+  assert.ok(assetId);
+  const res = await app.request(`/api/assets/${assetId}/file`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/png");
+  const bytes = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(bytes, PNG_1x1, "bytes idénticos al subido (round-trip sin auth)");
+});
+
+test("la metadata y el borrado SÍ exigen token → 401", { skip: !DB_UP && "DB no disponible" }, async () => {
+  assert.ok(assetId);
+  assert.equal((await api(`/api/assets/${assetId}`)).status, 401);
+  assert.equal((await api(`/api/assets/${assetId}`, { method: "DELETE" })).status, 401);
+});
+
+test("id no-UUID → 404 ASSET_NOT_FOUND (nunca 500), público o privado", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const pub = await api("/api/assets/v3/file");
+  assert.equal(pub.status, 404);
+  assert.equal(pub.body.error?.code, "ASSET_NOT_FOUND");
+  const priv = await api("/api/assets/v3", { token: ownerToken });
+  assert.equal(priv.status, 404);
+  assert.equal(priv.body.error?.code, "ASSET_NOT_FOUND");
+});
+
+test("POST de un MP3 real → 201 tipo audio (D5: audio/mpeg por frame sync)", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const form = new FormData();
+  form.append("file", new File([MP3], "viento.mp3", { type: "audio/mpeg" }), "viento.mp3");
+  form.append("tipo", "audio");
+  const { status, body } = await upload("/api/assets", { token: ownerToken, form });
+  assert.equal(status, 201);
+  assert.equal(body.data?.asset?.mime, "audio/mpeg", "el MIME sale del contenido, no de la extensión");
+  assert.equal(body.data?.asset?.tipo, "audio");
+});
+
+test("GET /api/assets lista solo los del usuario y ?tipo filtra (D6)", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const mine = await api("/api/assets", { token: ownerToken });
+  assert.equal(mine.status, 200);
+  assert.ok((mine.body.data?.assets?.length ?? 0) >= 2, "PNG + MP3 del owner");
+
+  const audio = await api("/api/assets?tipo=audio", { token: ownerToken });
+  assert.deepEqual(audio.body.data?.assets?.map((a) => a.tipo), ["audio"], "solo el MP3");
+
+  const theirs = await api("/api/assets", { token: otherToken });
+  assert.deepEqual(theirs.body.data?.assets, [], "nunca assets ajenos");
+});
+
+test("GET /api/assets?tipo inválido → 422", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const { status, body } = await api("/api/assets?tipo=nope", { token: ownerToken });
+  assert.equal(status, 422);
+  assert.equal(body.error?.code, "VALIDATION_ERROR");
 });
 
 test("asset de otro usuario → 404 ASSET_NOT_FOUND", { skip: !DB_UP && "DB no disponible" }, async () => {

@@ -11,6 +11,7 @@ import { prisma } from "../db.ts";
 import { AppError } from "../lib/AppError.ts";
 import { requireAuth, type AuthEnv } from "../lib/auth.ts";
 import { ok } from "../lib/handler.ts";
+import { assertUuid } from "../lib/ids.ts";
 import { parseBody } from "../lib/parseBody.ts";
 import {
   createProjectSchema,
@@ -64,9 +65,6 @@ function fullProject(p: Proyecto) {
   return { ...metaProject(p), data: p.data };
 }
 
-/** UUID canónico de Postgres/Prisma (los ids de proyecto son UUID). */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Busca un proyecto verificando propiedad; ajeno → 404 (sin enumerar). */
 async function ownedProject(id: string, userId: string) {
   assertProjectId(id);
@@ -83,9 +81,7 @@ async function ownedProject(id: string, userId: string) {
  * hacía que P2023 escapara como INTERNAL_ERROR 500 (hueco detectado en C5b).
  */
 function assertProjectId(id: string): void {
-  if (!UUID_RE.test(id)) {
-    throw new AppError("PROJECT_NOT_FOUND", { id });
-  }
+  assertUuid(id, "PROJECT_NOT_FOUND");
 }
 
 projectsRoutes.post("/", async (c) => {

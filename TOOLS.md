@@ -142,9 +142,9 @@ Escribe `project.audio[]` y `project.music`. **El Studio arranca SIN audio preca
 
 **Popover** (icono `volume-2`): lista de ambientes, cada uno con `ruta · volumen · Probar · Cambiar · ×`; botones «Añadir sonidos» y «Cargar sonidos». Modal compacta (260–340 px): las rutas largas se truncan con puntos suspensivos (tooltip = ruta completa). **Nunca hay un archivo seleccionado por defecto.**
 
-- **Añadir sonidos**: abre el diálogo del sistema para elegir el audio que se añade como ambiente. Si el archivo elegido ya está en `assets/audio/` se usa su ruta servida (`/assets/audio/<nombre>`); si no, se sube al vuelo y se usa.
-- **Cambiar** (por fila): mismo diálogo, cambia el audio de ese ambiente.
-- **Cargar sonidos**: abre el explorador de archivos (`<input type="file" multiple>`) y sube cada audio elegido al **dev server**, que lo guarda en `assets/audio/` del repo (el navegador no puede escribir disco; el middleware `assetsMiddleware` de `vite.config.ts` hace de puente: `POST /assets/audio/upload` escribe el archivo, `GET /assets/audio/list` devuelve la lista). Formatos: wav, mp3, mp4, ogg, oga, flac, m4a, aac, webm. Máx. 50 MB. La validación (nombre saneado, base64, tamaño, anti-traversal) vive en `studio/src/io/assetServer.ts` (lógica pura testeada).
+- **Añadir sonidos**: abre el diálogo del sistema para elegir el audio que se añade como ambiente. El archivo se sube a la API (`POST /api/assets`, tipo `audio`) si no estaba (dedupe por hash: re-elegir el mismo archivo no duplica nada). El def guarda la URL servida `/api/assets/<id>/file` (pública — el motor la carga sin sesión). **C5c: requiere sesión** (sin ella: toast + modal de Cuenta).
+- **Cambiar** (por fila): mismo diálogo, sube a la API y cambia el audio de ese ambiente.
+- **Cargar sonidos**: abre el explorador de archivos (`<input type="file" multiple>`) y sube cada audio a la API de assets (`POST /api/assets`, sesión obligatoria, dedupe por hash). La lista de audios de la cuenta se obtiene con `GET /api/assets?tipo=audio`. Formatos: wav, mp3, mp4, ogg, oga, flac, m4a, aac, webm. Máx. 20 MB por archivo. Los audios que ya no están en la cuenta se marcan en rojo en el popover.
 - **Eliminar** (`×`): quita el ambiente y **la modal permanece abierta** (`stopPropagation` para que el clic no llegue al cierre por clic-fuera).
 - **Preview**: «Probar» instancia un `AudioEngine` efímero del motor y suena 3 s (el clic es el gesto que desbloquea el autoplay) → cero lógica de audio duplicada en el Studio.
 - **Ciclo en playtest**: al entrar (`F5`/Playtest) `EditorViewport` llama `engine.resumeAudio()` → los `loop:true` arrancan en bucle; al salir, `engine.stopAudio()` (`AudioEngine.halt()`) los calla y el siguiente `resume()` los re-crea. Sin `audio[]` en el proyecto, todo es no-op (el audio es **opcional y nunca rompe el frame**).
@@ -175,7 +175,7 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 
 - Consume el backend real: `POST /auth/register` y `/auth/login` (proxy `/api`+`/auth` de Vite → `127.0.0.1:3000`, same-origin).
 - La sesión (user + tokens) vive en una **cookie** (`raycast_session`, 7 días) — no localStorage; el contrato `{success,data,error}` lo valida `api.ts` y los errores se muestran con `message` amigable.
-- **C5b (realizado):** con sesión el proyecto se guarda en la nube — arranque abre el último proyecto de la cuenta (`GET /api/projects` + `GET /api/projects/:id`), Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). Sin sesión Guardar sigue en localStorage con aviso "solo local"; 401 → sesión expirada (logout + toast). Export/Import JSON se mantienen; importar con sesión también guarda en la nube.
+- **C5b+C5c (realizado):** con sesión el proyecto se guarda en la nube — arranque abre el último proyecto de la cuenta (`GET /api/projects` + `GET /api/projects/:id`), Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). **C5c: la sesión es obligatoria** — sin sesión, Guardar/Exportar/Importar/sprites/audio muestran toast y abren el modal de Cuenta (`requireSession`); ya no hay guardado local (localStorage eliminado). Los assets (frames, audio) suben a la API (`POST /api/assets`) y el documento guarda su URL servida (`/api/assets/<id>/file`, pública). 401 → sesión expirada (logout + toast).
 
 ## Dónde está cada cosa
 
@@ -191,5 +191,7 @@ Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión �
 | Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
 | Cliente API + sesión (C5a): `apiFetch`, `apiLogin`/`apiRegister`, tokens; modal Cuenta | `studio/src/io/api.ts`, `studio/src/io/session.ts`, `studio/src/ui/AuthModal.ts` |
 | Guardar/cargar en la nube (C5b): CRUD proyectos, arranque abre el último, PATCH data completo, manejo 401 | `studio/src/io/CloudProject.ts`, `main.ts` (saveCurrent/initCloudProject) |
+| Assets por API (C5c): sprites/audio → `POST /api/assets`, listar por `?tipo`, URL servida `/api/assets/<id>/file`; sin localStorage | `studio/src/io/assetApi.ts`, `studio/src/io/api.ts` (apiUploadAsset/apiListAssets) |
+| Audio popover: puente API (C5c): `AudioAssetBridge` (requireSession/upload/listUrls) | `studio/src/tools/ToolManager.ts`, `main.ts` (inyecta bridge) |
 | Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |
 | Motor: alturas por vértice, BVH, mallas, slots y vía rápida | `engine/core/sector.js`, `engine/three/WorldMesh.js`, `engine/Engine3D.js` |

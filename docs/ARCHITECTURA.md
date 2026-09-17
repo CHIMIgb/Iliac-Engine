@@ -62,8 +62,8 @@ Los consumidores del motor importan **solo** `engine/index.js` (`export { Engine
 1. **Editar:** el usuario dibuja en el viewport del Studio (herramientas 1–7). `ToolManager` muta `EditorState` (el documento en memoria = `project.json` v3 editable).
 2. **Recarga en vivo:** `EditorState.onChange` → throttle (`reloadMs()`: 120 ms, 250 ms si > 40.000 sectores) → `validateProjectJson` (contrato) → `viewport.reload(raw)` → `Engine3D.setWorld(project)` **sin recrear el renderer** (camino barato si solo cambió el mundo) o `new Engine3D` si cambió el bloque `render`/cielo.
 3. **Playtest (F5):** `EditorViewport.setMode('game')` → pointer lock, `engine.resumeAudio()` (gesto del usuario desbloquea el AudioContext), `engine.setCompass(true, viewport)` (brújula HUD). WASD + ratón → `engine.update(input, dt)`. F5 otra vez / Tab → vuelve al modo orbit (editor), `stopAudio()`.
-4. **Guardar (C5b):** con sesión → la **API es la fuente de verdad**: `PATCH /api/projects/:id` con `{nombre, data}` (data = árbol v3 completo; el server lo reemplaza entero y lo revalida contra el contrato). Sin sesión → `FileManager.localSave()` (localStorage `raycast-studio:project`) con toast informativo; `exportJson()` (descarga `.json`) siempre disponible. En el arranque con sesión se abre el último proyecto del usuario (`GET /api/projects` → `GET /api/projects/:id`) o se crea uno con el documento actual si la cuenta está vacía. 401 → sesión expirada (logout + toast + fallback local). **C5a** ya había conectado auth (registro/login/sesión vía `api.ts` + proxy dev).
-5. **Assets:** el Sprite Tool sube frames por el middleware de Vite (`POST /assets/sprites/upload` → `assets/`, gitignored). El backend (ya operativo desde C3) sube los mismos archivos vía `POST /api/assets` y los sirve por `GET /api/assets/:id/file`.
+4. **Guardar (C5b + C5c):** **la API es la fuente de verdad y la sesión es obligatoria**: `PATCH /api/projects/:id` con `{nombre, data}` (data = árbol v3 completo; el server lo reemplaza entero y lo revalida contra el contrato). Sin sesión **no hay guardado** (decisión C5c): Guardar/Exportar/Importar/sprites/audio avisan con toast y abren el modal de Cuenta (`requireSession` en `main.ts`); `exportJson()` (descarga `.json`) también exige sesión. En el arranque con sesión se abre el último proyecto del usuario (`GET /api/projects` → `GET /api/projects/:id`) o se crea uno con el documento actual si la cuenta está vacía. 401 → sesión expirada (logout + toast). **C5a** ya había conectado auth (registro/login/sesión vía `api.ts` + proxy dev).
+5. **Assets (C5c):** el Sprite Tool sube frames y el popover de Audio sube audios vía **`POST /api/assets`** (multipart, sesión obligatoria, dedupe por hash en el server) y el documento guarda la URL servida **`/api/assets/<id>/file` — pública (D1)**, porque el motor carga texturas/audio con `TextureLoader`/`fetch` y no conoce sesiones. El middleware de Vite ya no sube nada: solo sirve estáticamente `assets/` local (proyectos antiguos).
 
 ---
 
@@ -190,7 +190,7 @@ studio/src/
 │                         # CameraControls.ts (orbit/game) + Overlay2D.ts (gizmos) + EntityPreviewMesh.ts (cajas)
 ├── spriteTool/           # Pipeline F4.6: detectSprites (componentes conexas), gridSlice, frames, animator, spriteToolUI
 ├── dungeons/             # Generador de mazmorras por bloques 16×16: definitions, blocks, placement, assemble
-├── io/                   # FileManager (localStorage + export/import), Serializer (↔ project.json v3), CloudProject (C5b: guardar/cargar por API), api (cliente HTTP C5a/C5b), session (tokens)
+├── io/                   # FileManager (export/import JSON, C5c sin localStorage), Serializer (↔ project.json v3), CloudProject (C5b: guardar/cargar por API), assetApi (C5c: sprites/audio por API), api (cliente HTTP C5a/C5b/C5c), session (tokens)
 ├── ui/                   # Panel, Icon (lucide SVG), Toast, DungeonBrowser (preview automap), AuthModal (login/registro C5a)
 └── entities/             # entityCatalog.ts — NPCs + bestiario Daggerfall (~60 enemigos en 6 categorías)
 ```
@@ -216,7 +216,7 @@ studio/src/
 
 ### 5.3 Sprite Tool (F4.6) — pipeline completo
 
-Cargar hoja/frames → **detectar** (`detectSprites`: componentes conexas 4-vecindad; o grilla `gridSlice`) → **cortar/recortar** (trim, regiones) → **animar** (`animator.ts`: plantilla idle/walk/attack/death, fps 1–60, espejo, ≥2 frames) → **guardar** (`buildSpriteAnims` → `{textures, spriteAnims}` validado contra `validateProject` del motor real) → subir frames al middleware de Vite → `setWorldTextures` + `setSpriteAnims` al documento.
+Cargar hoja/frames → **detectar** (`detectSprites`: componentes conexas 4-vecindad; o grilla `gridSlice`) → **cortar/recortar** (trim, regiones) → **animar** (`animator.ts`: plantilla idle/walk/attack/death, fps 1–60, espejo, ≥2 frames) → **guardar** (`buildSpriteAnims` → `{textures, spriteAnims}` validado contra `validateProject` del motor real) → subir frames a la API (`assetApi.uploadSpriteFrames`, C5c) → `setWorldTextures` + `setSpriteAnims` al documento (texturas = `/api/assets/<id>/file`).
 
 ### 5.4 Mazmorras (dungeons/)
 
@@ -224,10 +224,11 @@ Bloques prefabricados 16×16 (`blk-open`, `blk-passage`, `blk-room`) con conecto
 
 ### 5.5 IO
 
-- `FileManager`: localStorage (`raycast-studio:project`), descarga `${nombre}.json`, importación.
+- `FileManager`: exportar/importar JSON (descarga `${nombre}.json`, carga desde archivo). **C5c: sin guardado local** — `saveToLocal`/`loadFromLocal`/`clearLocal` (localStorage `raycast-studio:project`) fueron eliminados; todo guardado pasa por la API con sesión.
 - `Serializer`: `toProjectJson(state)` / `fromProjectJson(json)` (normaliza, ignora desconocidos) / `validateProjectJson` (usa el validador del contrato).
-- `assetServer.ts`: lógica pura del middleware Vite (`vite.config.ts`): POST `/assets/audio|sprites/upload` y GET `/assets/*` con anti-traversal (`resolveAssetPath`), límites de tamaño (audio 50 MB, sprites 20 MB), saneado de nombres. Sirve desde `assets/` (gitignored).
-- `api.ts` (C5a/C5b): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa; `apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` cubren el CRUD (C5b).
+- `assetServer.ts`: lógica pura del servido estático de `assets/` (vite.config.ts): solo `resolveAssetPath` (anti-traversal). **C5c: la subida ya no vive aquí** — los `POST /assets/audio|sprites/upload` y `GET /assets/audio|sprites/list` del middleware fueron eliminados (la subida es `POST /api/assets`).
+- `api.ts` (C5a/C5b/C5c): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa; `apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` cubren el CRUD (C5b); `apiUploadAsset`/`apiListAssets` cubren los assets (C5c; con `FormData` no fuerza `Content-Type` — el navegador pone el boundary).
+- `assetApi.ts` (C5c): pegamento assets↔API — `uploadSpriteFrames` (key→dataURL → multipart tipo `sprite`, `dataUrlToBlob`), `uploadAudioFiles` (File[] → tipo `audio`), `listAudioUrls` (audios de la cuenta), `assetUrl(id)` = `/api/assets/<id>/file` (pública). Server deduplica por hash → re-subir no duplica bytes.
 - `CloudProject.ts` (C5b): pegamento editor↔API — `createCloudProject(state)` (POST), `saveCloudProject(state, id)` (PATCH data + nombre, sincronizado con `meta.name`), `loadCloudMostRecent()` (abre el último por `updatedAt`). Prevalida con `validateProjectJson` (mismo contrato que el server, sin duplicar) y propaga `ApiError` (401 → logout en `main.ts`).
 - `session.ts` (C5a): `getSession`/`setSession`/`clearSession`/`isAuthenticated`. **Cookie** (`raycast_session`, Path=/, Max-Age 7 días = TTL refresh) por decisión del usuario 2026-09-16 — no localStorage; store inyectable (tests en node). Legible por JS (Bearer manual vía `api.ts`); httpOnly exigiría Set-Cookie desde el backend (cambio de C1) y queda para el hueco futuro junto a la rotación de refresh.
 - `AuthModal` (C5a): modal Login/Registro (pestañas + inputs DESIGN.md) que consume `apiLogin`/`apiRegister`; errores mostrados con `message` amigable (el `code` solo para el código). Botón "Cuenta" en la toolbar (`main.ts`): sin sesión abre el modal; con sesión, cierra sesión.
@@ -260,7 +261,7 @@ server/
 │   ├── routes/
 │   │   ├── auth.ts       # POST /auth/register, POST /auth/login (con loginLimiter 5/min)
 │   │   ├── projects.ts   # CRUD /api/projects + publish/unpublish (JWT, propietario, data JSONB v3 validado por el contrato; plantillaId en POST)
-│   │   ├── assets.ts     # POST/GET/GET:file/DELETE /api/assets (multipart, MIME magic bytes, dedupe hash)
+│   │   ├── assets.ts     # POST /api/assets (multipart, MIME magic bytes, dedupe hash) + GET list (?tipo, D6) + GET/:id + GET/:id/file (PÚBLICO, D1) + DELETE (JWT+propiedad; id no-UUID → 404 vía ids.ts)
 │   │   ├── gallery.ts    # GET /api/gallery (lista pública) y /api/gallery/:slug (data + visitas+1) — sin auth
 │   │   └── templates.ts  # GET /api/templates y /api/templates/:id (plantillas con data) — sin auth
 │   └── schemas/

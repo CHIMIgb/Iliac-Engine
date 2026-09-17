@@ -43,7 +43,9 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
   const token = getSession()?.accessToken;
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
-  if (init.body && !headers.has('Content-Type')) {
+  // Con FormData el navegador DEBE poner el Content-Type (multipart + boundary);
+  // forzarlo a JSON rompería la subida de assets (C5c).
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -122,4 +124,46 @@ export function apiUpdateProject(id: string, input: { nombre?: string; data?: un
 
 export function apiDeleteProject(id: string) {
   return apiFetch<{ deleted: boolean }>(`/api/projects/${id}`, { method: 'DELETE' });
+}
+
+// ── Assets (C5c: sprites y audio van a la API, no al disco local) ──
+
+/** Tipo de asset del backend (enum TipoAsset). */
+export type AssetTipo = 'texture' | 'sprite' | 'audio' | 'font' | 'modelo';
+
+/** Metadata de un asset de la cuenta (sin bytes). */
+export interface AssetMeta {
+  id: string;
+  nombre: string;
+  tipo: AssetTipo;
+  mime: string;
+  tamanoBytes: number;
+  hash: string | null;
+  createdAt: string;
+}
+
+/** Lista los assets de la cuenta, opcionalmente por tipo (`?tipo=audio`). */
+export function apiListAssets(tipo?: AssetTipo) {
+  const qs = tipo ? `?tipo=${tipo}` : '';
+  return apiFetch<{ assets: AssetMeta[] }>(`/api/assets${qs}`);
+}
+
+/**
+ * Sube un asset (multipart) → fila creada o la existente si el contenido ya
+ * estaba (dedupe por hash en el server: `reused`).
+ */
+export function apiUploadAsset(input: {
+  file: File | Blob;
+  nombre: string;
+  tipo: AssetTipo;
+  proyectoId?: string | null;
+}) {
+  const form = new FormData();
+  form.append('file', input.file, input.nombre);
+  form.append('tipo', input.tipo);
+  if (input.proyectoId) form.append('proyectoId', input.proyectoId);
+  return apiFetch<{ asset: AssetMeta; reused: boolean }>('/api/assets', {
+    method: 'POST',
+    body: form,
+  });
 }

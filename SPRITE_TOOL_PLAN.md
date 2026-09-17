@@ -2,6 +2,8 @@
 
 > **Reescritura desde cero de la herramienta de sprites del Studio (F5 / ROADMAP 6.5).**
 > Estado: **borrador para aprobación** — no se escribe código hasta que el usuario apruebe este plan.
+>
+> **C5c (2026-09-17):** este plan se escribió cuando la subida de frames vivía en el middleware de Vite (`POST /assets/sprites/upload`). Desde C5c el guardado real pasa por la API (`POST /api/assets`, sesión obligatoria, dedupe por hash) y el documento guarda la URL servida `/api/assets/<id>/file` (pública). El middleware de Vite quedó solo como servido estático de `assets/` (compatibilidad con rutas locales antiguas). Las referencias al middleware en este plan son históricas salvo donde se anota C5c explícitamente.
 
 ---
 
@@ -116,7 +118,7 @@ studio/src/
 
 **Principios:**
 - `detectSprites.ts`, `gridSlice.ts`, `frames.ts`, `animator.ts`: **funciones puras** — testables en `test/studio/spriteTool/*.test.ts` con vitest, sin jsdom.
-- `spriteToolUI.ts`: toda la manipulación de canvas/UI; usa las funciones puras y el middleware `/assets/sprites/upload` (reutilizado). Sin lógica de negocio.
+- `spriteToolUI.ts`: toda la manipulación de canvas/UI; usa las funciones puras y la API de assets para guardar (**C5c**: `POST /api/assets`, el middleware `/assets/sprites/upload` ya no existe). Sin lógica de negocio.
 - El **motor no se toca**: la salida es `world.textures` + `world.spriteAnims` (contrato ya validado).
 
 ### 4.1 Detección automática (`detectSprites.ts`)
@@ -156,7 +158,7 @@ studio/src/
   - Preview con **play/pause + slider FPS (1–30) + toggle loop** + "step" (frame a frame) — mismo concepto que GDS, reusando la lógica ya probada de `animFrameAt` (extraída a `frames.ts`/`animator.ts`, sin DOM).
   - Definir anim nombrada: nombre (idle/walk/attack/death por defecto, editable) + rango de frames (arrastrar selección o inputs start/count) + fps + loop.
   - Validaciones: **≥2 frames por anim** (contrato motor) — si el usuario define 1 solo frame, se duplica automáticamente con aviso (ya hay precedente).
-- Al **Guardar**: sube los PNGs al middleware (reutilizando `/assets/sprites/upload`) y escribe `world.textures[key] = url` + `world.spriteAnims[id] = def` vía `EditorState`. Aviso si algún upload falla.
+- Al **Guardar**: sube los PNGs a la API (**C5c**: `POST /api/assets` tipo `sprite`, sesión obligatoria — antes middleware `/assets/sprites/upload`) y escribe `world.textures[key] = url` (`/api/assets/<id>/file`) + `world.spriteAnims[id] = def` vía `EditorState`. Aviso si algún upload falla.
 
 ### 4.5 Biblioteca de sprites recortados (tab "Sprites")
 - Subida **múltiple** de PNG individuales (drag & drop o selector) → se procesan por `frames.ts` (sin slicer) → aparecen en la lista de frames disponibles del animador con id `sprite_<nombre>`.
@@ -384,8 +386,9 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
   - `setSpriteAnims(anims)` → fusiona en `world.spriteAnims` (notify).
   - **No** toca `entityCatalog` (decisión 5 del plan).
 - [MODIFICAR] `studio/src/main.ts` (wiring del guardado):
-  - Al pulsar Guardar: por cada frame → `POST /assets/sprites/upload`
-    (middleware **ya existente**, spritesDir `/assets/sprites/upload`, `>20 MB`).
+  - Al pulsar Guardar: por cada frame → `POST /api/assets`
+    (C5c: multipart con sesión, el server detecta el MIME y deduplica por hash;
+    antes era el middleware `/assets/sprites/upload`, ya eliminado — ver `assetApi.uploadSpriteFrames`).
   - `EditorState.setWorldTextures` + `setSpriteAnims` + toast success/error.
   - **Asignación al playtest (puente hasta 6.4):** menú "Asignar a sprite del mundo ▾"
     con los `world.sprites` del doc + botón "Asignar anim idle" → escribe `sprite.anim`

@@ -9,11 +9,27 @@ export const MAX_ASSET_BYTES = 20 * 1024 * 1024; // 20 MB de tope (audio/música
 
 export const tipoAssetSchema = z.enum(["texture", "sprite", "audio", "font", "modelo"]);
 
-/** Mimetypes aceptados por cada tipo de asset (detección por magic bytes). */
+/**
+ * Mimetypes aceptados por cada tipo de asset (detección por magic bytes).
+ * C5c: audio ampliado a los formatos que ya admitía el middleware del Studio
+ * (mp3/flac/m4a/aac/webm) para no perder lo que antes funcionaba. Rarezas de
+ * `file-type` v22 verificadas a mano: un .ogg/.oga se reporta como
+ * `application/ogg` (no `audio/ogg`) y un .m4a como `audio/x-m4a`.
+ */
 export const TIPO_MIME: Record<string, string[]> = {
   texture: ["image/png", "image/webp"],
   sprite: ["image/png"],
-  audio: ["audio/ogg", "audio/wav"],
+  audio: [
+    "application/ogg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/mpeg",
+    "audio/flac",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+    "video/webm",
+  ],
   font: ["font/ttf"],
   modelo: ["model/gltf-binary"],
 };
@@ -23,8 +39,15 @@ export function extensionForMime(mime: string): string {
   const map: Record<string, string> = {
     "image/png": "png",
     "image/webp": "webp",
+    "application/ogg": "ogg",
     "audio/ogg": "ogg",
     "audio/wav": "wav",
+    "audio/mpeg": "mp3",
+    "audio/flac": "flac",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/aac": "aac",
+    "video/webm": "webm",
     "font/ttf": "ttf",
     "model/gltf-binary": "glb",
   };

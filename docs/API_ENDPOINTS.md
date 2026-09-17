@@ -236,9 +236,11 @@ Reverte la transacción: `estado → EN_DESARROLLO` + borra la fila de `galeria`
 
 ---
 
-## 6. Assets (`/api/assets`) — requiere JWT
+## 6. Assets (`/api/assets`)
 
 Blobs en `storage/uploads/<assetId>.<ext>`. El **MIME se detecta por magic bytes** (`file-type`); el campo `tipo` debe coincidir con el contenido detectado.
+
+> **C5c (2026-09-17):** solo la **metadata** (GET `/:id`), el **listado** (GET `/`) y el **borrado** (DELETE) exigen JWT. `GET /:id/file` es **PÚBLICO (D1)** — el motor del juego carga texturas/audio sin sesión; la galería pública servirá assets a anónimos.
 
 ### `POST /api/assets` — Subir asset (multipart)
 
@@ -250,7 +252,7 @@ Body `multipart/form-data`:
 | `tipo` | string | uno de: `texture` · `sprite` · `audio` · `font` · `modelo` |
 | `proyectoId` | string · opcional | uuid; debe ser un proyecto del mismo usuario |
 
-**Correspondencia tipo → MIME aceptado:** `texture` → `image/png` \| `image/webp` · `sprite` → `image/png` · `audio` → `audio/ogg` \| `audio/wav` · `font` → `font/ttf` · `modelo` → `model/gltf-binary`.
+**Correspondencia tipo → MIME aceptado:** `texture` → `image/png` \| `image/webp` · `sprite` → `image/png` · `audio` → `application/ogg` \| `audio/ogg` \| `audio/wav` \| `audio/mpeg` \| `audio/flac` \| `audio/mp4` \| `audio/x-m4a` \| `audio/aac` \| `video/webm` (C5c: mp3/flac/m4a/aac/webm añadidos — los formatos que ya admitía el middleware viejo del Studio) · `font` → `font/ttf` · `modelo` → `model/gltf-binary`.
 
 **Dedupe:** si el hash sha256 ya existe, NO se escribe nada y se devuelve el asset existente.
 
@@ -268,19 +270,42 @@ Body `multipart/form-data`:
 
 **Errores:** `401` · `422 VALIDATION_ERROR` (falta `file`, `tipo` inválido, contenido no coincide con el tipo, `proyectoId` ajeno) · `413 ASSET_TOO_LARGE`.
 
+### `GET /api/assets` — Lista los assets de la cuenta (C5c, D6)
+
+Requiere JWT. Solo los del usuario autenticado (nunca ajenos), sin paginación (metadatos únicamente).
+
+Query opcional: `?tipo=audio` (uno del enum `texture|sprite|audio|font|modelo`; otro valor → `422 VALIDATION_ERROR`).
+
+**200:**
+```json
+{
+  "success": true,
+  "data": {
+    "assets": [
+      { "id": "uuid", "nombre": "guard_f0.png", "tipo": "sprite", "mime": "image/png", "tamanoBytes": 70, "hash": "sha256-hex", "createdAt": "..." }
+    ]
+  },
+  "error": null
+}
+```
+
+**Errores:** `401` · `422 VALIDATION_ERROR` (`?tipo` inválido).
+
 ### `GET /api/assets/:id` — Metadata
 
 **200** → `{ asset: { id, nombre, tipo, mime, tamanoBytes, hash, createdAt } }` (sin bytes).
 
 **Errores:** `404 ASSET_NOT_FOUND` · `401`.
 
-### `GET /api/assets/:id/file` — Descargar el blob
+### `GET /api/assets/:id/file` — Descargar el blob (PÚBLICO, C5c D1)
+
+**No requiere JWT**: el motor del juego carga las texturas/audio referenciados en `project.json` (`/api/assets/<id>/file`) con `TextureLoader`/`fetch` y no conoce sesiones. Un id no-UUID → `404 ASSET_NOT_FOUND` (nunca 500).
 
 **200** — bytes del archivo con headers:
 - `Content-Type`: el MIME real del asset.
 - `Content-Disposition`: `inline` para imágenes, `attachment; filename="<nombre>"` para el resto.
 
-**Errores:** `404 ASSET_NOT_FOUND` (fila inexistente/ajena o blob huérfano) · `401`.
+**Errores:** `404 ASSET_NOT_FOUND` (id inexistente o blob huérfano).
 
 ### `DELETE /api/assets/:id` — Eliminar asset
 
@@ -354,7 +379,9 @@ curl.exe http://localhost:3000/api/projects -H "Authorization: Bearer <TOKEN>"
 # Assets (multipart; en WSL usar rutas C:/... porque curl.exe es Windows)
 curl.exe -X POST http://localhost:3000/api/assets -H "Authorization: Bearer <TOKEN>" \
   -F "file=@C:/ruta/guard_f0.png;type=image/png" -F "tipo=sprite"
-curl.exe http://localhost:3000/api/assets/<ID>/file -H "Authorization: Bearer <TOKEN>" -o salida.png
+curl.exe http://localhost:3000/api/assets/<ID>/file -o salida.png     # PÚBLICO (sin token, D1)
+curl.exe http://localhost:3000/api/assets -H "Authorization: Bearer <TOKEN>"  # listar
+curl.exe http://localhost:3000/api/assets?tipo=audio -H "Authorization: Bearer <TOKEN>"  # filtrar audio
 
 # Galería + plantillas (público)
 curl.exe -X PATCH http://localhost:3000/api/projects/<ID>/publish -H "Authorization: Bearer <TOKEN>" \
@@ -375,8 +402,10 @@ curl.exe -X POST http://localhost:3000/api/projects -H "Authorization: Bearer <T
 | B2 | `/`, `/health`, `/ready` | realizada |
 | C1 | `/auth/register`, `/auth/login` | realizada |
 | C2 | `/api/projects` CRUD | realizada |
-| C3 | `/api/assets` CRUD + `/file` | realizada |
+| C3 | `/api/assets` CRUD + `/file` (requiere JWT) | realizada |
 | C4 | `publish`/`unpublish`, `/api/gallery`, `/api/templates` | realizada |
-| C5 | Guardar/Cargar desde el Studio | futura |
+| C5a | Autenticación integrada en el Studio (C5a) | realizada |
+| C5b | Guardar/Cargar el proyecto por API | realizada |
+| C5c | `GET /api/assets` (list+tipo), `GET /:id/file` público (D1), audio MIME ampliado (D5), sin localStorage | realizada |
 
 Detalle del plan y criterios de aceptación: `DATABASE.md §8`.

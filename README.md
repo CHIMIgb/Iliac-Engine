@@ -13,8 +13,8 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 | Capa | Estado | Descripción |
 |------|--------|-------------|
 | **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b: guardar/cargar en la nube con sesión (API = fuente de verdad)**. **232 tests** pasan. |
-| **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a + C5b** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt, CRUD proyectos (`data` JSONB v3), assets (blobs), galería/plantillas, contrato `{success,data,error}`. **48 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**. **227 tests** pasan. |
+| **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a + C5b + C5c** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt, CRUD proyectos (`data` JSONB v3), assets (blobs, `/file` público para el motor), galería/plantillas, contrato `{success,data,error}`. **55 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
 
@@ -129,7 +129,10 @@ studio/
 │   │   └── EntityPreviewMesh.ts  # Cubos 3D de preview de entidades (color y caja según catálogo) — solo editor
 │   ├── io/
 │   │   ├── Serializer.ts     # project.json ↔ EditorState (export/import, schema v3)
-│   │   └── FileManager.ts    # Guardar/exportar/importar (localStorage + descarga JSON)
+│   │   ├── FileManager.ts    # Exportar/importar JSON (sin guardado local — C5c: el guardado va por API)
+│   │   ├── CloudProject.ts   # C5b: guardar/cargar el proyecto por API (nube = fuente de verdad)
+│   │   ├── assetApi.ts       # C5c: subir sprites/audio a la API + listar audios (POST /api/assets)
+│   │   ├── api.ts            # Cliente HTTP tipado (C5a/C5b/C5c): apiFetch + auth + CRUD + assets
 │   ├── layout/
 │   │   ├── AppLayout.ts      # Layout de paneles (toolbar + viewport + statusbar, colapsables)
 │   │   ├── Toolbar.ts        # Toolbar superior con acciones (icono + label + atajo)
