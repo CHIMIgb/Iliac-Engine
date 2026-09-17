@@ -169,3 +169,19 @@ test("DELETE borra y luego el proyecto ya no existe", { skip: !DB_UP && "DB no d
   const after = await api(`/api/projects/${createdId}`, { token: ownerToken });
   assert.equal(after.status, 404);
 });
+
+test("id malformado (no-UUID) → 404 PROJECT_NOT_FOUND, nunca 500", { skip: !DB_UP && "DB no disponible" }, async () => {
+  // Hueco detectado en C5b: un :id que no es UUID hacía que Prisma P2023
+  // escapara como INTERNAL_ERROR. Ahora se responde igual que un id ajeno.
+  for (const method of ["GET", "PATCH", "DELETE"] as const) {
+    const res = await api(`/api/projects/v3`, {
+      method,
+      token: ownerToken,
+      ...(method !== "GET" ? { body: { nombre: "x" } } : {}),
+    });
+    assert.equal(res.status, 404, `${method} con id no-UUID → 404`);
+    assert.equal(res.body.error?.code, "PROJECT_NOT_FOUND");
+  }
+  const pub = await api("/api/projects/v3/publish", { method: "PATCH", token: ownerToken, body: {} });
+  assert.equal(pub.status, 404, "publish con id no-UUID → 404");
+});

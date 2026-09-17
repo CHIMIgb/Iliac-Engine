@@ -64,13 +64,28 @@ function fullProject(p: Proyecto) {
   return { ...metaProject(p), data: p.data };
 }
 
+/** UUID canónico de Postgres/Prisma (los ids de proyecto son UUID). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Busca un proyecto verificando propiedad; ajeno → 404 (sin enumerar). */
 async function ownedProject(id: string, userId: string) {
+  assertProjectId(id);
   const proyecto = await prisma.proyecto.findUnique({ where: { id } });
   if (!proyecto || proyecto.propietarioId !== userId) {
     throw new AppError("PROJECT_NOT_FOUND", { id });
   }
   return proyecto;
+}
+
+/**
+ * Un id que no es UUID no puede existir: se responde 404 PROJECT_NOT_FOUND
+ * (mismo criterio que un id ajeno) ANTES de tocar Prisma — un id malformado
+ * hacía que P2023 escapara como INTERNAL_ERROR 500 (hueco detectado en C5b).
+ */
+function assertProjectId(id: string): void {
+  if (!UUID_RE.test(id)) {
+    throw new AppError("PROJECT_NOT_FOUND", { id });
+  }
 }
 
 projectsRoutes.post("/", async (c) => {
@@ -150,6 +165,7 @@ projectsRoutes.patch("/:id", async (c) => {
 projectsRoutes.delete("/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  assertProjectId(id);
   // deleteMany acepta filtro no único y evita la doble consulta de propiedad.
   const { count } = await prisma.proyecto.deleteMany({
     where: { id, propietarioId: userId },
