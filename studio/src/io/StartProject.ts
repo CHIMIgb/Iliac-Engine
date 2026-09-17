@@ -10,12 +10,13 @@
  * (ni plantilla ni proyectos ajenos) y sin tocar la API. Guardar sigue exigiendo
  * sesión, y al iniciar sesión la nube toma el relevo (`initCloudProject`).
  *
- * D-C: con sesión el arranque depende del backend — si no responde,
- * `loadStartProject` lanza y el main avisa; el Studio nunca arranca con un mundo
- * inventado. Sin sesión no hay petición, así que no hay nada que pueda fallar.
+ * D-C: si con sesión el backend no responde (o la sesión caducó), el editor
+ * **igual abre vacío** y se avisa con un `warning`; nunca se inventa un mundo ni
+ * se deja la UI en blanco. Sin sesión no hay petición, así que no hay nada que
+ * pueda fallar.
  */
-import { apiCreateProject, apiListTemplates, type TemplateMeta } from './api';
-import { isAuthenticated } from './session';
+import { ApiError, apiCreateProject, apiListTemplates, type TemplateMeta } from './api';
+import { clearSession, isAuthenticated } from './session';
 import { loadCloudMostRecent } from './CloudProject';
 import { fromProjectJson } from './Serializer';
 import type { EditorState } from '../editor/EditorState';
@@ -29,10 +30,17 @@ const EMPTY_PROJECT: Record<string, unknown> = {
 };
 
 export interface StartProject {
-  /** Estado editable con el que arranca el Studio. */
+  /** Estado editable con el que arranca el Studio (vacío si no hay nada que cargar). */
   state: EditorState;
   /** Proyecto de la nube asociado (null sin sesión: no hay nada que guardar). */
   projectId: string | null;
+  /** Aviso a mostrar si no se pudo cargar el proyecto de la cuenta (null = todo bien). */
+  warning: string | null;
+}
+
+/** Documento vacío, sin proyecto asociado. */
+function emptyStart(warning: string | null = null): StartProject {
+  return { state: fromProjectJson(EMPTY_PROJECT), projectId: null, warning };
 }
 
 /** Plantilla a usar: la preferida o la primera del servidor. */
@@ -54,18 +62,23 @@ export function isEmptyDoc(state: EditorState): boolean {
 export async function createFromTemplate(): Promise<StartProject> {
   const { templates } = await apiListTemplates();
   const { project } = await apiCreateProject({ plantillaId: pickTemplate(templates).id });
-  return { state: fromProjectJson(project.data), projectId: project.id };
+  return { state: fromProjectJson(project.data), projectId: project.id, warning: null };
 }
 
 export async function loadStartProject(): Promise<StartProject> {
   // Sin sesión: documento vacío, sin peticiones (el editor se explora igual).
-  if (!isAuthenticated()) {
-    return { state: fromProjectJson(EMPTY_PROJECT), projectId: null };
-  }
+  if (!isAuthenticated()) return emptyStart();
 
   // Con sesión: último proyecto propio o, si la cuenta está vacía, uno nuevo
   // creado desde la plantilla (el JSON pesa ~720 KB: que lo copie el server).
-  const recent = await loadCloudMostRecent();
-  if (recent) return { state: recent.state, projectId: recent.projectId };
-  return createFromTemplate();
+  try {
+    const recent = await loadCloudMostRecent();
+    if (recent) return { state: recent.state, projectId: recent.projectId, warning: null };
+    return await createFromTemplate();
+  } catch (e) {
+    // El editor abre igual (vacío) con un aviso: la UI nunca se queda en blanco.
+    if (e instanceof ApiError && e.code === 'UNAUTHORIZED') clearSession();
+    const msg = e instanceof Error ? e.message : 'error desconocido';
+    return emptyStart(`No se pudo cargar tu proyecto (${msg}) — el editor abre vacío`);
+  }
 }

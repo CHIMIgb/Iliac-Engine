@@ -32,17 +32,12 @@ const layout = new AppLayout();
 layout.mount(app);
 
 // ── Estado editable ────────────────────────────────────────────
-// C5d: el documento de partida sale de una plantilla de la API (la personal del
-// usuario si hay sesión). Sin sesión el editor arranca vacío, sin peticiones;
-// con sesión el arranque depende del backend (D-C) — sin él se avisa y el
-// Studio no abre con un mundo inventado.
-const start = await loadStartProject().catch((e: unknown) => {
-  showToast(
-    e instanceof Error ? `No se pudo cargar el proyecto inicial: ${e.message}` : 'No se pudo cargar el proyecto inicial',
-    'error',
-  );
-  throw e;
-});
+// C5d: el documento de partida sale de la API (proyecto del usuario con sesión).
+// Sin sesión el editor arranca vacío, sin peticiones. Si con sesión no se puede
+// cargar (backend caído, sesión caducada), el editor abre igual vacío con un
+// aviso: la UI nunca se queda en blanco.
+const start = await loadStartProject();
+if (start.warning) showToast(start.warning, 'warning');
 const doc: EditorState = start.state;
 
 // ── C5b/C5c: la fuente de verdad es la API (sesión obligatoria) ─

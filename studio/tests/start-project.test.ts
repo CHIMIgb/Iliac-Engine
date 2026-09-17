@@ -49,6 +49,7 @@ describe('loadStartProject (C5d)', () => {
     expect(start.projectId).toBeNull();
     expect(isEmptyDoc(start.state)).toBe(true);
     expect(start.state.world.sectors).toEqual([]);
+    expect(start.warning).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -104,21 +105,40 @@ describe('loadStartProject (C5d)', () => {
     expect(body.plantillaId).toBe('tpl-studio');
   });
 
-  it('con sesión y backend caído lanza (D-C: el Studio no arranca con un mundo inventado)', async () => {
+  it('con sesión y backend caído abre vacío con aviso (la UI nunca queda en blanco)', async () => {
     withSession();
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
-    const err = await loadStartProject().catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(Error);
-    expect((err as { code?: string }).code).toBe('NETWORK_ERROR');
+
+    const start = await loadStartProject();
+    expect(isEmptyDoc(start.state)).toBe(true);
+    expect(start.projectId).toBeNull();
+    expect(start.warning).toMatch(/No se pudo cargar tu proyecto/);
   });
 
-  it('con sesión y sin plantillas en el servidor lanza un error claro', async () => {
+  it('con sesión y sin plantillas en el servidor abre vacío con aviso', async () => {
     withSession();
     stubFetch([
       { success: true, data: { projects: [] }, error: null },
       { success: true, data: { templates: [] }, error: null },
     ]);
-    await expect(loadStartProject()).rejects.toThrow('no hay ninguna plantilla');
+
+    const start = await loadStartProject();
+    expect(isEmptyDoc(start.state)).toBe(true);
+    expect(start.warning).toMatch(/no hay ninguna plantilla/);
+  });
+
+  it('con sesión caducada (401) limpia la sesión y abre vacío', async () => {
+    withSession();
+    stubFetch([
+      { success: false, data: null, error: { code: 'UNAUTHORIZED', message: 'Token inválido', details: {} } },
+    ]);
+
+    const start = await loadStartProject();
+    expect(start.warning).toMatch(/No se pudo cargar tu proyecto/);
+    // La cookie de sesión se borra: la próxima recarga arranca vacía sin peticiones.
+    const start2 = await loadStartProject();
+    expect(start2.warning).toBeNull();
+    expect(isEmptyDoc(start2.state)).toBe(true);
   });
 });
 
