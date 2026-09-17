@@ -21,6 +21,8 @@ import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { saveToLocal, loadFromLocal, exportJson, importJson, clearLocal } from './io/FileManager';
 import { AuthModal } from './ui/AuthModal';
 import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
+import { ApiError } from './io/api';
+import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -48,6 +50,65 @@ if (saved) {
 } else {
   doc = fromProjectJson(sampleProject as unknown as Record<string, unknown>);
 }
+
+// ── C5b: fuente de verdad en la nube (solo con sesión) ────────
+// Con sesión: el proyecto vive en la API → se abre el último de la cuenta
+// (updatedAt desc) o se crea uno con el documento actual. Sin sesión: el
+// flujo local (F3/F4) queda intacto y Guardar avisa que es solo local.
+let cloudProjectId: string | null = null;
+
+/** Errores de API: 401 → sesión expirada (logout); resto → toast. */
+function handleApiFailure(e: unknown, accion: string): void {
+  if (e instanceof ApiError && e.code === 'UNAUTHORIZED') {
+    clearSession();
+    updateAccountButton();
+    showToast('Sesión expirada — inicia sesión de nuevo', 'warning');
+    return;
+  }
+  showToast(
+    e instanceof Error ? `No se pudo ${accion}: ${e.message}` : `No se pudo ${accion}`,
+    'error',
+  );
+}
+
+/** Abre el último proyecto de la nube; si la cuenta está vacía sube el actual. */
+async function initCloudProject(): Promise<void> {
+  try {
+    const recent = await loadCloudMostRecent();
+    if (recent) {
+      if (recent.projectId !== cloudProjectId) {
+        Object.assign(doc, recent.state);
+        viewport.reload(toRawProject(doc));
+        nameLabel.textContent = doc.meta.name;
+      }
+      cloudProjectId = recent.projectId;
+      showToast(`Proyecto «${doc.meta.name}» cargado de la nube`, 'success');
+    } else {
+      cloudProjectId = await createCloudProject(doc);
+      showToast('Proyecto creado en la nube', 'success');
+    }
+  } catch (e) {
+    handleApiFailure(e, 'cargar el proyecto');
+  }
+}
+
+/** Guarda donde toca: nube si hay sesión, local si no. */
+async function saveCurrent(): Promise<void> {
+  if (!isAuthenticated()) {
+    saveToLocal(doc);
+    showToast('Proyecto guardado (solo local — inicia sesión para la nube)', 'info');
+    return;
+  }
+  try {
+    if (!cloudProjectId) cloudProjectId = await createCloudProject(doc);
+    else await saveCloudProject(doc, cloudProjectId);
+    showToast('Proyecto guardado en la nube', 'success');
+  } catch (e) {
+    handleApiFailure(e, 'guardar');
+  }
+}
+
+if (isAuthenticated()) void initCloudProject();
 
 // ── Herramientas (ToolManager) ─────────────────────────────────
 function showToolNotice(msg: string, type: 'info' | 'warning' | 'error' | 'success' = 'info'): void {
@@ -252,7 +313,7 @@ const fileGroup = layout.toolbar.addGroup();
 
 fileGroup.appendChild(layout.toolbar.addAction({
   icon: 'save', label: 'Guardar', shortcut: 'Ctrl+S',
-  onClick: () => { saveToLocal(doc); showToast('Proyecto guardado', 'success'); },
+  onClick: () => void saveCurrent(),
 }));
 
 fileGroup.appendChild(layout.toolbar.addAction({
@@ -267,8 +328,8 @@ fileGroup.appendChild(layout.toolbar.addAction({
     if (result.ok) {
       Object.assign(doc, result.state);
       viewport.reload(toRawProject(doc));
-      saveToLocal(doc);
-      showToast('Proyecto importado', 'success');
+      nameLabel.textContent = doc.meta.name;
+      await saveCurrent();
     } else {
       showToast(result.error, 'error');
     }
@@ -283,14 +344,17 @@ const accountBtn = layout.toolbar.addAction({
   onClick: () => {
     if (isAuthenticated()) {
       clearSession();
+      cloudProjectId = null;
       updateAccountButton();
-      showToast('Sesión cerrada', 'info');
+      showToast('Sesión cerrada (el proyecto local sigue aquí)', 'info');
       return;
     }
     authModal.open((session) => {
       setSession(session);
+      cloudProjectId = null;
       updateAccountButton();
       showToast(`Sesión iniciada: ${session.user.login}`, 'success');
+      void initCloudProject();
     });
   },
 });
@@ -320,7 +384,7 @@ editGroup.appendChild(layout.toolbar.addAction({
 }));
 
 layout.toolbar.addSpacer();
-layout.toolbar.addLabel(doc.meta.name);
+const nameLabel = layout.toolbar.addLabel(doc.meta.name);
 layout.toolbar.addSpacer();
 
 // ── Toolbar: panel / playtest ──────────────────────────────────
@@ -415,19 +479,18 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+S → guardar
   if ((e.ctrlKey || e.metaKey) && key === 'S') {
     e.preventDefault();
-    saveToLocal(doc);
-    showToast('Proyecto guardado', 'success');
+    void saveCurrent();
     return;
   }
   // Ctrl+O → importar
   if ((e.ctrlKey || e.metaKey) && key === 'O') {
     e.preventDefault();
-    importJson().then((result) => {
+    importJson().then(async (result) => {
       if (result.ok) {
         Object.assign(doc, result.state);
         viewport.reload(toRawProject(doc));
-        saveToLocal(doc);
-        showToast('Proyecto importado', 'success');
+        nameLabel.textContent = doc.meta.name;
+        await saveCurrent();
       } else {
         showToast(result.error, 'error');
       }

@@ -79,3 +79,47 @@ export function apiLogin(login: string, password: string) {
     body: JSON.stringify({ login, password }),
   });
 }
+
+// ── Proyectos (C5b: la API es la fuente de verdad con sesión) ──
+
+/** Resumen de un proyecto (la lista NO incluye `data` para no transferir JSONB). */
+export interface ProjectMeta {
+  id: string;
+  nombre: string;
+  estado: 'EN_DESARROLLO' | 'PUBLICADO';
+  schemaVersion: number;
+  renderMode: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Proyecto completo: metadata + árbol v3 (para el editor). */
+export interface FullProject extends ProjectMeta {
+  data: Record<string, unknown>;
+}
+
+export function apiListProjects() {
+  return apiFetch<{ projects: ProjectMeta[] }>('/api/projects');
+}
+
+export function apiGetProject(id: string) {
+  return apiFetch<{ project: FullProject }>(`/api/projects/${id}`);
+}
+
+export function apiCreateProject(input: { nombre?: string; data?: unknown; plantillaId?: string }) {
+  return apiFetch<{ project: FullProject }>('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function apiUpdateProject(id: string, input: { nombre?: string; data?: unknown }) {
+  return apiFetch<{ project: FullProject }>(`/api/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function apiDeleteProject(id: string) {
+  return apiFetch<{ deleted: boolean }>(`/api/projects/${id}`, { method: 'DELETE' });
+}
