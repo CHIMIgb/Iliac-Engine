@@ -73,7 +73,7 @@ function handleApiFailure(e: unknown, accion: string): void {
 
 /** Vuelca un documento en el editor (estado + viewport + nombre en la toolbar). */
 function applyDoc(state: EditorState): void {
-  Object.assign(doc, state);
+  doc.applyFrom(state);
   viewport.reload(toRawProject(doc));
   nameLabel.textContent = doc.meta.name;
   dirty = false;
@@ -517,6 +517,8 @@ layout.statusBar.setItem('sel', 'Selección: —');
 viewport.onCoordsChange = (x, y, z) => {
   layout.statusBar.setItem('coords', `X: ${x.toFixed(1)}  Y: ${y.toFixed(1)}  Z: ${z.toFixed(1)}`);
 };
+// Fallo al recrear el motor (cambio real de `render`): avisar sin dejar la UI muda.
+viewport.onError = (msg) => showToast(`No se pudo recargar el motor: ${msg}`, 'error');
 viewport.onModeChange = (mode) => {
   layout.statusBar.setItem('mode', `Modo: ${mode === 'game' ? 'Juego' : 'Editor'}`);
   // El botón de Playtest se convierte en Stop mientras el juego corre.

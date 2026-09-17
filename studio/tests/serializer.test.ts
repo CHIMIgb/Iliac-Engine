@@ -58,6 +58,27 @@ describe('EditorState', () => {
     expect(snap.world.vertices.length).toBe(1);
     expect(s.world.vertices.length).toBe(2);
   });
+
+  // Regresión 2026-09-17: cargar un documento con `Object.assign` pisaba
+  // `handlers` (propiedad de instancia) y el editor se quedaba sordo: ni flag
+  // de cambios sin guardar ni reload en vivo del viewport.
+  it('applyFrom vuelca los datos y CONSERVA los suscriptores', () => {
+    const doc = new EditorState();
+    let calls = 0;
+    doc.onChange(() => calls++);
+
+    const cargado = fromProjectJson({
+      meta: { name: 'Torre del Alba', schemaVersion: 3 },
+      world: { vertices: [], sectors: [{ id: 's1', vertexIds: [] }], walls: [] },
+    } as unknown as Record<string, unknown>);
+
+    doc.applyFrom(cargado);
+
+    expect(doc.meta.name).toBe('Torre del Alba');
+    expect(doc.world.sectors.map((s) => s.id)).toEqual(['s1']);
+    doc.addVertex(1, 2); // mutación posterior: el handler del doc sigue vivo
+    expect(calls).toBe(1);
+  });
 });
 
 describe('Serializer', () => {
@@ -119,6 +140,19 @@ describe('Serializer', () => {
     } as unknown as Record<string, unknown>);
     expect(s.world.vertices).toEqual([]);
     expect((s.world as any).unknown).toBeUndefined();
+  });
+
+  // Regresión 2026-09-17: sin `render` en el JSON, `fromProjectJson` metía un
+  // `{}` que pisaba el default del constructor y el motor arrancaba con los
+  // defaults del Renderer3D (fov 75 / far 200) mientras el editor creía tener
+  // el render por defecto. Al iniciar sesión eso forzaba el reload caro.
+  it('fromProjectJson sin render conserva el default del EditorState', () => {
+    const s = fromProjectJson({
+      world: { vertices: [], sectors: [], walls: [] },
+    } as unknown as Record<string, unknown>);
+    expect(s.render).toEqual(new EditorState().render);
+    expect(s.render.fov).toBe(80);
+    expect(s.render.far).toBe(500);
   });
 });
 

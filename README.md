@@ -13,7 +13,7 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 | Capa | Estado | Descripción |
 |------|--------|-------------|
 | **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **192 tests** pasan. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**, **C5d: arranque desde la API (editor vacío sin sesión)**. **235 tests** pasan. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**, **C5d: arranque desde la API (editor vacío sin sesión)**. **254 tests** pasan. |
 | **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a–C5d** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt, CRUD proyectos (`data` JSONB v3), assets (blobs, `/file` público para el motor), galería/plantillas (con dueño desde C5d), contrato `{success,data,error}`. **59 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
@@ -152,8 +152,9 @@ studio/
 │   └── entities/
 │       └── entityCatalog.ts  # Catálogo de entidades colocables (NPCs + bestiario Daggerfall df_* en 6 categorías)
 ├── public/textures/          # Texturas SVG del viewport del editor (copia local, no versionada)
-└── tests/                    # 8 archivos · 90 tests (Vitest): tools, toolmanager, serializer, placement,
-                              # picking, entities, dungeons, camera-controls
+└── tests/                    # 26 archivos · 254 tests (Vitest): tools, toolmanager, serializer, placement,
+                              # picking, entities, dungeons, camera-controls, api/sesión (C5)… + regresiones
+                              # de renderSignature / reload del viewport (un solo motor por canvas)
 ```
 
 ### Backend (`server/`) — Node + Hono + Prisma 7
