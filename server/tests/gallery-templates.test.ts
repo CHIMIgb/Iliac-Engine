@@ -210,10 +210,29 @@ test("POST /api/projects con plantillaId carga los datos de la plantilla", { ski
     body: { plantillaId: "tpl-demo" },
   });
   assert.equal(res.status, 201);
-  const project = res.body.data?.project as { nombre: string; data: unknown };
+  const project = res.body.data?.project as { nombre: string; data: { meta: { name: string } } };
   assert.equal(project.nombre, "Demo base", "nombre hereda de la plantilla");
-  const tpl = (await api("/api/templates/tpl-demo")).body.data?.template as { data: unknown };
-  assert.deepEqual(project.data, tpl.data, "data = plantilla.data");
+  const tpl = (await api("/api/templates/tpl-demo")).body.data?.template as { data: { meta: { name: string } } };
+  // Fix 2026-09-17: el clon es idéntico salvo meta.name, que se alinea con el
+  // nombre del proyecto (antes nacía con el meta.name de la plantilla).
+  assert.deepEqual(
+    project.data,
+    { ...tpl.data, meta: { ...tpl.data.meta, name: "Demo base" } },
+    "clon íntegro salvo meta.name",
+  );
+});
+
+test("Fix C4: con nombre explícito el clon nace con ese meta.name", { skip: !DB_UP && "DB no disponible" }, async () => {
+  const res = await api("/api/projects", {
+    method: "POST",
+    token: ownerToken,
+    body: { plantillaId: "tpl-demo", nombre: "Prueba renombrada" },
+  });
+  assert.equal(res.status, 201);
+  const project = res.body.data?.project as { nombre: string; data: { meta: { name: string }; world?: unknown } };
+  assert.equal(project.nombre, "Prueba renombrada");
+  assert.equal(project.data.meta.name, "Prueba renombrada", "nombre explícito → meta.name");
+  assert.ok(project.data.world !== undefined, "el resto del árbol se clona intacto");
 });
 
 test("POST /api/projects con plantillaId inexistente → 404 TEMPLATE_NOT_FOUND", { skip: !DB_UP && "DB no disponible" }, async () => {

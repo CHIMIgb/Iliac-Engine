@@ -101,11 +101,18 @@ projectsRoutes.post("/", async (c) => {
       throw new AppError("TEMPLATE_NOT_FOUND", { plantillaId: input.plantillaId });
     }
     const nombre = input.nombre ?? plantilla.nombre;
+    // El `nombre` (columna) y `data.meta.name` deben coincidir: el Studio lista
+    // por nombre pero pinta la toolbar con meta.name, y la plantilla trae su
+    // propio meta.name ("Proyecto nuevo") → el proyecto nacía desalineado.
+    const tplData = plantilla.data as Record<string, unknown>;
     const proyecto = await prisma.proyecto.create({
       data: {
         propietarioId: userId,
         nombre,
-        data: plantilla.data as Prisma.InputJsonValue,
+        data: {
+          ...tplData,
+          meta: { ...(tplData.meta as Record<string, unknown> | undefined), name: nombre },
+        } as Prisma.InputJsonValue,
       },
     });
     return ok(c, { project: fullProject(proyecto) }, 201);

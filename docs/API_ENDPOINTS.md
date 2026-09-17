@@ -192,7 +192,7 @@ Body:
 |---|---|---|
 | `nombre` | string · opcional | (1–255). **Opcional si se crea desde plantilla** (hereda `plantilla.nombre`) |
 | `data` | object · opcional | `project.json` v3; si se omite (y no hay `plantillaId`) → esqueleto mínimo `{ world: { vertices: [], sectors: [], walls: [] } }` |
-| `plantillaId` | string · opcional | **C4:** crea el proyecto con `data` = `plantilla.data` (p. ej. `tpl-demo`). **C5d:** solo plantillas del sistema o propias |
+| `plantillaId` | string · opcional | **C4:** crea el proyecto con `data` = copia de `plantilla.data` (p. ej. `tpl-demo`). **C5d:** solo plantillas del sistema o propias. **Fix 2026-09-17:** el clon se guarda con `data.meta.name = nombre` (el de la plantilla o el del body) para que documento y proyecto no nazcan con nombres distintos |
 
 **201** — devuelve el proyecto **completo** (con `data`), `renderMode: "retro"`, `schemaVersion: 3`.
 
