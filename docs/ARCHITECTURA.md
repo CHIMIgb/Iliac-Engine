@@ -51,9 +51,9 @@ RayCast Studio es un **creador web de RPG 3D retro** (estilo Doom → Daggerfall
 | Capa | Dirección | Estado (sept 2026) |
 |---|---|---|
 | `engine/` | Motor de juego JS vanilla puro (sin TS, sin build). Expone `Engine3D`. | F1–F4.7 realizadas/validadas |
-| `contract/` | `project-schema.js` + `.d.ts` (validador + tipos). Punto único de verdad del schema. | usado por motor, Studio y server |
+| `contract/` | `project-schema.js` + `.d.ts` (validador + tipos del schema) + **`api-response.d.ts`** (envelope de respuesta API: única fuente de verdad, la importan el backend y —en C5— el Studio). | usado por motor, Studio y server |
 | `studio/` | Editor TS + Vite. Consume el motor vía alias `@engine/*` (types en `engine.d.ts`). | F3 + F4 + F4.5/F4.6/F4.7 realizadas |
-| `server/` | API Node + Hono + Prisma. Persiste proyectos y assets. | A1–A3, B1–B2, C1–C3 realizadas |
+| `server/` | API Node + Hono + Prisma. Persiste proyectos y assets. | A1–A3, B1–B2, C1–C4 realizadas |
 
 Los consumidores del motor importan **solo** `engine/index.js` (`export { Engine3D }`). Los módulos internos (`core/*`, `three/*`) son privados del motor; los tests los importan directamente, los consumidores no.
 

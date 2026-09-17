@@ -1,18 +1,20 @@
-// handler.ts — Contrato de respuesta estándar (ROADMAP §5b) + interceptor.
-// ESTÁNDAR PINNED (2026-09-16, aprobado por el usuario):
-//   éxito  → { success: true,  data: T,          error: null }
-//   error  → { success: false, data: null, error: { code, message, details } }
-// `details` SIEMPRE está presente (null si no hay detalle) — el front puede
-// acceder a error.details sin undefined-checks.
+// handler.ts — Contrato de respuesta estándar + interceptor.
+// El SHAPE del contrato NO se define aquí: vive en contract/api-response.d.ts
+// (única fuente de verdad, compartida con el front) y se importa con `import type`.
+//   éxito  → ApiSuccess<T>  = { success: true,  data: T,      error: null }
+//   error  → ApiFailure     = { success: false, data: null, error: ApiError }
+// `details` SIEMPRE está presente (null si no hay detalle).
 //
 // errorHandler se registra con app.onError() y transforma AppError, ZodError y
 // errores desconocidos al contrato. NUNCA filtra stack traces en producción.
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { ApiFailure, ApiSuccess } from "../../../contract/api-response.js";
 import { AppError } from "./AppError.ts";
 
 export function ok<T>(c: Context, data: T, status: ContentfulStatusCode = 200) {
-  return c.json({ success: true, data, error: null }, status);
+  const body: ApiSuccess<T> = { success: true, data, error: null };
+  return c.json(body, status);
 }
 
 export function errorResponse(
@@ -22,14 +24,12 @@ export function errorResponse(
   status: ContentfulStatusCode,
   details?: unknown,
 ) {
-  return c.json(
-    {
-      success: false,
-      data: null,
-      error: { code, message, details: details ?? null },
-    },
-    status,
-  );
+  const body: ApiFailure = {
+    success: false,
+    data: null,
+    error: { code, message, details: details ?? null },
+  };
+  return c.json(body, status);
 }
 
 export function errorHandler(err: Error, c: Context) {

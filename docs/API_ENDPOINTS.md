@@ -7,7 +7,7 @@
 
 ## 1. Contrato de respuesta estándar
 
-**ESTÁNDAR PINNED (2026-09-16)** — Toda respuesta (éxito o error) usa el mismo envoltorio, sin excepción (ROADMAP §5b, `server/src/lib/handler.ts`):
+**ESTÁNDAR PINNED (2026-09-16)** — Toda respuesta (éxito o error) usa el mismo envoltorio, sin excepción. **El shape se define UNA sola vez en `contract/api-response.d.ts`** (única fuente de verdad): `server/src/lib/handler.ts` lo importa con `import type` y el cliente tipado del Studio (`apiFetch<T>`, fase C5) hará lo mismo — sin contratos duplicados entre capas (ROADMAP §5b).
 
 ```jsonc
 // Éxito
