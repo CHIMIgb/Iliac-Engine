@@ -149,6 +149,12 @@ export default defineConfig({
   server: {
     port: 5173,
     open: '/studio/',
+    proxy: {
+      // C5a: el Studio habla con el backend en same-origin (sin CORS en dev);
+      // /auth y /api viven en el proceso del server (puerto 3000).
+      '/api': 'http://127.0.0.1:3000',
+      '/auth': 'http://127.0.0.1:3000',
+    },
     fs: {
       // Permitir al middleware y a los modulos leer fuera de studio/ (motor, assets/).
       allow: [resolve(__dirname, '..'), resolve(__dirname, '..', 'assets')],

@@ -19,6 +19,8 @@ import { findSpot } from './dungeons/placement';
 import { sampleProject } from './sample-project';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
 import { saveToLocal, loadFromLocal, exportJson, importJson, clearLocal } from './io/FileManager';
+import { AuthModal } from './ui/AuthModal';
+import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -272,6 +274,37 @@ fileGroup.appendChild(layout.toolbar.addAction({
     }
   },
 }));
+
+// ── Toolbar: cuenta (C5a) ──────────────────────────────────────
+// Sin sesión → abre el modal Login/Registro; con sesión → la cierra.
+const authModal = new AuthModal();
+const accountBtn = layout.toolbar.addAction({
+  icon: 'user', label: 'Cuenta',
+  onClick: () => {
+    if (isAuthenticated()) {
+      clearSession();
+      updateAccountButton();
+      showToast('Sesión cerrada', 'info');
+      return;
+    }
+    authModal.open((session) => {
+      setSession(session);
+      updateAccountButton();
+      showToast(`Sesión iniciada: ${session.user.login}`, 'success');
+    });
+  },
+});
+fileGroup.appendChild(accountBtn);
+
+/** Refleja el estado de la sesión en el botón de cuenta. */
+function updateAccountButton(): void {
+  const session = getSession();
+  accountBtn.replaceChildren(Icon(session ? 'user-check' : 'user', 16));
+  accountBtn.title = session
+    ? `${session.user.login} — cerrar sesión`
+    : 'Cuenta — iniciar sesión';
+}
+updateAccountButton();
 
 layout.toolbar.addSeparator();
 

@@ -295,6 +295,7 @@ motor-raycast/
 | **Reloj interno del juego** en el motor (pausar/forzar hora, eventos por franja) — complemento de F4.7 | ⏳ Pendiente |
 | **Cielo: import de sets de horizonte (SKY) desde el Asset Manager** — complemento de F4+ | ⏳ Pendiente |
 | **Panel Debug / Performance** (6.14): FPS, memoria, VRAM, CPU, consola | ⏳ Pendiente |
+| **F11 I18N — Internacionalización del Studio** (decisión 2026-09-16): se difiere **al final del roadmap** para centrar esfuerzos en la aplicación (C5 y fases siguientes). Diseño acordado: módulo ligero `t()` + locales `es/en/fr/de` (sin i18next); sin texto hardcodeado en NINGUNA capa; el `contract`/`code` de la API es agnóstico de idioma (los mensajes se localizan en el front vía `code`; `message` del server queda como fallback en español) | ⏳ Futura |
 
 ---
 
@@ -509,6 +510,7 @@ La demo debe: reproducir música en loop al cargar; sonar pasos/puerta/impacto c
 | **F9** | **Editor de Escenas** + sistema de escenas múltiples y conexión entre ellas (`scenes[]`, puertas de escena, transiciones, viaje) | F8 | ≥2 escenas creadas/editadas en el Studio con viaje entre ellas |
 | **F8b** | Exportación a escritorio (**.exe** vía Tauri/Electron sobre el HTML autónomo de F8) | F8 | Un .exe instalable que abre el juego sin navegador |
 | **F10** | Optimización de rendimiento WebGL (instancing, LOD, mesh combining, atlas, compresión KTX2, mipmaps, culling, pooling, GC, resolución dinámica) | F9 | La demo mantiene ≥60 FPS con decenas de entidades y texturas grandes |
+| **F11** | **I18N — Internacionalización del Studio** (módulo `t()` + locales `es/en/fr/de`, sin dependencias; sin texto hardcodeado en toda la aplicación; `code` de API agnóstico de idioma — los mensajes se localizan en el front, `message` del server como fallback) | F10 (fuera de ruta crítica) | Toda la UI del Studio traducible sin literales en el código |
 
 ### Sobre las fases de sistemas RPG
 

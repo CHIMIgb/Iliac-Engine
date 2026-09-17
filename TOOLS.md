@@ -169,6 +169,14 @@ Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · 
 - El pincel emite un `setFloorHeight` (notify) por celda tocada; el throttle lo amortigua — batching por frame pendiente si llegara a molestar.
 - Undo no captura todavía los trazos de pincel como una sola acción.
 
+## Cuenta — sesión backend (C5a)
+
+Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión → abre el modal **Iniciar sesión / Registrarse**; con sesión → muestra el login en el tooltip y un clic **cierra sesión**.
+
+- Consume el backend real: `POST /auth/register` y `/auth/login` (proxy `/api`+`/auth` de Vite → `127.0.0.1:3000`, same-origin).
+- La sesión (user + tokens) vive en una **cookie** (`raycast_session`, 7 días) — no localStorage; el contrato `{success,data,error}` lo valida `api.ts` y los errores se muestran con `message` amigable.
+- **C5b (próximo):** guardar/cargar el proyecto por `GET/PATCH /api/projects` usará esta sesión (`Authorization: Bearer`).
+
 ## Dónde está cada cosa
 
 | Pieza | Archivo |
@@ -181,5 +189,6 @@ Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · 
 | Gizmos del editor (puntos, líneas, selección) | `studio/src/viewport/Overlay2D.ts` |
 | Cielo clásico (telón) y realista (día/noche): sun/moon/niebla | `engine/core/sky.js`, `engine/three/SkySystem.js`, `engine/core/daylight.js`, `engine/three/SunSystem.js` |
 | Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
+| Cliente API + sesión (C5a): `apiFetch`, `apiLogin`/`apiRegister`, tokens; modal Cuenta | `studio/src/io/api.ts`, `studio/src/io/session.ts`, `studio/src/ui/AuthModal.ts` |
 | Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |
 | Motor: alturas por vértice, BVH, mallas, slots y vía rápida | `engine/core/sector.js`, `engine/three/WorldMesh.js`, `engine/Engine3D.js` |

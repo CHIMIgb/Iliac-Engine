@@ -13,8 +13,8 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 | Capa | Estado | Descripción |
 |------|--------|-------------|
 | **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage). **90 tests** pasan. |
-| **Backend** (`server/`) | ⏳ En curso (A1–A3 ✅, B1 ✅) | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), esquema Prisma espejo 1:1 (`migrate status` limpio), esqueleto del servidor TS strict escuchando en `:3000`. Detalle y fases en `DATABASE.md §8`. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage), **C5a: cuenta/sesión backend (cookie)**. **226 tests** pasan. |
+| **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt, CRUD proyectos (`data` JSONB v3), assets (blobs), galería/plantillas, contrato `{success,data,error}`. **48 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
 
@@ -258,6 +258,20 @@ npm run dev
 # → Studio http://localhost:5173 (atajos 1-6 = herramientas; playtest F5 ejecuta el motor)
 # → Backend http://localhost:3000 (API)
 ```
+
+---
+
+## Cuenta de desarrollo (C5a)
+
+El Studio autentica contra el backend real (botón **Cuenta** en la toolbar). Cuenta creada para desarrollo local en la DB `iliac_engine`:
+
+| Campo | Valor |
+|---|---|
+| Nombre | Chimi GB |
+| Usuario (login) | `chimi` |
+| Contraseña | `raycast-2026` |
+
+> **Solo desarrollo local** — no usar en producción. La sesión se guarda en una **cookie** (`raycast_session`, 7 días = TTL del refresh token), no en localStorage.
 
 ---
 

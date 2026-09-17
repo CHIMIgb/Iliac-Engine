@@ -62,7 +62,7 @@ Los consumidores del motor importan **solo** `engine/index.js` (`export { Engine
 1. **Editar:** el usuario dibuja en el viewport del Studio (herramientas 1–7). `ToolManager` muta `EditorState` (el documento en memoria = `project.json` v3 editable).
 2. **Recarga en vivo:** `EditorState.onChange` → throttle (`reloadMs()`: 120 ms, 250 ms si > 40.000 sectores) → `validateProjectJson` (contrato) → `viewport.reload(raw)` → `Engine3D.setWorld(project)` **sin recrear el renderer** (camino barato si solo cambió el mundo) o `new Engine3D` si cambió el bloque `render`/cielo.
 3. **Playtest (F5):** `EditorViewport.setMode('game')` → pointer lock, `engine.resumeAudio()` (gesto del usuario desbloquea el AudioContext), `engine.setCompass(true, viewport)` (brújula HUD). WASD + ratón → `engine.update(input, dt)`. F5 otra vez / Tab → vuelve al modo orbit (editor), `stopAudio()`.
-4. **Guardar:** `FileManager.localSave()` (localStorage `raycast-studio:project`) o `exportJson()` (descarga `.json`). El backend es la **fuente única de verdad** a largo plazo: el Studio hablará por `GET/PATCH /api/projects` para persistir el mismo documento (C5, futura integración).
+4. **Guardar:** `FileManager.localSave()` (localStorage `raycast-studio:project`) o `exportJson()` (descarga `.json`). El backend es la **fuente única de verdad** a largo plazo: el Studio hablará por `GET/PATCH /api/projects` para persistir el mismo documento (C5b, próxima integración). **C5a ya conectó auth**: registro/login/sesión contra el server real vía `api.ts` + proxy dev.
 5. **Assets:** el Sprite Tool sube frames por el middleware de Vite (`POST /assets/sprites/upload` → `assets/`, gitignored). El backend (ya operativo desde C3) sube los mismos archivos vía `POST /api/assets` y los sirve por `GET /api/assets/:id/file`.
 
 ---
@@ -190,8 +190,8 @@ studio/src/
 │                         # CameraControls.ts (orbit/game) + Overlay2D.ts (gizmos) + EntityPreviewMesh.ts (cajas)
 ├── spriteTool/           # Pipeline F4.6: detectSprites (componentes conexas), gridSlice, frames, animator, spriteToolUI
 ├── dungeons/             # Generador de mazmorras por bloques 16×16: definitions, blocks, placement, assemble
-├── io/                   # FileManager (localStorage + export/import), Serializer (↔ project.json v3), assetServer (lógica pura del middleware)
-├── ui/                   # Panel, Icon (lucide SVG), Toast, DungeonBrowser (preview automap)
+├── io/                   # FileManager (localStorage + export/import), Serializer (↔ project.json v3), assetServer (lógica pura del middleware), api (cliente HTTP C5a), session (tokens)
+├── ui/                   # Panel, Icon (lucide SVG), Toast, DungeonBrowser (preview automap), AuthModal (login/registro C5a)
 └── entities/             # entityCatalog.ts — NPCs + bestiario Daggerfall (~60 enemigos en 6 categorías)
 ```
 
@@ -227,6 +227,10 @@ Bloques prefabricados 16×16 (`blk-open`, `blk-passage`, `blk-room`) con conecto
 - `FileManager`: localStorage (`raycast-studio:project`), descarga `${nombre}.json`, importación.
 - `Serializer`: `toProjectJson(state)` / `fromProjectJson(json)` (normaliza, ignora desconocidos) / `validateProjectJson` (usa el validador del contrato).
 - `assetServer.ts`: lógica pura del middleware Vite (`vite.config.ts`): POST `/assets/audio|sprites/upload` y GET `/assets/*` con anti-traversal (`resolveAssetPath`), límites de tamaño (audio 50 MB, sprites 20 MB), saneado de nombres. Sirve desde `assets/` (gitignored).
+- `api.ts` (C5a): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa.
+- `session.ts` (C5a): `getSession`/`setSession`/`clearSession`/`isAuthenticated`. **Cookie** (`raycast_session`, Path=/, Max-Age 7 días = TTL refresh) por decisión del usuario 2026-09-16 — no localStorage; store inyectable (tests en node). Legible por JS (Bearer manual vía `api.ts`); httpOnly exigiría Set-Cookie desde el backend (cambio de C1) y queda para el hueco futuro junto a la rotación de refresh.
+- `AuthModal` (C5a): modal Login/Registro (pestañas + inputs DESIGN.md) que consume `apiLogin`/`apiRegister`; errores mostrados con `message` amigable (el `code` solo para el código). Botón "Cuenta" en la toolbar (`main.ts`): sin sesión abre el modal; con sesión, cierra sesión.
+- **Proxy dev** (`vite.config.ts`): `/api` y `/auth` → `http://127.0.0.1:3000` — el Studio habla same-origin (sin CORS en desarrollo).
 
 ---
 

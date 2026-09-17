@@ -472,6 +472,74 @@ html, body, #app {
   border-top: 1px solid var(--border-divider);
 }
 
+/* --- Auth modal (C5a) --- */
+.auth-modal .modal {
+  min-width: 380px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.auth-tabs__tab {
+  flex: 1;
+  padding: var(--space-2);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+}
+
+.auth-tabs__tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.auth-form .btn--primary {
+  align-self: flex-end;
+  min-width: 120px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.auth-error {
+  display: none;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent-danger);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  color: var(--accent-danger);
+  font-size: var(--font-size-sm);
+}
+
+.auth-error--visible {
+  display: block;
+}
+
 /* --- Selector de entidades (herramienta Entidades) --- */
 .entity-picker {
   z-index: 1200;
