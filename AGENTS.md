@@ -42,6 +42,12 @@ Creador web de RPG 3D retro (estilo Doom→Daggerfall).
 - **El flujo de trabajo es paso-a-paso:** implemento una fase/tarea → la marco `realizada` → el usuario la valida (jugando en el Studio/verificando) → **solo entonces** cambio su estado a `validada`. No se avanza al siguiente paso hasta que el usuario valida el actual.
 - **Nunca tocar lo que ya está realizado.** Si una tarea/fase está completada y es necesario modificarla, **preguntar primero** y explicar exactamente qué modificaciones se harán antes de actuar; no proceder sin la aprobación del usuario.
 - **Toda implementación nueva lleva su test.** Cada fase, tarea o feature nueva debe incluir al menos un test que compruebe que funciona. Los tests viven en la carpeta raíz `test/`, divididos en `test/engine/` (para el motor JS vanilla) y `test/studio/` (para el Studio TS, cuando exista). Un test que falla = feature no cerrada.
+- **Toda cosa nueva se documenta en su archivo respectivo (y en el mismo cambio).** Añadir código sin documentar no está terminado. Mapa de documentación:
+  - **Motor** (`engine/`) — módulo o API nueva → actualizar `docs/ENGINE_COMPONENTS.md` (y `docs/ARCHITECTURA.md` si cambia la estructura de capas).
+  - **Studio** (`studio/`) — herramienta o flujo nuevo → `docs/ARCHITECTURA.md`; si toca el editor → también `TOOLS.md` (teclas, popovers, arquitectura del reload en vivo).
+  - **Backend** (`server/`) — endpoint o ruta nueva → `docs/API_ENDPOINTS.md` (con ejemplos de petición/respuesta); cambios de plan/fases → `DATABASE.md §8` y `ROADMAP.md §12`.
+  - **Contrato** (`contract/`) — campo o esquema nuevo → `docs/ARCHITECTURA.md` §3 y `docs/ENGINE_COMPONENTS.md` §4 (ejemplo del modelo).
+  - **Documentos maestro** — si el cambio afecta a la visión general (capas, flujo de datos, fases), actualizar `README.md` y/o `ROADMAP.md` en el mismo commit.
 - **No hardcodear valores.** Toda constante que sea dato del juego (mapa, texturas, sprites, config) debe declararse en el `project.json` (datos), no embutirse en el código del motor ni en la UI. Los únicos datos permitidos en código son configuración de infraestructura y constantes sin representación en el modelo.
 - **El motor JS vanilla no debe depender del Studio TS** ni de ninguna UI; ambas capas solo se comunican por datos (`project.json`).
 - **Separación de responsabilidades en `engine/`:** cada archivo del motor cumple UNA responsabilidad. No acumular lógica ajena en un mismo archivo. Regla de mapeo:

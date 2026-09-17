@@ -194,7 +194,9 @@ DESIGN.md           # Design System del Studio (paleta Catppuccin, tipografía, 
 DATABASE.md         # Backend: esquema Prisma/PostgreSQL + plan por fases (A1–C5)
 DATABASE_MVP.md     # Esquema mínimo para el Hito (visión parcial)
 AGENTS.md           # Instrucciones para agentes (convenciones, entorno WSL, protocolo)
-docs/ENGINE_COMPONENTS.md  # Documentación técnica del motor (API, componentes, schema v3)
+docs/ARCHITECTURA.md        # Arquitectura del producto completo (todas las capas, flujo de datos)
+docs/API_ENDPOINTS.md       # Endpoints HTTP del backend, con ejemplos de petición/respuesta
+docs/ENGINE_COMPONENTS.md   # Documentación técnica del motor (API, componentes, schema v3)
 opencode.json       # Configuración de opencode (plugins, MCP)
 package.json        # Scripts raíz (test:engine, studio:*) + three
 ```
@@ -274,5 +276,7 @@ npm run dev
 - `ROADMAP.md` — Plan maestro (§12 estado, §13 arquitectura, §15 ruta crítica, §16 deuda técnica)
 - `DESIGN.md` — Design System (Catppuccin Mocha, componentes, layout, atajos)
 - `DATABASE.md` — Backend: esquema Prisma/PostgreSQL + plan por fases A1–C5
+- `docs/ARCHITECTURA.md` — Arquitectura del producto completo (motor, contrato, studio, server)
+- `docs/API_ENDPOINTS.md` — Endpoints del backend documentados
 - `docs/ENGINE_COMPONENTS.md` — Documentación técnica del motor (API, componentes, schema v3)
 - `AGENTS.md` — Instrucciones para agentes (convenciones, WSL, protocolo)
