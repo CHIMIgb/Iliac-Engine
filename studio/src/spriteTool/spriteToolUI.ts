@@ -128,6 +128,13 @@ export class SpriteToolUI {
   /** Conectado por main.ts: escribe `sprite.anim` en un sprite existente. */
   onAssignSprite: ((spriteId: string, anim: string) => void) | null = null;
 
+  /**
+   * Conectado por main.ts (E1): coloca un sprite NUEVO con tex+anim en el
+   * punto de colocación (centro del viewport) y lo selecciona. La UI del
+   * botón «Colocar en el mundo ▾» llega en E2; aquí solo vive el puente.
+   */
+  onPlaceSprite: ((tex: string, anim: string) => void) | null = null;
+
   /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
   onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
 

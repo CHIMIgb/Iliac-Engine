@@ -175,6 +175,19 @@ describe('tools · entidades', () => {
     expect(sp.entityType).toBeUndefined();
     expect(sp.collisionBox).toBeUndefined();
   });
+
+  it('addSprite con entity.anim guarda la anim y mantiene billboard (E1, puente de colocación)', () => {
+    const state = makeRoom();
+    const sp = state.addSprite('guard_f0', 1, 1, 0, undefined, { anim: 'idle' });
+    expect(sp.anim).toBe('idle');
+    expect(sp.billboard).toBe(true); // requisito E5: todo sprite de entidad es billboard
+  });
+
+  it('addSprite sin entity.anim no deja rastro del campo (regresión E1)', () => {
+    const state = makeRoom();
+    const sp = state.addSprite('sprite_blue', 1, 1, 0);
+    expect(sp.anim).toBeUndefined();
+  });
 });
 
 describe('serializer · entidades', () => {

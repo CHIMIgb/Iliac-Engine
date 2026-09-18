@@ -549,6 +549,16 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     nuevo callback `spriteTool.onPlaceSprite(opts)` → crea un sprite nuevo en el
 >     punto de colocación (centro del viewport / sector activo), lo selecciona en el
 >     editor y le asigna tex+anim.
+>     ✅ **implementado 2026-09-18** — `addSprite(..., { anim })` persiste
+>     `sprite.anim` (billboard `true` por defecto, requisito E5) sin romper
+>     llamadores (la clave va en el objeto `entity` ya existente); `EditorViewport`
+>     gana `centerWorld()` (centro del canvas proyectado al plano suelo, reutiliza
+>     el raycaster del picking); `spriteTool.onPlaceSprite(tex, anim)` conectado en
+>     main.ts: coloca el sprite con `snap` + `floorHeightAtPoint` (misma disciplina
+>     que la herramienta Entidades) y lo selecciona para mover/escalar. Sin
+>     `saveCurrent` (mismo patrón que la Entidades: Ctrl+S persiste). La UI del
+>     botón «Colocar en el mundo ▾» es E2. Tests en entities.test.ts (deja la suite
+>     Studio en 263).
 >   - **E2 — Botón "Colocar en el mundo ▾":** en la Sprite Tool (Paso 3 junto a
 >     "Asignar anim activa" y en la Biblioteca de la Fase D) → lista de anims
 >     guardadas; al elegir una se crea la entidad (tex del frame + anim +

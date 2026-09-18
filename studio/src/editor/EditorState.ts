@@ -279,6 +279,9 @@ export class EditorState {
       entityName?: string;
       collisionType?: EditableSprite['collisionType'];
       collisionBox?: EditableSprite['collisionBox'];
+      /** Animación de `world.spriteAnims` que reproduce el sprite (E1): el
+       *  puente de colocación crea el sprite NUEVO ya animado. */
+      anim?: string;
     },
   ): EditableSprite {
     const sprite: EditableSprite = {
@@ -287,6 +290,7 @@ export class EditorState {
       pos: { x, y, z },
       scale: 1,
       billboard: true,
+      ...(entity?.anim ? { anim: entity.anim } : {}),
       ...(entity?.entityType ? { entityType: entity.entityType } : {}),
       ...(entity?.entityName ? { entityName: entity.entityName } : {}),
       ...(entity?.collisionType ? { collisionType: entity.collisionType } : {}),

@@ -27,6 +27,8 @@ import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/
 import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
 import { openMyProject } from './io/MyProjects';
 import { deleteSpriteAsset, listAudioUrls, listSpriteAssets, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
+import { snap } from './tools/picking';
+import { floorHeightAtPoint } from './tools/tools';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -327,6 +329,24 @@ spriteTool.onAssignSprite = (spriteId, anim) => {
     return;
   }
   showToast(`Sprite ${spriteId} → anim «${anim}»`, 'success');
+};
+
+// E1 (Fase E del Sprite Tool): colocar un sprite NUEVO con tex+anim en el
+// punto de colocación — el centro del viewport proyectado al suelo (lo que el
+// usuario está mirando). Apoya en el terreno y alinea al grid igual que la
+// herramienta Entidades; deja el sprite seleccionado para mover/escalar. La
+// UI del botón «Colocar en el mundo ▾» llega en E2; aquí solo el puente.
+spriteTool.onPlaceSprite = (tex, anim) => {
+  const p = viewport.centerWorld();
+  if (!p) {
+    showToast('No se pudo calcular el punto de colocación', 'warning');
+    return;
+  }
+  const x = snap(p.x);
+  const z = snap(p.z);
+  const sp = doc.addSprite(tex, x, z, floorHeightAtPoint(doc.world, x, z), undefined, { anim });
+  toolManager.select({ kind: 'sprite', id: sp.id });
+  showToast(`Sprite ${sp.id} colocado con anim «${anim}»`, 'success');
 };
 
 const spriteBtn = layout.toolbar.addAction({
