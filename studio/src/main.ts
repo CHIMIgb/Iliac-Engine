@@ -351,10 +351,13 @@ const spriteBtn = layout.toolbar.addAction({
     markSpritesActive();
     // El select de asignación de la Biblioteca lista las ENTIDADES del mundo
     // (sprites con datos de entidad del catálogo), etiquetadas por su nombre
-    // legible. Los sprites decorativos sin entidad no se asignan animación.
+    // legible, y solo las VISIBLES en el viewport actual (frustum de cámara).
+    // Los sprites decorativos sin entidad no se asignan animación.
+    const entities = doc.world.sprites.filter((s) => s.entityType);
+    const visible = viewport.spriteIdsInView(entities);
     spriteTool.setWorldSprites(
-      doc.world.sprites
-        .filter((s) => s.entityType)
+      entities
+        .filter((s) => visible.has(s.id))
         .map((s) => ({ id: s.id, label: `${s.entityName ?? s.id} (${s.id})` })),
     );
     spriteTool.onProjectSnapshot = () => doc.getSpriteLibrarySnapshot();

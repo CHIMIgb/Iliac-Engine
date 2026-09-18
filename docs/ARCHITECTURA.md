@@ -187,6 +187,7 @@ studio/src/
 ├── editor/               # editor/types.ts (Editable*) + editor/EditorState.ts (documento + mutadores + onChange + applyFrom)
 ├── tools/                # tools/ToolManager.ts (1493 líneas: 7 herramientas + pickers + entorno F4.7)
 │                         # tools/tools.ts (operaciones geométricas puras) + tools/picking.ts (hit-test 2D)
+│                         # tools/visibility.ts (visibleSpriteIds: sprites dentro del frustum de cámara)
 ├── viewport/             # EditorViewport.ts (Engine3D + grid + overlays + playtest F5)
 │                         # CameraControls.ts (orbit/game) + Overlay2D.ts (gizmos) + EntityPreviewMesh.ts (cajas)
 │                         # renderSignature.ts (firma estable del bloque `render`: decide reload barato/caro)

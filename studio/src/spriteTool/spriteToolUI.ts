@@ -1307,6 +1307,9 @@ private renderLibraryAssignRow(animName: string): HTMLDivElement {
       opt.textContent = it.label;
       select.appendChild(opt);
     }
+    // Con muchas entidades visibles el select nativo se vuelve listbox con
+    // scroll (size > 1 muestra la barra; 8 filas es una altura cómoda).
+    if (select.options.length > 8) select.size = 8;
     const btn = document.createElement('button');
     btn.className = 'btn btn--secondary btn--sm';
     btn.textContent = 'Asignar a entidad';

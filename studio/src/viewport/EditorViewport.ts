@@ -21,6 +21,7 @@ import { Overlay2D } from './Overlay2D';
 import { renderSignature, worldTextureSignature } from './renderSignature';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { hiddenTerrainVertices } from '../tools/tools';
+import { visibleSpriteIds } from '../tools/visibility';
 import { buildEntityBoxes } from './EntityPreviewMesh';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -209,6 +210,17 @@ export class EditorViewport {
 
   toggleMode(): void {
     this.setMode(this.controls.mode === 'game' ? 'orbit' : 'game');
+  }
+
+  /**
+   * Ids de sprites/entidades visibles con la cámara actual del editor.
+   * Lo usa el Sprite Tool para listar solo lo que se ve en el viewport
+   * (Biblioteca D4 y Paso 3). Sin motor (carga inicial) devuelve todas.
+   */
+  spriteIdsInView(
+    sprites: ReadonlyArray<{ id: string; pos: { x: number; y: number; z: number } }>,
+  ): Set<string> {
+    return visibleSpriteIds(sprites, this.engine?.renderer.camera ?? null);
   }
 
   // ── Bucle principal ──────────────────────────────────────────
