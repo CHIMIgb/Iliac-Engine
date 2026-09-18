@@ -199,13 +199,13 @@ describe('EditorState.assignEntityAnim (Fase E corregida — asignar anims a ent
     expect(sp.scale).toBe(sp.collisionBox!.h); // 0.9 — escala equitativa al tamaño
   });
 
-  it('anim no guardada → escribe anim pero NO adopta tex/escala (anim local del Paso 3)', () => {
+  it('anim no guardada → false y NO escribe nada (el contrato exige anim existente)', () => {
     const { state, id } = setup();
     const sp = state.world.sprites.find((s) => s.id === id)!;
     const texBefore = sp.tex;
     const scaleBefore = sp.scale;
-    expect(state.assignEntityAnim(id, 'no_guardada')).toBe(true);
-    expect(sp.anim).toBe('no_guardada');
+    expect(state.assignEntityAnim(id, 'no_guardada')).toBe(false);
+    expect(sp.anim).toBeUndefined();
     expect(sp.tex).toBe(texBefore); // sin frames guardados no hay primer frame que adoptar
     expect(sp.scale).toBe(scaleBefore);
   });

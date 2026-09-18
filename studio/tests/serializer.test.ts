@@ -168,15 +168,18 @@ describe('Sprite Tool · guardado (F5 Fase B)', () => {
     expect(calls).toBe(2);
   });
 
-  it('assignSpriteAnim escribe sprite.anim (puente F5→6.4)', () => {
+  it('assignSpriteAnim exige la anim guardada y escribe sprite.anim (puente F5→6.4)', () => {
     const s = new EditorState();
     const sp = s.addSprite('sprite', 1, 1, 0, 'sp_guard');
-    expect(s.assignSpriteAnim('sp_guard', 'idle')).toBe(true);
-    expect(s.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBe('idle');
+    expect(s.assignSpriteAnim('sp_guard', 'idle')).toBe(false); // 'idle' no está guardada
+    const sp2 = s.addSprite('sprite', 2, 2, 0, 'sp_guard2');
+    s.setSpriteAnims({ idle: { frames: ['sp_guard'], fps: 4, loop: true } });
+    expect(s.assignSpriteAnim('sp_guard2', 'idle')).toBe(true);
+    expect(s.world.sprites.find((x) => x.id === 'sp_guard2')?.anim).toBe('idle');
     expect(s.assignSpriteAnim('no-existe', 'idle')).toBe(false);
     // null limpia la animación
-    expect(s.assignSpriteAnim('sp_guard', null)).toBe(true);
-    expect(s.world.sprites.find((x) => x.id === 'sp_guard')?.anim).toBeUndefined();
+    expect(s.assignSpriteAnim('sp_guard2', null)).toBe(true);
+    expect(s.world.sprites.find((x) => x.id === 'sp_guard2')?.anim).toBeUndefined();
   });
 
   it('round-trip conserva spriteAnims y sprite.anim, y pasa validateProject', () => {

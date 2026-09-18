@@ -332,13 +332,16 @@ export class EditorState {
   /**
    * Asigna la animación `anim` a un sprite del mundo (puente F5→6.4: aún no hay
    * Entity Builder, así que el usuario elige un sprite existente). false si el
-   * sprite no existe; `anim` null limpia la animación.
+   * sprite no existe o si la animación no está guardada en `world.spriteAnims`
+   * (el contrato exige que `sprite.anim` referencie una animación existente:
+   * `contract/project-schema.js` l.204); `anim` null limpia la animación.
    */
   assignSpriteAnim(spriteId: string, anim: string | null): boolean {
     const sp = this.world.sprites.find((s) => s.id === spriteId);
     if (!sp) return false;
     if (anim === null) delete sp.anim;
-    else sp.anim = anim;
+    else if (this.world.spriteAnims?.[anim]) sp.anim = anim;
+    else return false;
     this.notify();
     return true;
   }
@@ -358,18 +361,22 @@ export class EditorState {
    *    (un lobo de 0,9 m de alto se ve de 0,9 m; un guardia de 1,8 m, de 1,8).
    *
    * Si la animación NO está guardada (p.ej. la anim local del animador en el
-   * Paso 3, aún sin «Guardar en el proyecto»), escribe solo `sprite.anim` —
-   * igual que `assignSpriteAnim` — y deja tex/escala como estaban: la adopción
-   * completa exige los frames de la anim guardada.
+   * Paso 3, aún sin «Guardar en el proyecto»), NO escribe nada y devuelve
+   * false: el contrato exige que `sprite.anim` referencie una animación
+   * existente (`contract/project-schema.js` l.204), y escribir un nombre roto
+   * dejaba el proyecto inválido y `scheduleReload` abortaba el viewport sin
+   * mostrar el sprite (bug 2026-09-18). El usuario debe guardar la animación
+   * antes de asignarla.
    *
-   * false si la entidad no existe.
+   * false si la entidad no existe o la animación no está guardada.
    */
   assignEntityAnim(spriteId: string, animId: string): boolean {
     const sp = this.world.sprites.find((s) => s.id === spriteId);
     if (!sp) return false;
-    sp.anim = animId;
     const def = this.world.spriteAnims?.[animId];
-    if (def?.frames[0]) {
+    if (!def) return false;
+    sp.anim = animId;
+    if (def.frames[0]) {
       sp.tex = def.frames[0];
       if (sp.collisionBox?.h) sp.scale = sp.collisionBox.h;
     }

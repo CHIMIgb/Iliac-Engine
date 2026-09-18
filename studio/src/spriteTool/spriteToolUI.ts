@@ -504,6 +504,19 @@ export class SpriteToolUI {
       const sid = this.spriteSelect.value;
       const spec = this.animSpecs[this.activeAnim];
       if (!sid || !spec || !this.onAssignSprite) return;
+      // Bug 2026-09-18: asignar una anim local sin guardar escribía un
+      // sprite.anim fantasma → proyecto inválido → reload abortado → el
+      // viewport no mostraba el sprite. Exigir la anim guardada en el
+      // proyecto antes de asignar; el guard real vive en assignEntityAnim.
+      const snapshot = this.getProjectSnapshot();
+      const animGuardada = snapshot?.spriteAnims?.[spec.name] != null;
+      if (!animGuardada) {
+        showToast(
+          `La animación «${spec.name}» no está guardada. Pulsa Guardar en el Paso 3 antes de asignarla.`,
+          'warning',
+        );
+        return;
+      }
       this.onAssignSprite(sid, spec.name);
     });
     this.assignRow.append(assignTitle, this.spriteSelect, this.assignBtn);

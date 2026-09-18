@@ -326,6 +326,17 @@ spriteTool.onSaveRequested = async (out, frameDataUrls) => {
 // escala a la altura de su caja de colisión (flujo correcto de la Fase E:
 // las animaciones viven sobre entidades colocadas, no sobre sprites sueltos).
 spriteTool.onAssignSprite = (spriteId, anim) => {
+  if (!spriteId) {
+    showToast('Elige una entidad primero', 'warning');
+    return;
+  }
+  if (!doc.world.spriteAnims?.[anim]) {
+    showToast(
+      `La animación «${anim}» no está guardada en el proyecto. Pulsa Guardar en el Paso 3 antes de asignarla.`,
+      'warning',
+    );
+    return;
+  }
   if (!doc.assignEntityAnim(spriteId, anim)) {
     showToast('Entidad o animación no encontrada', 'error');
     return;
