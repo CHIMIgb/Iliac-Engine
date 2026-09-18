@@ -18,6 +18,7 @@ import { assetIdFromFileName, collectMissingFrameKeys, cropRegion, frameKeyFromF
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
+import { enabledPlaceAnims } from './place';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { SpriteLibrarySnapshot, PixelImage, Rect } from './types';
 import { assetUrl } from '../io/assetApi';
@@ -513,6 +514,17 @@ export class SpriteToolUI {
       this.onAssignSprite(sid, spec.name);
     });
     this.assignRow.append(assignTitle, this.spriteSelect, this.assignBtn);
+
+    // E2: botón «Colocar en el mundo ▾» — la UI del puente `onPlaceSprite`
+    // (E1). Despliega un menú con las anims GUARDADAS del proyecto: una anim
+    // local del animador aún no existe en `world.spriteAnims` hasta pulsar
+    // «Guardar en el proyecto», así que colocar antes sería un sprite invisible.
+    const placeBtn = document.createElement('button');
+    placeBtn.className = 'btn btn--secondary btn--sm sprite-tool__place-btn';
+    placeBtn.textContent = 'Colocar en el mundo ▾';
+    placeBtn.title = 'Crea un sprite NUEVO con la anim elegida, en el centro del viewport';
+    placeBtn.addEventListener('click', () => this.togglePlaceMenu(placeBtn));
+    this.assignRow.append(placeBtn);
 
     animLayout.append(animSide, animMain);
     this.step3.append(animLayout, this.assignRow);
@@ -1324,7 +1336,61 @@ private renderLibraryAssignRow(animName: string): HTMLDivElement {
     void this.loadLibraryAnim(animName);
   });
   row.appendChild(loadBtn);
+  // E2: colocar esta animación como un sprite NUEVO en el mundo.
+  const placeBtn = document.createElement('button');
+  placeBtn.className = 'btn btn--secondary btn--sm sprite-tool__place-btn';
+  placeBtn.textContent = 'Colocar en el mundo ▾';
+  placeBtn.title = 'Crea un sprite NUEVO con esta animación, en el centro del viewport';
+  placeBtn.addEventListener('click', () => this.togglePlaceMenu(placeBtn));
+  row.appendChild(placeBtn);
   return row;
+}
+
+// ── Fase E (E2): menú «Colocar en el mundo ▾» ────────────────────
+
+/**
+ * Alterna el menú de colocación bajo el botón que lo abrió. El menú lista las
+ * anims GUARDADAS del proyecto (`enabledPlaceAnims`, lógica pura en place.ts);
+ * al elegir una se llama al puente `onPlaceSprite(tex, anim)` conectado por
+ * main.ts (crea el sprite en el centro del viewport y lo selecciona).
+ * Un solo menú a la vez: al abrir uno se cierra el anterior (si existe).
+ */
+private togglePlaceMenu(anchor: HTMLButtonElement): void {
+  // Cierra el menú previo si el botón ya está abierto (toggle).
+  const alreadyOpen = anchor.nextElementSibling?.classList.contains('sprite-tool__place-menu');
+  const existing = this.overlay.querySelector('.sprite-tool__place-menu');
+  if (existing) existing.remove();
+  if (alreadyOpen) return;
+
+  const snapshot = this.getProjectSnapshot();
+  const anims = enabledPlaceAnims(snapshot);
+  const menu = document.createElement('div');
+  menu.className = 'sprite-tool__place-menu';
+  if (anims.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'sprite-tool__library-meta';
+    empty.textContent = 'Aún no hay animaciones guardadas. Guarda una en el Paso 3 para poder colocarla.';
+    menu.appendChild(empty);
+    anchor.after(menu);
+    return;
+  }
+  for (const { anim, tex } of anims) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'sprite-tool__place-item';
+    item.textContent = anim;
+    item.title = `Colocar sprite con la animación «${anim}»`;
+    item.addEventListener('click', () => {
+      menu.remove();
+      if (!this.onPlaceSprite) {
+        showToast('El Sprite Tool no está conectado al proyecto', 'warning');
+        return;
+      }
+      this.onPlaceSprite(tex, anim);
+    });
+    menu.appendChild(item);
+  }
+  anchor.after(menu);
 }
 
 /**

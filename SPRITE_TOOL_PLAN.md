@@ -565,6 +565,15 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     `billboard: true`). El sprite aparece en el viewport (marcador 2D en
 >     `Overlay2D` + preview 3D) y queda seleccionado para mover/escalar con las
 >     herramientas existentes (ToolManager ya soporta selección kind `sprite`).
+>     ✅ **implementado 2026-09-18** — botón «Colocar en el mundo ▾» en el Paso 3
+>     (assignRow) y en cada card de la Biblioteca (renderLibraryAssignRow). El
+>     menú lista las anims GUARDADAS del proyecto vía `enabledPlaceAnims`
+>     (lógica pura en `spriteTool/place.ts`, testeada en place.test.ts: solo
+>     anims cuyo primer frame es textura string; color puro o frame inexistente
+>     → no colocable). Al elegir una → `onPlaceSprite(tex, anim)` (E1). No
+>     coloca anims locales del animador: aún no existen en `world.spriteAnims`
+>     hasta pulsar Guardar — colocar antes sería un sprite invisible. Suite
+>     Studio **267** tests, typecheck + build OK.
 >   - **E3 — Inspector de sprite en el editor:** al seleccionar un sprite, panel con
 >     sus propiedades editables: tex, **anim (dropdown con TODAS las anims de
 >     `world.spriteAnims`)**, scale, pos, collisionType/collisionBox (reutilizar el
