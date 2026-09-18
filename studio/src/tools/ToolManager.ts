@@ -34,6 +34,7 @@ import {
 } from './tools';
 import { ENTITY_CATEGORIES, ENTITIES } from '../entities/entityCatalog';
 import type { EntityDef } from '../entities/entityCatalog';
+import type { UploadedAsset } from '../io/assetApi';
 import { snap } from './picking';
 import { SKY_FRAMES, skyFrameLabel } from '@engine/core/sky.js';
 import { hourLabel } from '@engine/core/daylight.js';
@@ -70,12 +71,28 @@ export interface PickContext {
   shiftKey?: boolean;
 }
 
+/**
+ * Puente del popover de Audio con la API de assets (C5c). Lo implementa
+ * main.ts (única capa que conoce la sesión y el proyecto en la nube); así el
+ * ToolManager no importa red y sus tests siguen sin sesión ni fetch.
+ */
+export interface AudioAssetBridge {
+  /** Guardar exige sesión: false si no hay (main avisa y abre el modal de Cuenta). */
+  requireSession(accion: string): boolean;
+  /** Sube audios al API → por archivo, su URL servida o su error. */
+  upload(files: File[]): Promise<UploadedAsset[]>;
+  /** URLs de los audios de la cuenta, o null si no hay sesión (no molesta al abrir). */
+  listUrls(): Promise<string[] | null>;
+}
+
 export interface ToolManagerCallbacks {
   onNotice?: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void;
   onSelectionChange?: (sel: Selection[]) => void;
   onToolChange?: (tool: ToolId) => void;
   /** Estado en vivo (statusbar): texto libre, p.ej. altura del terreno al moldear. */
   onStatus?: (text: string) => void;
+  /** Assets de audio por API; sin él, el popover de Audio avisa de que no hay sesión. */
+  audioAssets?: AudioAssetBridge;
 }
 
 /** Objeto agarrado durante un arrastre (posiciones originales para traslación rígida). */
@@ -1006,7 +1023,7 @@ export class ToolManager {
 
   private audioPicker: HTMLElement | null = null;
   private audioPickerOpenedAt = 0;
-  /** Lista de audios disponibles en `assets/audio/` (lista del middleware; nulo = ruta libre). */
+  /** URLs de los audios de la cuenta (API); nulo = sin listar todavía o sin sesión. */
   private _audioFiles: string[] | null = null;
   /** Motor de audio efímero de la preview (se apaga al cambiar de preview o cerrar). */
   private _audioPreview: AudioEngine | null = null;
@@ -1014,8 +1031,8 @@ export class ToolManager {
   /**
    * Abre el popover de Audio (tecla 9). Lista los bucles de ambiente del doc
    * (ruta + volumen + Probar + Cambiar + quitar). El archivo se elige SIEMPRE
-   * con el diálogo del sistema: «Añadir sonidos» abre assets/audio/ y elige un
-   * audio de ahí (si no está en la carpeta, se sube antes: `POST /assets/audio/upload`);
+   * con el diálogo del sistema: «Añadir sonidos» elige un audio y lo sube a la
+   * API si no estaba (dedupe por hash) → el def guarda `/api/assets/<id>/file`;
    * «Cambiar» reutiliza el mismo diálogo por fila. Sin archivo por defecto.
    */
   openAudioPicker(clientX?: number, clientY?: number): void {
@@ -1060,8 +1077,8 @@ export class ToolManager {
     const ambs = (): EditableAudioDef[] => this.doc.audio.filter((a) => (a.bus ?? 'sfx') === 'ambience');
 
     // Diálogo single: elegir un audio para añadir ambiente o cambiar el de una def.
-    // Al elegir: si el archivo ya está en assets/audio/ se usa su ruta directa;
-    // si no, se sube (upload) y se usa. Nunca hay selección por defecto.
+    // Al elegir: se sube a la API (dedupe por hash) y el def guarda su URL.
+    // Nunca hay selección por defecto.
     let pickTarget: string | null = null;
     const pickInput = document.createElement('input');
     pickInput.type = 'file';
@@ -1081,7 +1098,7 @@ export class ToolManager {
       const defs = ambs();
       if (defs.length === 0) {
         const empty = document.createElement('div');
-        empty.textContent = 'Sin sonidos: usa «Añadir sonidos» para elegir un audio de assets/audio/.';
+        empty.textContent = 'Sin sonidos: usa «Añadir sonidos» para subir un audio.';
         empty.style.cssText = 'color:var(--text-muted,#6c7086);font-size:11px;line-height:1.4';
         list.appendChild(empty);
       }
@@ -1089,12 +1106,14 @@ export class ToolManager {
         const row = document.createElement('div');
         row.style.cssText = ROW_CSS;
 
-        // Archivos que ya no existen en assets/audio/: fila en rojo para avisar.
-        const missing = a.src.startsWith('/assets/audio/') && !this._audioFiles?.includes(a.src);
+        // Audios que ya no están en la cuenta: fila en rojo para avisar (solo
+        // si hay listado; sin sesión no se puede saber y no se marca nada).
+        const missing =
+          a.src.startsWith('/api/assets/') && !!this._audioFiles && !this._audioFiles.includes(a.src);
 
         const src = document.createElement('div');
         src.textContent = a.src;
-        src.title = missing ? `${a.src}\n(ya no existe en assets/audio/)` : a.src;
+        src.title = missing ? `${a.src}\n(ya no existe en tu cuenta)` : a.src;
         src.style.cssText = missing
           ? `${SRC_CSS};color:var(--accent-danger,#f38ba8);border-color:var(--accent-danger,#f38ba8)`
           : SRC_CSS;
@@ -1155,9 +1174,8 @@ export class ToolManager {
     });
     panel.appendChild(add);
 
-    // Botón «Cargar sonidos»: abre el explorador de archivos y sube al dev
-    // server los audios elegidos → se guardan en assets/audio/ (el navegador
-    // no puede escribir disco; el middleware de Vite hace de puente).
+    // Botón «Cargar sonidos»: abre el explorador de archivos y sube los audios
+    // elegidos a la API de assets (POST /api/assets, sesión obligatoria).
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.multiple = true;
@@ -1173,14 +1191,14 @@ export class ToolManager {
 
     const upload = document.createElement('button');
     upload.textContent = 'Cargar sonidos';
-    upload.title = 'Abre el explorador de archivos y guarda el audio en assets/audio/';
+    upload.title = 'Abre el explorador de archivos y sube el audio a tu cuenta';
     upload.style.cssText = Btn;
     upload.addEventListener('click', () => fileInput.click());
     panel.appendChild(upload);
 
     const note = document.createElement('div');
     note.textContent =
-      'Los sonidos viven en assets/audio/. «Cargar sonidos» añade archivos ahí; «Añadir sonidos» elige uno como ambiente. ' +
+      'Los sonidos se guardan en tu cuenta (API de assets). «Cargar sonidos» sube archivos; «Añadir sonidos» elige uno como ambiente. ' +
       'Música, NPC y acciones: edición pendiente; el motor ya reproduce estos bucles en playtest.';
     note.style.cssText = 'color:var(--text-muted,#6c7086);font-size:11px;line-height:1.5';
     panel.appendChild(note);
@@ -1195,47 +1213,34 @@ export class ToolManager {
     document.addEventListener('click', this._onAudioDocClick);
     requestAnimationFrame(() => panel.focus());
 
-    // Refresca SIEMPRE la lista de assets/audio/ al abrir (sin cache obsoleta:
-    // si se borraron archivos desde la última vez, aquí se enteran los defs).
+    // Refresca SIEMPRE la lista de audios de la cuenta al abrir (sin cache
+    // obsoleta: si se borró un asset, aquí se enteran los defs).
     this._refreshAudioFiles();
   }
 
   /**
-   * Sube una lista de archivos de audio elegidos en el explorador al dev server,
-   * que los escribe en `assets/audio/` (middleware de Vite). Luego refresca la
-   * lista del popover. Reporta por toast el resultado por archivo.
+   * Sube una lista de archivos de audio elegidos en el explorador a la API
+   * (`POST /api/assets`, dedupe por hash en el server) y refresca el listado.
+   * Requiere sesión (C5c): sin ella avisa y abre el modal de Cuenta.
    */
-  private _uploadAudioFiles(files: File[]): Promise<{ name: string; ok: boolean; err?: string }[]> {
-    const reads: Promise<{ name: string; ok: boolean; err?: string }>[] = [];
-    for (const f of files) {
-      reads.push(
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error(`No se pudo leer ${f.name}`));
-          reader.readAsDataURL(f);
-        }).then(
-          (data) =>
-            fetch('/assets/audio/upload', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: f.name, data }),
-            })
-              .then((r) => r.json() as Promise<{ success: boolean; error?: string }>)
-              .then((r) => ({ name: f.name, ok: r.success, err: r.error })),
-        ),
-      );
-    }
-    return Promise.all(reads).then((results) => {
-      const oks = results.filter((r) => r.ok).length;
-      const fails = results.filter((r) => !r.ok);
-      if (oks > 0) {
-        this.cb.onNotice?.(`${oks} audio(s) guardado(s) en assets/audio/`, 'success');
+  private _uploadAudioFiles(files: File[]): Promise<UploadedAsset[]> {
+    const bridge = this.cb.audioAssets;
+    if (!bridge?.requireSession('guardar audio')) return Promise.resolve([]);
+
+    return bridge.upload(files).then((results) => {
+      const oks = results.filter((r) => r.url);
+      const fails = results.filter((r) => !r.url);
+      if (oks.length > 0) {
+        const reused = oks.filter((r) => r.reused).length;
+        this.cb.onNotice?.(
+          `${oks.length} audio(s) guardado(s) en la nube${reused ? ` (${reused} ya existían)` : ''}`,
+          'success',
+        );
         this._refreshAudioFiles();
       }
       if (fails.length > 0) {
         this.cb.onNotice?.(
-          `No se guardaron: ${fails.map((f) => `${f.name} (${f.err ?? 'formato no admitido'})`).join(', ')}`,
+          `No se guardaron: ${fails.map((f) => `${f.key} (${f.error ?? 'formato no admitido'})`).join(', ')}`,
           'error',
         );
       }
@@ -1244,38 +1249,36 @@ export class ToolManager {
   }
 
   /**
-   * Refresca `_audioFiles` con la lista actual de `assets/audio/` y repinta el
-   * popover si cambió.
+   * Refresca `_audioFiles` con los audios de la cuenta (API) y repinta el
+   * popover. Sin sesión no lista y no molesta (null); con error, deja la lista
+   * anterior.
    */
   private _refreshAudioFiles(): void {
-    fetch('/assets/audio/list')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { files?: string[] } | null) => {
-        if (Array.isArray(j?.files) && j.files.length) {
-          this._audioFiles = j.files.map((f) => `/assets/audio/${f}`);
-        }
+    void this.cb.audioAssets
+      ?.listUrls()
+      .then((urls) => {
+        if (!urls) return;
+        this._audioFiles = urls;
         this._repaintAudio?.();
       })
-      .catch(() => { /* sin dev server: el popover sigue mostrando rutas escritas */ });
+      .catch(() => { /* sin API: el popover sigue mostrando las rutas del proyecto */ });
   }
 
   /**
-   * Elegido un archivo con el diálogo (Añadir sonidos / Cambiar): si ya está
-   * en `assets/audio/` se usa su ruta servida tal cual; si no, se sube primero.
-   * Con `targetId === null` añade un ambiente nuevo; con id, cambia el src de
-   * esa def. Nunca elige un archivo por defecto.
+   * Elegido un archivo con el diálogo (Añadir sonidos / Cambiar): se sube a la
+   * API (el server deduplica por hash, así que re-elegir el mismo archivo no
+   * duplica nada) y el def guarda la URL servida. Con `targetId === null` añade
+   * un ambiente nuevo; con id, cambia el src de esa def.
    */
   private async _pickAudioFile(file: File, targetId: string | null): Promise<void> {
-    const src = `/assets/audio/${file.name}`;
-    if (!this._audioFiles?.includes(src)) {
-      const results = await this._uploadAudioFiles([file]);
-      if (!results[0]?.ok) {
-        this.cb.onNotice?.(`No se pudo usar ${file.name}: ${results[0]?.err ?? 'formato no admitido'}`, 'error');
-        return;
-      }
+    const results = await this._uploadAudioFiles([file]);
+    const url = results[0]?.url;
+    if (!url) {
+      this.cb.onNotice?.(`No se pudo usar ${file.name}: ${results[0]?.error ?? 'formato no admitido'}`, 'error');
+      return;
     }
-    if (targetId) this.doc.updateAudioDef(targetId, { src });
-    else this.doc.addAudioDef({ src, bus: 'ambience', loop: true, volume: 0.7 });
+    if (targetId) this.doc.updateAudioDef(targetId, { src: url });
+    else this.doc.addAudioDef({ src: url, bus: 'ambience', loop: true, volume: 0.7 });
     this._repaintAudio?.();
   }
 

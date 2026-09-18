@@ -6,12 +6,19 @@ dist/
 # build output del Studio (vite build -> ../public/studio)
 public/
 
+# Prisma Client generado (server/prisma/schema.prisma -> server/generated/)
+server/generated/
+
+# Backend: blobs de assets (suben en runtime) y build TypeScript
+server/storage/uploads/*
+!server/storage/uploads/.gitkeep
+server/dist/
+
 # assets con copyright (sprites de Daggerfall) — nunca versionar
 assets/
 
 # Copias de cielos Daggerfall (setup:sky) — no versionar (copyright)
 studio/public/sky/
-demo/sky/
 
 # Audio procedural de F4.5 (setup:audio) — regenerable, no versionar
 # (los WAV viven en assets/audio/, ya cubierto por la regla `assets/`)

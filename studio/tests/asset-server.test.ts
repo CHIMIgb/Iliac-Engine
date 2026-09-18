@@ -1,117 +1,16 @@
 /**
- * asset-server.test.ts — logica pura del middleware de assets (F4.6.a):
- * saneado de nombres, extensiones admitidas, traversal bloqueado y payloads
- * de subida validados. El middleware en si (fs/HTTP de Vite) no se testea aqui.
+ * asset-server.test.ts — lógica pura del servido estático de assets locales.
+ * C5c: la subida vive en la API (`POST /api/assets`), así que aquí solo queda
+ * el anti-traversal de `resolveAssetPath`. El middleware en sí (fs/HTTP de Vite)
+ * no se testea aquí.
  */
 import { describe, it, expect } from 'vitest';
-import {
-  sanitizeFileName,
-  extFromName,
-  isAudioName,
-  isSpriteName,
-  audioUploadToBuffer,
-  spriteUploadToBuffer,
-  resolveAssetPath,
-  MAX_AUDIO_BYTES,
-  MAX_SPRITE_BYTES,
-} from '../src/io/assetServer';
-
-// Base64 portable (sin @types/node): TextEncoder + btoa, globales de Node 16+/browser.
-const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
-
-describe('assetServer · saneado de nombres', () => {
-  it('sanitizeFileName deja solo [A-Za-z0-9._-] y quita rutas', () => {
-    expect(sanitizeFileName('wind.wav')).toBe('wind.wav');
-    expect(sanitizeFileName('mi sonido.mp3')).toBe('mi_sonido.mp3');
-    expect(sanitizeFileName('a/b/pista.mp4')).toBe('pista.mp4');
-    expect(sanitizeFileName('a\\b\\pista.mp4')).toBe('pista.mp4');
-    expect(sanitizeFileName('../secret.wav')).not.toContain('..');
-    expect(sanitizeFileName('')).toBe('');
-  });
-
-  it('extFromName devuelve la extension en minusculas', () => {
-    expect(extFromName('WIND.WAV')).toBe('wav');
-    expect(extFromName('pista.mp3')).toBe('mp3');
-    expect(extFromName('sin-extension')).toBe('');
-  });
-
-  it('isAudioName admite wav, mp3, mp4, ogg, flac, m4a, aac, webm... y rechaza otros', () => {
-    for (const f of ['a.wav', 'a.mp3', 'a.mp4', 'a.ogg', 'a.oga', 'a.flac', 'a.m4a', 'a.aac', 'a.webm']) {
-      expect(isAudioName(f), f).toBe(true);
-    }
-    for (const f of ['a.txt', 'a.html', 'a.js', 'a']) {
-      expect(isAudioName(f), f).toBe(false);
-    }
-  });
-});
-
-describe('assetServer · upload a buffer', () => {
-  it('decodifica un payload base64 valido', () => {
-    const out = audioUploadToBuffer({ name: 'wind.wav', data: b64('WAVDATA') });
-    expect(out).not.toBeNull();
-    expect(out!.fileName).toBe('wind.wav');
-    expect(String.fromCharCode(...out!.buffer)).toBe('WAVDATA');
-  });
-
-  it('tolera prefijo data:audio/...;base64,', () => {
-    const out = audioUploadToBuffer({ name: 'pista.mp3', data: `data:audio/mpeg;base64,${b64('MP3')}` });
-    expect(out).not.toBeNull();
-    expect(String.fromCharCode(...out!.buffer)).toBe('MP3');
-  });
-
-  it('rechaza payloads sin nombre, sin data, sin extension o no-audio', () => {
-    expect(audioUploadToBuffer({ data: b64('x') })).toBeNull();
-    expect(audioUploadToBuffer({ name: 'wind.wav' })).toBeNull();
-    expect(audioUploadToBuffer({ name: 'a.txt', data: b64('x') })).toBeNull();
-    expect(audioUploadToBuffer({ name: 'a', data: b64('x') })).toBeNull();
-    expect(audioUploadToBuffer({ name: 'a.mp3', data: 'no-base64!!!' })).toBeNull();
-  });
-
-  it('rechaza archivos que exceden el tamano maximo', () => {
-    // Base64 de >50 MB sin decodificar: 'A' (byte 0) repetido; 4/3 >MAX por bytes.
-    const big = 'A'.repeat(Math.ceil((MAX_AUDIO_BYTES / 3) * 4) + 4);
-    expect(audioUploadToBuffer({ name: 'big.wav', data: big })).toBeNull();
-  });
-});
-
-describe('assetServer · sprites del Sprite Tool (F5)', () => {
-  it('isSpriteName admite png y rechaza el resto', () => {
-    expect(isSpriteName('guard_f0.png')).toBe(true);
-    for (const f of ['a.jpg', 'a.webp', 'a.gif', 'a.txt', 'a']) {
-      expect(isSpriteName(f), f).toBe(false);
-    }
-  });
-
-  it('spriteUploadToBuffer decodifica un frame png valido', () => {
-    const out = spriteUploadToBuffer({ name: 'guard_f0.png', data: b64('PNGDATA') });
-    expect(out).not.toBeNull();
-    expect(out!.fileName).toBe('guard_f0.png');
-    expect(String.fromCharCode(...out!.buffer)).toBe('PNGDATA');
-  });
-
-  it('tolera prefijo data:image/png;base64,', () => {
-    const out = spriteUploadToBuffer({ name: 'hero_f1.png', data: `data:image/png;base64,${b64('PNG')}` });
-    expect(out).not.toBeNull();
-    expect(String.fromCharCode(...out!.buffer)).toBe('PNG');
-  });
-
-  it('rechaza payloads sin nombre, sin data, sin extension png o con base64 invalido', () => {
-    expect(spriteUploadToBuffer({ data: b64('x') })).toBeNull();
-    expect(spriteUploadToBuffer({ name: 'guard_f0.png' })).toBeNull();
-    expect(spriteUploadToBuffer({ name: 'a.jpg', data: b64('x') })).toBeNull();
-    expect(spriteUploadToBuffer({ name: 'a', data: b64('x') })).toBeNull();
-    expect(spriteUploadToBuffer({ name: 'a.png', data: 'no-base64!!!' })).toBeNull();
-  });
-
-  it('rechaza frames que exceden el tamano maximo de sprites', () => {
-    const big = 'A'.repeat(Math.ceil((MAX_SPRITE_BYTES / 3) * 4) + 4);
-    expect(spriteUploadToBuffer({ name: 'huge.png', data: big })).toBeNull();
-  });
-});
+import { resolveAssetPath } from '../src/io/assetServer';
 
 describe('assetServer · resolveAssetPath (anti-traversal)', () => {
   it('normaliza rutas internas de assets/', () => {
     expect(resolveAssetPath('/assets/audio/wind.wav')).toBe('audio/wind.wav');
+    expect(resolveAssetPath('/assets/sprites/guard_f0.png')).toBe('sprites/guard_f0.png');
     expect(resolveAssetPath('/assets/audio/x.mp3?t=1#h')).toBe('audio/x.mp3');
   });
 

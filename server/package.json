@@ -1,0 +1,35 @@
+{
+  "name": "iliac-engine-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend de Iliac Engine (API REST Hono + PostgreSQL/Prisma)",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "db:status": "prisma migrate status",
+    "seed:templates": "tsx src/scripts/seed-templates.ts",
+    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.js\""
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "17.4.2",
+    "file-type": "^22.1.0",
+    "hono": "4.13.8",
+    "pg": "8.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.3",
+    "prisma": "7.10.0",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3"
+  }
+}

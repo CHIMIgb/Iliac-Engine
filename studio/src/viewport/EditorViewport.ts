@@ -18,9 +18,9 @@ import { Engine3D } from '@engine/index.js';
 import * as THREE from 'three';
 import { CameraControls, CameraMode } from './CameraControls';
 import { Overlay2D } from './Overlay2D';
+import { renderSignature } from './renderSignature';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { hiddenTerrainVertices } from '../tools/tools';
-import { sampleProject } from '../sample-project';
 import { buildEntityBoxes } from './EntityPreviewMesh';
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -65,8 +65,13 @@ export class EditorViewport {
   /** Callbacks opcionales */
   onCoordsChange?: (x: number, y: number, z: number) => void;
   onModeChange?: (mode: CameraMode) => void;
+  /** Fallo asíncrono al recrear el motor (reload caro). main lo muestra con un toast. */
+  onError?: (message: string) => void;
 
-  constructor() {
+  /**
+   * @param createEngine fábrica del motor (inyectable en tests).
+   */
+  constructor(private createEngine: (project: unknown) => Engine3D = (p) => new Engine3D(p)) {
     // Contenedor
     this.el = document.createElement('div');
     this.el.className = 'editor-viewport';
@@ -85,9 +90,9 @@ export class EditorViewport {
 
   // ── Ciclo de vida ────────────────────────────────────────────
 
-  /** Inicializa el motor con un proyecto. */
-  async init(project = sampleProject): Promise<void> {
-    const engine = new Engine3D(project);
+  /** Inicializa el motor con un proyecto (C5d: sin default — lo da la plantilla de la API). */
+  async init(project: unknown): Promise<void> {
+    const engine = this.createEngine(project);
     await engine.load(this.canvas);
     this.engine = engine;
     this._addEditorGrid();
@@ -100,12 +105,13 @@ export class EditorViewport {
 
   async reload(project: unknown): Promise<void> {
     const next = project as { render?: unknown };
-    // Cambios en el bloque `render` (fov, fondo, niebla…) viven en el
-    // constructor del Renderer3D: si cambian, hay que recrear el motor
-    // completo (no vale el setWorld barato).
+    // Cambios REALES en el bloque `render` (fov, fondo, niebla…) viven en el
+    // constructor del Renderer3D: solo entonces hay que recrear el motor. La
+    // comparación va por firma estable (insensible al orden de claves: JSONB
+    // las reordena y los mismos valores parecían un cambio).
     const prevRender = (this.engine?.project as { render?: unknown } | null)?.render;
     const renderChanged = !!this.engine &&
-      JSON.stringify(next.render ?? null) !== JSON.stringify(prevRender ?? null);
+      renderSignature(next.render) !== renderSignature(prevRender);
     // Camino barato (edición en vivo): si el motor ya está cargado, SOLO se
     // cambia el mundo. Recrear el Engine3D en cada pasada del pincel (renderer
     // + texturas + GPU) era lo que trababa los terrenos > 8 m.
@@ -116,9 +122,21 @@ export class EditorViewport {
       return;
     }
     const mode = this.controls.mode;
-    const engine = new Engine3D(project as unknown);
-    await engine.load(this.canvas);
+    // Un solo WebGLRenderer vivo por canvas: el viejo se libera ANTES de crear
+    // el nuevo. `getContext` devuelve el MISMO contexto, así que dos renderers
+    // de Three.js compartiéndolo corrompen el estado GL y dejan el viewport
+    // congelado — y con él las herramientas, que se dibujan al final del frame
+    // (tras render(), dentro del mismo try/catch).
     this.engine?.dispose();
+    this.engine = null;
+    const engine = this.createEngine(project);
+    try {
+      await engine.load(this.canvas);
+    } catch (err) {
+      console.error('[viewport] no se pudo recrear el motor:', err);
+      this.onError?.(err instanceof Error ? err.message : String(err));
+      return;
+    }
     this.engine = engine;
     this._addEditorGrid();
     this._addEntityBoxes();

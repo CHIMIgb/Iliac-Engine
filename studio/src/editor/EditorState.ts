@@ -57,6 +57,22 @@ export class EditorState {
     this.music = initial?.music ?? null;
   }
 
+  /**
+   * Vuelca los campos de DATOS de otro estado (cargar/crear un documento).
+   *
+   * No vale `Object.assign(this, other)`: copiaría también `handlers`
+   * (propiedad de instancia) y el documento perdería sus suscriptores —
+   * el flag de cambios sin guardar y el reload en vivo del viewport.
+   */
+  applyFrom(other: EditorState): void {
+    this.meta = other.meta;
+    this.camera = other.camera;
+    this.render = other.render;
+    this.world = other.world;
+    this.audio = other.audio;
+    this.music = other.music;
+  }
+
   /** Suscribe un handler de cambios. */
   onChange(handler: EditorChangeHandler): () => void {
     this.handlers.push(handler);

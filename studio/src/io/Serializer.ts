@@ -79,7 +79,10 @@ export function fromProjectJson(json: Record<string, unknown> | ProjectJson): Ed
 
   return new EditorState({
     meta: (json.meta ?? { name: 'Proyecto', schemaVersion: 3 }) as EditorState['meta'],
-    render: (json.render ?? {}) as EditorState['render'],
+    // Sin `render` en el JSON no se pisa el default del constructor: un `{}`
+    // aquí dejaba al motor con los defaults del Renderer3D (fov 75, far 200)
+    // mientras el editor creía tener el render por defecto completo.
+    ...(json.render ? { render: json.render as EditorState['render'] } : {}),
     camera: (json.camera ?? { posX: 0, posY: 0, posZ: 0.6 }) as EditorState['camera'],
     world: {
       vertices: Array.isArray(world.vertices) ? (world.vertices as EditorState['world']['vertices']) : [],

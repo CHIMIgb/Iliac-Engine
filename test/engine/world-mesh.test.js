@@ -90,3 +90,11 @@ test('WorldMesh.clear elimina sprites del mundo sectorial', () => {
   WorldMesh.clear(scene);
   assert.equal(scene.children.filter((c) => c.isSprite).length, 0, 'no quedan sprites');
 });
+
+test('WorldMesh.build con mundo vacío no lanza ni crea mallas (arranque del editor sin sesión)', () => {
+  const scene = new THREE.Scene();
+  const vacio = { world: { vertices: [], sectors: [], walls: [] } };
+
+  assert.doesNotThrow(() => WorldMesh.build(scene, vacio, {}), 'un mundo vacío es válido');
+  assert.equal(scene.children.filter((c) => c.isMesh).length, 0, 'no hay nada que dibujar');
+});

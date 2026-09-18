@@ -16,9 +16,17 @@ import { SpriteToolUI } from './spriteTool/spriteToolUI';
 import { DUNGEONS } from './dungeons/definitions';
 import { assemble, mergeDungeon } from './dungeons/assemble';
 import { findSpot } from './dungeons/placement';
-import { sampleProject } from './sample-project';
 import { fromProjectJson, validateProjectJson } from './io/Serializer';
-import { saveToLocal, loadFromLocal, exportJson, importJson, clearLocal } from './io/FileManager';
+import { exportJson, importJson } from './io/FileManager';
+import { AuthModal } from './ui/AuthModal';
+import { ProjectPicker } from './ui/ProjectPicker';
+import { confirmDialog } from './ui/ConfirmDialog';
+import { getSession, setSession, clearSession, isAuthenticated } from './io/session';
+import { ApiError, apiLogout } from './io/api';
+import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
+import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
+import { openMyProject } from './io/MyProjects';
+import { listAudioUrls, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -26,25 +34,129 @@ if (!app) throw new Error('#app no encontrado');
 const layout = new AppLayout();
 layout.mount(app);
 
-// Limpiar proyecto guardado anterior para arrancar limpio con el proyecto vacío.
-// TODO: quitar esta línea cuando el editor tenga flujo "Nuevo proyecto" vs "Abrir".
-clearLocal();
-
 // ── Estado editable ────────────────────────────────────────────
-let doc: EditorState;
-const saved = loadFromLocal();
-if (saved) {
-  const raw = toRawProject(saved);
-  const errors = validateProjectJson(raw);
-  if (errors.length > 0) {
-    console.warn('Proyecto guardado inválido, se descarta:', errors);
-    clearLocal();
-    doc = fromProjectJson(sampleProject as unknown as Record<string, unknown>);
-  } else {
-    doc = saved;
+// C5d: el documento de partida sale de la API (proyecto del usuario con sesión).
+// Sin sesión el editor arranca vacío, sin peticiones. Si con sesión no se puede
+// cargar (backend caído, sesión caducada), el editor abre igual vacío con un
+// aviso: la UI nunca se queda en blanco.
+const start = await loadStartProject();
+if (start.warning) showToast(start.warning, 'warning');
+const doc: EditorState = start.state;
+
+// ── C5b/C5c: la fuente de verdad es la API (sesión obligatoria) ─
+// Con sesión, el proyecto vive en la API. Guardar (proyecto, exportar,
+// importar, sprites, audio) exige sesión (decisión C5c): sin ella se avisa y
+// se abre el modal de Cuenta; ya no hay guardado local.
+let cloudProjectId: string | null = start.projectId;
+
+// C5e: flag de cambios sin guardar — al abrir otro proyecto se avisa antes de
+// perder el trabajo. Se marca con cada mutación del documento y se resetea al
+// aplicar un documento cargado (applyDoc) o al guardar con éxito (saveCurrent).
+let dirty = false;
+doc.onChange(() => {
+  dirty = true;
+});
+
+/** Errores de API: 401 → sesión expirada (logout); resto → toast. */
+function handleApiFailure(e: unknown, accion: string): void {
+  if (e instanceof ApiError && e.code === 'UNAUTHORIZED') {
+    clearSession();
+    updateAccountButton();
+    showToast('Sesión expirada — inicia sesión de nuevo', 'warning');
+    return;
   }
-} else {
-  doc = fromProjectJson(sampleProject as unknown as Record<string, unknown>);
+  showToast(
+    e instanceof Error ? `No se pudo ${accion}: ${e.message}` : `No se pudo ${accion}`,
+    'error',
+  );
+}
+
+/** Vuelca un documento en el editor (estado + viewport + nombre en la toolbar). */
+function applyDoc(state: EditorState): void {
+  doc.applyFrom(state);
+  viewport.reload(toRawProject(doc));
+  nameLabel.textContent = doc.meta.name;
+  dirty = false;
+}
+
+/**
+ * Al iniciar sesión, la nube toma el relevo (C5b): carga el último proyecto de
+ * la cuenta; si está vacía, sube lo que el usuario haya dibujado sin sesión o,
+ * si el editor sigue vacío, crea el primer proyecto desde su plantilla (C5d).
+ * El arranque con sesión ya lo resuelve `loadStartProject`; esto es el cambio en caliente.
+ */
+async function initCloudProject(): Promise<void> {
+  try {
+    const recent = await loadCloudMostRecent();
+    if (recent) {
+      await openProject(recent.projectId);
+      return;
+    }
+    if (isEmptyDoc(doc)) {
+      const tpl = await createFromTemplate();
+      applyDoc(tpl.state);
+      cloudProjectId = tpl.projectId;
+      showToast(`Proyecto «${doc.meta.name}» creado en la nube`, 'success');
+      return;
+    }
+    cloudProjectId = await createCloudProject(doc);
+    dirty = false;
+    showToast('Proyecto creado en la nube', 'success');
+  } catch (e) {
+    handleApiFailure(e, 'cargar el proyecto');
+  }
+}
+
+/**
+ * Abre en el editor el proyecto indicado (C5e). Reutilizable por el arranque
+ * (initCloudProject) y por el selector «Mis proyectos». Si hay cambios sin
+ * guardar, pide confirmación antes de descartarlos (decisión C5e: avisar).
+ */
+async function openProject(id: string): Promise<void> {
+  if (!requireSession('abrir otro proyecto')) return;
+  if (dirty) {
+    const ok = await confirmDialog(
+      'El proyecto actual tiene cambios sin guardar. ¿Abrir otro proyecto de todos modos?',
+      'Abrir',
+    );
+    if (!ok) return;
+  }
+  try {
+    const { state, projectId } = await openMyProject(id);
+    applyDoc(state);
+    cloudProjectId = projectId;
+    showToast(`Proyecto «${state.meta.name}» cargado`, 'success');
+  } catch (e) {
+    handleApiFailure(e, 'abrir el proyecto');
+  }
+}
+
+/** Crea un proyecto nuevo desde la plantilla y lo abre (botón «Nuevo proyecto»). */
+async function createNewProject(): Promise<void> {
+  try {
+    const tpl = await createFromTemplate();
+    applyDoc(tpl.state);
+    cloudProjectId = tpl.projectId;
+    showToast(`Proyecto «${tpl.state.meta.name}» creado en la nube`, 'success');
+  } catch (e) {
+    handleApiFailure(e, 'crear el proyecto');
+  }
+}
+
+/**
+ * Guarda el proyecto en la API. La sesión es obligatoria (C5c): sin ella se
+ * avisa y se abre el modal de Cuenta, y el guardado se aborta.
+ */
+async function saveCurrent(): Promise<void> {
+  if (!requireSession('guardar el proyecto')) return;
+  try {
+    if (!cloudProjectId) cloudProjectId = await createCloudProject(doc);
+    else await saveCloudProject(doc, cloudProjectId);
+    dirty = false;
+    showToast('Proyecto guardado en la nube', 'success');
+  } catch (e) {
+    handleApiFailure(e, 'guardar');
+  }
 }
 
 // ── Herramientas (ToolManager) ─────────────────────────────────
@@ -65,6 +177,12 @@ const toolManager = new ToolManager(doc, {
   onSelectionChange: showSelection,
   onToolChange: (tool) => layout.statusBar.setItem('tool', `Herramienta: ${tool}`),
   onStatus: (text) => layout.statusBar.setItem('terrain', text),
+  // C5c: el popover de Audio sube/lista sus audios por la API (guardar exige sesión).
+  audioAssets: {
+    requireSession: (accion) => requireSession(accion),
+    upload: (files) => uploadAudioFiles(files, cloudProjectId),
+    listUrls: () => (isAuthenticated() ? listAudioUrls() : Promise.resolve(null)),
+  },
 });
 
 // ── Viewport 3D ────────────────────────────────────────────────
@@ -149,34 +267,36 @@ toolGroup.appendChild(audioBtn);
 // ── Toolbar: sprites (F5 — Sprite Tool: slicer + animator) ─────
 const spriteTool = new SpriteToolUI();
 
-// Wiring del guardado (F5 Fase B): sube cada frame al middleware del dev
-// server y fusiona texturas + animaciones en el documento editable.
+// Wiring del guardado (F5 Fase B + C5c): sube cada frame a la API de assets
+// (sesión obligatoria) y fusiona texturas + animaciones en el documento; las
+// texturas apuntan a `/api/assets/<id>/file` (público, el motor las carga sin
+// sesión).
 spriteTool.onSaveRequested = async (out, frameDataUrls) => {
+  if (!requireSession('guardar los sprites')) return;
   try {
-    let uploaded = 0;
-    for (const [key, url] of Object.entries(out.textures)) {
-      const dataUrl = frameDataUrls[key];
-      if (!dataUrl) continue;
-      const res = await fetch('/assets/sprites/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `${key}.png`, data: dataUrl }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body?.success) {
-        throw new Error(body?.error ?? `Fallo al subir ${key}`);
-      }
-      uploaded++;
+    const results = await uploadSpriteFrames(frameDataUrls, cloudProjectId);
+    const uploaded = Object.values(results).filter((r) => r.url);
+    const failed = Object.values(results).filter((r) => !r.url);
+    if (uploaded.length === 0) {
+      showToast('No se pudo subir ningún frame a la API', 'error');
+      return;
     }
-    doc.setWorldTextures(out.textures);
+    const urls: Record<string, string> = {};
+    for (const r of uploaded) urls[r.key] = r.url!;
+    doc.setWorldTextures(urls);
     doc.setSpriteAnims(out.spriteAnims);
+    const reused = uploaded.filter((r) => r.reused).length;
     showToast(
-      `Guardado: ${uploaded} frames + ${Object.keys(out.spriteAnims).length} animaciones`,
+      `Guardado: ${uploaded.length} frames${reused ? ` (${reused} ya existían)` : ''} + ` +
+        `${Object.keys(out.spriteAnims).length} animaciones`,
       'success',
     );
+    if (failed.length > 0) {
+      showToast(`No se subieron ${failed.length} frames: ${failed[0]!.error}`, 'warning');
+    }
   } catch (err) {
     console.error('Error guardando sprites:', err);
-    showToast(err instanceof Error ? err.message : 'Error al guardar sprites', 'error');
+    handleApiFailure(err, 'guardar los sprites');
   }
 };
 
@@ -248,30 +368,119 @@ layout.toolbar.addSeparator();
 // ── Toolbar: archivo ───────────────────────────────────────────
 const fileGroup = layout.toolbar.addGroup();
 
+// C5e: selector «Mis proyectos» (abrir/nuevo/borrar los del usuario con sesión).
+const projectPicker = new ProjectPicker();
+
+/** Abre el selector de proyectos; sin sesión pide iniciar sesión (criterio C5e). */
+function openPicker(): void {
+  if (!requireSession('ver tus proyectos')) return;
+  void projectPicker.open({
+    onOpen: (id) => void openProject(id),
+    onNew: () => void createNewProject(),
+  });
+}
+
+fileGroup.appendChild(layout.toolbar.addAction({
+  icon: 'folder-open', label: 'Mis proyectos', shortcut: 'Ctrl+Shift+O',
+  onClick: () => openPicker(),
+}));
+
 fileGroup.appendChild(layout.toolbar.addAction({
   icon: 'save', label: 'Guardar', shortcut: 'Ctrl+S',
-  onClick: () => { saveToLocal(doc); showToast('Proyecto guardado', 'success'); },
+  onClick: () => void saveCurrent(),
 }));
 
 fileGroup.appendChild(layout.toolbar.addAction({
   icon: 'download', label: 'Exportar JSON', shortcut: 'Ctrl+Shift+S',
-  onClick: () => { exportJson(doc); showToast('Proyecto exportado', 'success'); },
+  onClick: () => void exportCurrent(),
 }));
+
+/** Exporta el proyecto a un `.json` (requiere sesión, como todo guardado). */
+async function exportCurrent(): Promise<void> {
+  if (!requireSession('exportar el proyecto')) return;
+  exportJson(doc);
+  showToast('Proyecto exportado', 'success');
+}
+
+/** Importa un project.json y lo persiste en la nube (requiere sesión). */
+async function importCurrent(): Promise<void> {
+  if (!requireSession('importar un proyecto')) return;
+  const result = await importJson();
+  if (!result.ok) {
+    showToast(result.error, 'error');
+    return;
+  }
+  applyDoc(result.state);
+  await saveCurrent();
+}
 
 fileGroup.appendChild(layout.toolbar.addAction({
   icon: 'upload', label: 'Importar', shortcut: 'Ctrl+O',
-  onClick: async () => {
-    const result = await importJson();
-    if (result.ok) {
-      Object.assign(doc, result.state);
-      viewport.reload(toRawProject(doc));
-      saveToLocal(doc);
-      showToast('Proyecto importado', 'success');
-    } else {
-      showToast(result.error, 'error');
-    }
-  },
+  onClick: () => void importCurrent(),
 }));
+
+// ── Toolbar: cuenta (C5a) ──────────────────────────────────────
+// Sin sesión → abre el modal Login/Registro; con sesión → la cierra.
+const authModal = new AuthModal();
+
+/** Abre el modal de Cuenta; al entrar, la nube toma el relevo del proyecto. */
+function openAuthModal(): void {
+  authModal.open((session) => {
+    setSession(session);
+    cloudProjectId = null;
+    updateAccountButton();
+    showToast(`Sesión iniciada: ${session.user.login}`, 'success');
+    void initCloudProject();
+  });
+}
+
+/**
+ * Guardar algo en el Studio exige sesión (decisión C5c): sin sesión se avisa y
+ * se abre el modal de Cuenta; quien llama aborta la acción y el usuario
+ * reintenta ya logueado. true si hay sesión.
+ */
+function requireSession(accion: string): boolean {
+  if (isAuthenticated()) return true;
+  showToast(`Inicia sesión para ${accion}`, 'warning');
+  openAuthModal();
+  return false;
+}
+
+const accountBtn = layout.toolbar.addAction({
+  icon: 'user', label: 'Cuenta',
+  onClick: async () => {
+    if (isAuthenticated()) {
+      // C5g: cerrar sesión en el servidor (revoca el refresh de ESTA sesión y
+      // denylista su access). Si la red falla, se cierra en local igual: el
+      // usuario no puede quedarse atrapado con la sesión abierta.
+      const refresh = getSession()?.refreshToken;
+      if (refresh) {
+        try {
+          await apiLogout(refresh);
+        } catch {
+          // Sin conexión o sesión ya revocada: la cookie se borra igualmente.
+        }
+      }
+      clearSession();
+      cloudProjectId = null;
+      updateAccountButton();
+      showToast('Sesión cerrada — inicia sesión para guardar', 'info');
+      return;
+    }
+    openAuthModal();
+  },
+});
+fileGroup.appendChild(accountBtn);
+
+/** Refleja el estado de la sesión en el botón de cuenta. */
+function updateAccountButton(): void {
+  const session = getSession();
+  accountBtn.replaceChildren(Icon(session ? 'user-check' : 'user', 16));
+  accountBtn.title = session
+    ? `${session.user.login} — cerrar sesión`
+    : 'Cuenta — iniciar sesión';
+}
+updateAccountButton();
 
 layout.toolbar.addSeparator();
 
@@ -287,7 +496,7 @@ editGroup.appendChild(layout.toolbar.addAction({
 }));
 
 layout.toolbar.addSpacer();
-layout.toolbar.addLabel(doc.meta.name);
+const nameLabel = layout.toolbar.addLabel(doc.meta.name);
 layout.toolbar.addSpacer();
 
 // ── Toolbar: panel / playtest ──────────────────────────────────
@@ -319,6 +528,8 @@ layout.statusBar.setItem('sel', 'Selección: —');
 viewport.onCoordsChange = (x, y, z) => {
   layout.statusBar.setItem('coords', `X: ${x.toFixed(1)}  Y: ${y.toFixed(1)}  Z: ${z.toFixed(1)}`);
 };
+// Fallo al recrear el motor (cambio real de `render`): avisar sin dejar la UI muda.
+viewport.onError = (msg) => showToast(`No se pudo recargar el motor: ${msg}`, 'error');
 viewport.onModeChange = (mode) => {
   layout.statusBar.setItem('mode', `Modo: ${mode === 'game' ? 'Juego' : 'Editor'}`);
   // El botón de Playtest se convierte en Stop mientras el juego corre.
@@ -375,30 +586,25 @@ document.addEventListener('keydown', (e) => {
   // Ctrl+Shift+S → exportar
   if ((e.ctrlKey || e.metaKey) && key === 'S' && e.shiftKey) {
     e.preventDefault();
-    exportJson(doc);
-    showToast('Proyecto exportado', 'success');
+    void exportCurrent();
     return;
   }
   // Ctrl+S → guardar
   if ((e.ctrlKey || e.metaKey) && key === 'S') {
     e.preventDefault();
-    saveToLocal(doc);
-    showToast('Proyecto guardado', 'success');
+    void saveCurrent();
+    return;
+  }
+  // Ctrl+Shift+O → Mis proyectos (C5e: elegir otro proyecto de la cuenta)
+  if ((e.ctrlKey || e.metaKey) && key === 'O' && e.shiftKey) {
+    e.preventDefault();
+    openPicker();
     return;
   }
   // Ctrl+O → importar
-  if ((e.ctrlKey || e.metaKey) && key === 'O') {
+  if ((e.ctrlKey || e.metaKey) && key === 'O' && !e.shiftKey) {
     e.preventDefault();
-    importJson().then((result) => {
-      if (result.ok) {
-        Object.assign(doc, result.state);
-        viewport.reload(toRawProject(doc));
-        saveToLocal(doc);
-        showToast('Proyecto importado', 'success');
-      } else {
-        showToast(result.error, 'error');
-      }
-    });
+    void importCurrent();
     return;
   }
 

@@ -1,0 +1,325 @@
+# Arquitectura de RayCast Studio / Iliac Engine
+
+> Documento maestro de arquitectura. Describe **todas las capas del producto** y cómo se comunican, hasta nivel de archivo. Complementa (no reemplaza) al resto de la documentación:
+> - `docs/ENGINE_COMPONENTS.md` — API interna del motor (`engine/`), archivo por archivo.
+> - `docs/API_ENDPOINTS.md` — endpoints HTTP del backend, con ejemplos de petición/respuesta.
+> - `DESIGN.md` — design system del Studio (paleta, componentes, atajos).
+> - `DATABASE.md` — esquema Prisma/PostgreSQL y plan de fases del backend.
+> - `ROADMAP.md` — plan maestro del producto (§12 estado, §13 capas, §15 ruta crítica).
+
+---
+
+## 1. Visión general
+
+RayCast Studio es un **creador web de RPG 3D retro** (estilo Doom → Daggerfall) con tres capas que solo se comunican por **datos**, nunca por código:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STUDIO (studio/) — TypeScript + Vite                                   │
+│  Herramientas de creación: edita el documento, genera contenidos        │
+│  (terreno, mazmorras, sprites, audio), playtest con el motor real.      │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ escribe / lee
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  CONTRATO — contract/project.json (schema v3)                           │
+│  El ÚNICO puente entre capas. Herramientas escriben datos; el motor     │
+│  los lee y renderiza. La validación vive UNA vez (contract/).           │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ lee en playtest (F5, en memoria)
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  MOTOR (engine/) — JavaScript vanilla puro, sin build, sin UI           │
+│  Render 3D (Three.js), física cinemática, sectores, audio Web Audio,    │
+│  sprites animados, cielo clásico/realista. API pública: Engine3D.       │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ persiste (guardar proyecto, subir assets)
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  BACKEND (server/) — Node + Hono + Prisma 7 + PostgreSQL                │
+│  API REST: auth JWT, CRUD de proyectos (JSONB v3), blobs de assets,     │
+│  (futuro) galería pública y plantillas. Fuente única de verdad.         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Regla de oro:** escribe los datos de una manera que el motor los pueda leer; nunca dupliques lógica de motor en las herramientas, ni de las herramientas en el backend. La validación de `project.json` es el ejemplo canónico: vive **una vez** en `contract/` y la reutilizan Studio (`validateProjectJson`) y Backend (`validateProjectData`).
+
+---
+
+## 2. Capas y comunicación
+
+| Capa | Dirección | Estado (sept 2026) |
+|---|---|---|
+| `engine/` | Motor de juego JS vanilla puro (sin TS, sin build). Expone `Engine3D`. | F1–F4.7 realizadas/validadas |
+| `contract/` | `project-schema.js` + `.d.ts` (validador + tipos del schema) + **`api-response.d.ts`** (envelope de respuesta API: única fuente de verdad, la importan el backend y —en C5— el Studio). | usado por motor, Studio y server |
+| `studio/` | Editor TS + Vite. Consume el motor vía alias `@engine/*` (types en `engine.d.ts`). | F3 + F4 + F4.5/F4.6/F4.7 realizadas |
+| `server/` | API Node + Hono + Prisma. Persiste proyectos y assets. | A1–A3, B1–B2, C1–C4 realizadas |
+
+Los consumidores del motor importan **solo** `engine/index.js` (`export { Engine3D }`). Los módulos internos (`core/*`, `three/*`) son privados del motor; los tests los importan directamente, los consumidores no.
+
+### Flujo de datos end-to-end (editar → jugar → guardar)
+
+1. **Editar:** el usuario dibuja en el viewport del Studio (herramientas 1–7). `ToolManager` muta `EditorState` (el documento en memoria = `project.json` v3 editable).
+2. **Recarga en vivo:** `EditorState.onChange` → throttle (`reloadMs()`: 120 ms, 250 ms si > 40.000 sectores) → `validateProjectJson` (contrato) → `viewport.reload(raw)` → `Engine3D.setWorld(project)` **sin recrear el renderer** (camino barato si solo cambió el mundo) o motor nuevo si cambió de valor el bloque `render` (la comparación usa `renderSignature()`, firma estable insensible al orden de claves que impone JSONB). En el camino caro el motor viejo se **libera antes** de crear el nuevo: dos `WebGLRenderer` vivos sobre el mismo canvas comparten contexto y dejan el viewport (y sus herramientas) congelado.
+3. **Playtest (F5):** `EditorViewport.setMode('game')` → pointer lock, `engine.resumeAudio()` (gesto del usuario desbloquea el AudioContext), `engine.setCompass(true, viewport)` (brújula HUD). WASD + ratón → `engine.update(input, dt)`. F5 otra vez / Tab → vuelve al modo orbit (editor), `stopAudio()`.
+4. **Guardar (C5b + C5c):** **la API es la fuente de verdad y la sesión es obligatoria**: `PATCH /api/projects/:id` con `{nombre, data}` (data = árbol v3 completo; el server lo reemplaza entero y lo revalida contra el contrato). Sin sesión **no hay guardado** (decisión C5c): Guardar/Exportar/Importar/sprites/audio avisan con toast y abren el modal de Cuenta (`requireSession` en `main.ts`); `exportJson()` (descarga `.json`) también exige sesión. 401 → **C5f: se renueva la sesión automáticamente y se reintenta** (deduplicado); solo si la renovación falla → sesión expirada (logout + toast). **C5a** ya había conectado auth (registro/login/sesión vía `api.ts` + proxy dev).
+5. **Arranque (C5d):** el documento de partida ya no está en el código — `main.ts` espera a `loadStartProject()` (top-level await; `build.target: 'esnext'` en `vite.config.ts`). **Con sesión** abre el último proyecto propio (`GET /api/projects` → `GET /api/projects/:id`) o, si la cuenta está vacía, crea uno desde su plantilla (`POST /api/projects { plantillaId: 'tpl-studio' }`). **Sin sesión no hay nada cargado**: documento vacío (mismo esqueleto que `DEFAULT_PROJECT_DATA` del server) y **cero peticiones** — el editor se explora en vacío y al iniciar sesión la nube toma el relevo (`initCloudProject`: último proyecto, o subir lo dibujado, o primer proyecto desde la plantilla). Si con sesión el backend falla o la sesión caducó, **el editor abre igual vacío con un toast de aviso** (401 → se limpia la sesión): la UI nunca se queda en blanco. La plantilla se autoría con `npx vite-node scripts/export-template.ts` → `server/db/seeds/tpl-studio.json` + `npm run seed:templates` (server).
+6. **Assets (C5c):** el Sprite Tool sube frames y el popover de Audio sube audios vía **`POST /api/assets`** (multipart, sesión obligatoria, dedupe por hash en el server) y el documento guarda la URL servida **`/api/assets/<id>/file` — pública (D1)**, porque el motor carga texturas/audio con `TextureLoader`/`fetch` y no conoce sesiones. El middleware de Vite ya no sube nada: solo sirve estáticamente `assets/` local (proyectos antiguos).
+
+---
+
+## 3. El contrato: `project.json` (schema v3)
+
+Vive en `contract/` como **JS vanilla puro** (`project-schema.js`, 216 líneas) + **tipos TypeScript** (`project-schema.d.ts`) para que Studio y Backend lo consuman sin duplicar lógica.
+
+**Estructura:**
+
+```
+{
+  meta:    { name, schemaVersion: 3, renderMode: '3d', ... }
+  camera:  { posX, posY, posZ, yaw, pitch }          // definido por el EditorState
+  render:  { fov, near, far, backgroundColor, ambientLight, directionalLight, fog }
+  world: {
+    vertices:  [{ id, x, y, z? }]
+    sectors:   [{ id, vertexIds[], floorH, ceilH, floorTex, ceilTex, wallTex, floorSlope? }]
+    walls:     [{ id, a, b, sectorFront, sectorBack|null, tex?, solid?, portal? }]
+    ramps?:    [{ id, sector, fromH, toH, axis }]
+    sprites?:  [{ id, tex, x, y, z?, scale?, type?, entityType?, collisionType?, collisionBox?, anim? }]
+    textures?: { [key]: ruta | color hex }
+    spriteAnims?: { [id]: { frames: string[], fps?, loop? } }
+    sky?:      { set, frame?, style: 'classic' } | { style: 'realista', hour, dayLengthSec, ... }
+  }
+  audio?:  [{ id, src, bus: music|sfx|ambience|voice, loop?, volume?, spatial?, variations?, layers? }]
+  music?:  { id, intensity: 0|1|2, bpm? }
+}
+```
+
+**`validateProject(project)`** devuelve `{ valid, errors, warnings }` y comprueba: estructura esencial del mundo (vértices/sectores/paredes con referencias existentes), sky clásico (set 0–30, frame 0–31) o realista (hora, valores de sol/luna/aurora), audio (buses válidos, id únicos, `music.id` referenciando un audio existente), entre otros. Se usa en: motor (`Engine3D` constructor lanza si `valid === false`), Studio (`Serializer.validateProjectJson`), Backend (`schemas/project.ts → validateProjectData` al POST/PATCH de proyectos).
+
+---
+
+## 4. Capa MOTOR (`engine/`)
+
+JS vanilla puro: **sin TypeScript, sin build, sin framework, sin dependencia de ninguna UI**. Solo ESModules. Two-subcapas estrictas:
+
+- `core/` = lógica de juego **pura** — sin Three.js ni DOM; testeable en Node aislado.
+- `three/` = todo lo que toca **Three.js/WebGL** — render, mallas, materiales, HUD.
+- `Engine3D.js` = **orquestación solamente** (ciclo de vida, delegación). No implementa física ni render. `index.js` re-exporta `Engine3D` (única puerta pública).
+
+### 4.1 Orquestador — `Engine3D`
+
+```js
+constructor(project)   // valida el contrato, construye el índice sectorial cacheado
+async load(canvas)     // texturas → Renderer3D → WorldMesh → cielo → sol → audio
+setWorld(project)      // recarga en caliente; si solo cambió el mundo no recrea renderer
+update(input, dt)      // física (sub-steps, cap dt 50ms), sprites animados, audio espacial, sol
+render()               // sincroniza cámara y dibuja
+resize(w, h) / dispose()
+setCompass(on, container?)  // brújula HUD (heading tape) — usa en playtest
+resumeAudio() / stopAudio() // AudioContext gated por gesto del usuario (autoplay)
+```
+
+Campos de orquestación: `player`, `renderer`, `audio` (AudioEngine, null sin `audio[]`), `music` (AdaptiveMusic, null sin `music.layers`), `compass` (CompassOverlay), `spriteAnimator`, `sectorIndex` (vertexMap + wallsBySector + BVH cacheado).
+
+### 4.2 `core/` — lógica pura
+
+| Archivo | Responsabilidad | Funciones clave |
+|---|---|---|
+| `math.js` | Utilidades matemáticas | `PI2`, `rotate(vx, vy, ang)` |
+| `player.js` | Entidad jugador | `posX/Y/Z`, `yaw/pitch`, `eyeHeight 0.5`, `height 1.8`, `stepHeight 0.6`, `gravity 9.0`, `rotateYaw/Pitch`, getters `forward/right` |
+| `physics.js` | Física cinemática v3 | `moveWithSectorCollision(player, world, dirX, dirY, speed, dt, radius, sectorIndex)` (sub-steps ≤10, vector único, círculo-segmento vs paredes sólidas), `updateVerticalSector(...)` (altura de piso/techo, escaleras, gravedad acelerada por `velocityZ`, colisión de techo, trackea `currentSector`) |
+| `sector.js` | Geometría sectorial | `buildSectorIndex` (vertexMap/wallsBySector/BVH), `pointInPolygon`, `getSectorAt`, `getSectorAtOrNearest` (solo adyacentes al último sector), `getFloorHeightAt/getCeilHeightAt` (interp. baricéntrica, alturas por vértice o slope), `getSolidWalls`, `closestPointOnSegment/distancePointToSegment` |
+| `stairs.js` | Escaleras de peldaños | `getStairHeightAt(x,y)` (altura del peldaño), `getStairSegments` (deprecado para colisión horizontal) |
+| `anims.js` | Animación de sprites por frames | `animFrameIndex(anim, elapsed)` (fps/loop, puro), `DEFAULT_FPS 1`, `MIN_FPS 0.0001` |
+| `noise.js` | Ruido procedural | `createNoise(seed)` (Simplex 2D reproducible), `fbm2(noise, x, y, opts)` (octaves/lacunarity/gain) |
+| `terrain.js` | Generador de terreno | `generateTerrain(opts)` → `{vertices, sectors, walls}` v3 (celdas convexas con `floorH` array, textura por pendiente, portales internos), `sectorSlopeAngle` |
+| `validate.js` | Validador del contrato | `validateProject(project)` → `{valid, errors, warnings}` — el motor lo llama en el constructor |
+| `triangulate.js` | Triangulación ear-clipping | `triangulate(points)` — usada por SectorGeometry para suelos/techos cóncavos |
+| `sky.js` | Lógica del cielo clásico Daggerfall | `SKY_SETS 31`, `SKY_FRAMES 32`, `skyFrameLabel(frame)` ("HH:MM"), `skySetForHour`, `skyHourForSet` |
+| `daylight.js` | Lógica pura día/noche realista | `sunDirection(hour, tilt)`, `moonDirection` (anti-solar), `sunElevation`, `paletteFor` (paleta de iluminación), `advanceHour`, `hourLabel` |
+| `audio.js` | Audio engine (Web Audio API) | `AudioEngine` (buses music/sfx/ambience/voice, `linearToDb`/`dbToLinear`, SFX one-shot con variación, loops simultáneos, ducking de música bajo voz, `playSfx/setBusVolume/duckMusic/setListener/resume/halt/dispose`; **opcional y a prueba de fallos**: si el navegador quirkéa, se auto-silencia sin romper el frame). Ejes mundo → Web Audio: X=x, Y=z, Z=y |
+| `music.js` | Música adaptativa por layering | `AdaptiveMusic(engine, def)` — N stems del mismo arranque sincronizados, la intensidad 0..N-1 solo mueve ganancias (fades sin desincronizar), `setIntensity`; helpers `secondsPerBeat`, `timeUntilNextBeat`, `levelFromIntensity` |
+
+### 4.3 `three/` — render (Three.js)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `Renderer3D.js` | Escena + cámara perspectiva + `WebGLRenderer` + luces fijas + manejo de `webglcontextlost/restored` (recrea el renderer); `syncCamera(player)` (X,Y plano → X,Y,Z con Y arriba); `setDefaultLights(false)` cuando el sol realista sustituye luces fijas; `project.render` configurable (fov/near/far/backgroundColor/luces) |
+| `WorldMesh.js` | Construye el mundo v3 desde `world`: suelos/techos/paredes por sector, **merge por textura/material** (reducir draw calls), escaleras y sprites, `clear(scene)` con dispose limpio |
+| `SectorGeometry.js` | Geometrías de suelo/techo (ear-clipping vía triangulate.js) y paredes (quad vertical con slopes) |
+| `GeometryMerge.js` | `mergeGeometries(geometries)` — BufferGeometries indexadas en una sola |
+| `StairsMesh.js` | Cajas por peldaño (`BoxGeometry`) para rampas tipo `stairs` |
+| `SpriteSystem.js` | Sprites billboard (`THREE.Sprite`), animación por frames (aplica `animFrameIndex` al `map` del material) |
+| `textures.js` | `loadTextures` (Promise.all, NearestFilter+SRGB una vez), `colorTexture(hex)` (cache por hex, 64×64), `makeMaterial` (MeshStandardMaterial, filtro pixelado) |
+| `SkySystem.js` | Cielo **clásico** Daggerfall: telón plano 2D (billboard del horizonte, sets SKY00–30 × 32 franjas), Y-shear real, dibujado primero sin depth |
+| `SunSystem.js` | Cielo **realista** (F4.7): shader atmosférico de Three (dispersión Rayleigh), sol+luna con luz direccional + sombras PCF 2048, estrellas (Points), **aurora boreal** (domo GLSL procedural aditivo), avance del reloj `dayLengthSec` (en editor queda fija, en playtest avanza); API simétrica: `addTo/update(camera, hour, dt)/dispose` |
+| `fog.js` | Niebla atmosférica | `createFog({color?, density?}, bgColor)` → `THREE.FogExp2` o `null` |
+| `CompassOverlay.js` | Brújula HUD (heading tape): DOM+CSS (sin canvas), `headingDeg(yaw)` (yaw → rumbo náutico), cinta con marcas cada 5°, se activa con `engine.setCompass(true, container)` |
+
+### 4.4 Ciclo de vida y bucle
+
+```
+load(canvas) → TextureLoader → Renderer3D → WorldMesh → cielo (SkySystem|SunSystem) → audio (si hay)
+update(input, dt):
+  dt' = min(dt, 50 ms)                  // cap anti-inestabilidad
+  moveWithSectorCollision(...)          // horizontal, sub-steps
+  updateVerticalSector(...)             // vertical: piso/techo/escaleras/gravedad
+  spriteAnimator.advance(dt')           // frames de animaciones
+  audio.update(...)                     // oído espacial, emisores que siguen sprites; a prueba de fallos
+  sun.update(camera, dt)                // reloj día/noche (interiores atenúan el sol: data-driven por ceilTex != 'sky')
+render(): syncCamera(player) → renderer.render()
+```
+
+---
+
+## 5. Capa STUDIO (`studio/`)
+
+TypeScript + Vite + Vitest. Editor documental: el **`EditorState` es la fuente de verdad en memoria**; `main.ts` conecta las piezas; todo viaja como `project.json` v3.
+
+### 5.1 Estructura
+
+```
+studio/src/
+├── main.ts               # Bootstrap: layout, toolbar, atajos, wiring, persistencia, reload en vivo
+├── style.css             # Design System (tokens Catppuccin Mocha en CSS)
+├── sample-project.ts     # Autoría (C5d): genera la plantilla `tpl-studio` (montaña + río, 2.500 sectores). NO entra al runtime ni al bundle
+├── engine.d.ts           # Tipos del motor (`@engine/*`) para el editor + playtest
+├── editor/               # editor/types.ts (Editable*) + editor/EditorState.ts (documento + mutadores + onChange + applyFrom)
+├── tools/                # tools/ToolManager.ts (1493 líneas: 7 herramientas + pickers + entorno F4.7)
+│                         # tools/tools.ts (operaciones geométricas puras) + tools/picking.ts (hit-test 2D)
+├── viewport/             # EditorViewport.ts (Engine3D + grid + overlays + playtest F5)
+│                         # CameraControls.ts (orbit/game) + Overlay2D.ts (gizmos) + EntityPreviewMesh.ts (cajas)
+│                         # renderSignature.ts (firma estable del bloque `render`: decide reload barato/caro)
+├── spriteTool/           # Pipeline F4.6: detectSprites (componentes conexas), gridSlice, frames, animator, spriteToolUI
+├── dungeons/             # Generador de mazmorras por bloques 16×16: definitions, blocks, placement, assemble
+├── io/                   # FileManager (export/import JSON, C5c sin localStorage), Serializer (↔ project.json v3), StartProject (C5d: documento de partida desde la API), CloudProject (C5b: guardar/cargar por API), assetApi (C5c: sprites/audio por API), api (cliente HTTP C5a–C5g, con auto-renovación de sesión y logout real), session (tokens)
+├── ui/                   # Panel, Icon (lucide SVG), Toast, DungeonBrowser (preview automap), AuthModal (login/registro C5a)
+└── entities/             # entityCatalog.ts — NPCs + bestiario Daggerfall (~60 enemigos en 6 categorías)
+```
+
+### 5.2 Herramientas del editor (teclas 1–7) y acciones
+
+| Tecla | Herramienta | Qué hace |
+|---|---|---|
+| 1 | Select | Seleccionar vértices/paredes/sprites; Delete/Backspace borra |
+| 2 | Vertex | Crear/mover vértices (snap a grid, `createVertexAt`, `moveVertexTo`) |
+| 3 | Move | Trasladar selección (traduce vértices/paredes/sectores/sprites; el terreno se mueve entero por prefijo) |
+| 4 | Wall | Dibujar paredes con portales automáticos (`tryCreateWall`, `closeSector`) |
+| 5 | Height | Rueda ±0.25 m techo/piso (`changeSectorHeight`); esculpido continuo con `ToolManager.update` |
+| 6 | Entity | `openEntityPicker` — catálogo de entidades, coloca con textura/caja del catálogo |
+| 7 | Terrain | `openTerrainSizePicker` — genera terreno por celda 0.5 m (`placeTerrainAt`, `sculptTerrainAt`, `applyTerrainRelief` FBM) |
+| 8 | Cielo | Popover clásico (set/frame) / realista (hora, día, sombras, sol/luna/aurora) |
+| 9 | Audio | `openAudioPicker` — añade definiciones `audio[]`/`music` |
+| — | Sprites | Modal Sprite Tool (slicer + animator + biblioteca) |
+| — | Mazmorras | DungeonBrowser → ensambla bloques y los vierte al documento |
+| — | F5 / Playtest | `viewport.setMode('game')` — pointer lock, motor real, brújula |
+
+**Reload en vivo:** `doc.onChange` → throttle → validar → `viewport.reload(raw)`. Si solo cambió el `world` → `engine.setWorld` (no recrea renderer); si cambió de valor el bloque `render`/cielo → **un solo motor vivo**: `dispose()` del viejo → `new Engine3D` → `load()` (con `renderSignature()` para decidir, y `viewport.onError` → toast si el nuevo no carga). El documento se vuelca con `EditorState.applyFrom(state)`, que **conserva los suscriptores** (`onChange`) del documento vivo.
+
+### 5.3 Sprite Tool (F4.6) — pipeline completo
+
+Cargar hoja/frames → **detectar** (`detectSprites`: componentes conexas 4-vecindad; o grilla `gridSlice`) → **cortar/recortar** (trim, regiones) → **animar** (`animator.ts`: plantilla idle/walk/attack/death, fps 1–60, espejo, ≥2 frames) → **guardar** (`buildSpriteAnims` → `{textures, spriteAnims}` validado contra `validateProject` del motor real) → subir frames a la API (`assetApi.uploadSpriteFrames`, C5c) → `setWorldTextures` + `setSpriteAnims` al documento (texturas = `/api/assets/<id>/file`).
+
+### 5.4 Mazmorras (dungeons/)
+
+Bloques prefabricados 16×16 (`blk-open`, `blk-passage`, `blk-room`) con conectores por lado (n/s/e/w). `assemble(def, blocks)` genera los tiles con prefijos únicos, **sella bocas sin vecino recíproco** (`seal_{id}`) y vierte al documento con `mergeDungeon(state, dun, ox, oy)`. `findSpot` coloca la mazmorra en el primer hueco en espiral sin solape (AABB).
+
+### 5.5 IO
+
+- `FileManager`: exportar/importar JSON (descarga `${nombre}.json`, carga desde archivo). **C5c: sin guardado local** — `saveToLocal`/`loadFromLocal`/`clearLocal` (localStorage `raycast-studio:project`) fueron eliminados; todo guardado pasa por la API con sesión.
+- `Serializer`: `toProjectJson(state)` / `fromProjectJson(json)` (normaliza, ignora desconocidos; sin `render` en el JSON **no pisa** el default del `EditorState` — un `{}` dejaba al motor con los defaults del `Renderer3D`) / `validateProjectJson` (usa el validador del contrato).
+- `assetServer.ts`: lógica pura del servido estático de `assets/` (vite.config.ts): solo `resolveAssetPath` (anti-traversal). **C5c: la subida ya no vive aquí** — los `POST /assets/audio|sprites/upload` y `GET /assets/audio|sprites/list` del middleware fueron eliminados (la subida es `POST /api/assets`).
+- `api.ts` (C5a–C5g): cliente HTTP tipado — `apiFetch<T>` importa `ApiResponse<T>` de `contract/api-response.d.ts` (única fuente del contrato, sin duplicados), inyecta `Authorization: Bearer`, lanza `ApiError { code, message, details }` (details siempre presente). `apiLogin`/`apiRegister` devuelven la sesión completa; `apiListProjects`/`apiGetProject`/`apiCreateProject`/`apiUpdateProject`/`apiDeleteProject` cubren el CRUD (C5b); `apiUploadAsset`/`apiListAssets` cubren los assets (C5c; con `FormData` no fuerza `Content-Type` — el navegador pone el boundary); `apiListTemplates`/`apiGetTemplate` cubren las plantillas (C5d; el arranque usa solo la lista — `apiGetTemplate` mapea la ruta del server y hoy no tiene consumidor en el Studio). **C5f:** `apiRefresh(refreshToken)` (POST `/auth/refresh`) + auto-renovación en `apiFetch` — ante `UNAUTHORIZED` (fuera de `/auth/login|register|refresh|logout`) renueva con el refresh de la cookie, re-guarda la sesión y **reintenta UNA vez** (`_retried`); si renovar falla → `clearSession()` + 401 original. Deduplicado con promesa compartida (`renewPromise`): una ráfaga de 401 hace una sola renovación. **C5g:** `apiLogout(refreshToken)` (POST `/auth/logout`): revoca el refresh de ESA sesión en el server y denylista su access; `main.ts` lo llama antes de `clearSession()` y cierra en local igual si la red falla.
+- `assetApi.ts` (C5c): pegamento assets↔API — `uploadSpriteFrames` (key→dataURL → multipart tipo `sprite`, `dataUrlToBlob`), `uploadAudioFiles` (File[] → tipo `audio`), `listAudioUrls` (audios de la cuenta), `assetUrl(id)` = `/api/assets/<id>/file` (pública). Server deduplica por hash → re-subir no duplica bytes.
+- `CloudProject.ts` (C5b): pegamento editor↔API — `createCloudProject(state)` (POST), `saveCloudProject(state, id)` (PATCH data + nombre, sincronizado con `meta.name`), `loadCloudMostRecent()` (abre el último por `updatedAt`). Prevalida con `validateProjectJson` (mismo contrato que el server, sin duplicar) y propaga `ApiError` (401 → logout en `main.ts`).
+- `StartProject.ts` (C5d): **documento de partida desde la API** — `loadStartProject()` devuelve `{ state, projectId, warning }`. Con sesión usa `loadCloudMostRecent()` o, si la cuenta está vacía, crea el proyecto con `POST /api/projects { plantillaId }` (prefiere `tpl-studio`, la plantilla personal; el server copia su `data` — el navegador no sube 720 KB). **Sin sesión devuelve un documento vacío y no llama a la API** (nada cargado, el backend no es necesario para mirar el editor). **Nunca lanza**: si con sesión falla el backend o la sesión caducó (401 → `clearSession()`), devuelve vacío con `warning` para que `main.ts` lo muestre en un toast — la UI no se queda en blanco. `createFromTemplate()` e `isEmptyDoc()` los reutiliza `main.ts` en el login en caliente.
+- `session.ts` (C5a): `getSession`/`setSession`/`clearSession`/`isAuthenticated`. **Cookie** (`raycast_session`, Path=/, Max-Age 7 días = TTL refresh) por decisión del usuario 2026-09-16 — no localStorage; store inyectable (tests en node). Legible por JS (Bearer manual vía `api.ts`); httpOnly exigiría Set-Cookie desde el backend (cambio de C1) y sigue en el hueco futuro (la rotación de refresh sí existe ya, C5f).
+- `AuthModal` (C5a): modal Login/Registro (pestañas + inputs DESIGN.md) que consume `apiLogin`/`apiRegister`; errores mostrados con `message` amigable (el `code` solo para el código). Botón "Cuenta" en la toolbar (`main.ts`): sin sesión abre el modal; con sesión pide el logout al server (C5g) y limpia la cookie (si la red falla, cierra en local igual).
+- **Proxy dev** (`vite.config.ts`): `/api` y `/auth` → `http://127.0.0.1:3000` — el Studio habla same-origin (sin CORS en desarrollo).
+
+---
+
+## 6. Capa BACKEND (`server/`)
+
+Node + **Hono** + **Prisma 7** (driver `pg`) + **PostgreSQL 18**. Fuente única de verdad. Ver `DATABASE.md §8` para el plan completo y `docs/API_ENDPOINTS.md` para los endpoints con ejemplos.
+
+### 6.1 Estructura
+
+```
+server/
+├── src/
+│   ├── index.ts        # Arranque @hono/node-server en PORT (tsx)
+│   ├── app.ts          # createApp(): logger, requestId, CORS, onError, notFound, rutas (/, /auth, /api/projects, /api/assets, /api/gallery, /api/templates, /health, /ready)
+│   ├── db.ts           # PrismaClient singleton + adapter PrismaPg (lazy connect)
+│   ├── lib/
+│   │   ├── AppError.ts   # Error de negocio {code, status, message, details}; fromZod()
+│   │   ├── codes.ts      # Diccionario de 16 códigos de error (código → status+mensaje)
+│   │   ├── handler.ts    # ok() / errorResponse() / errorHandler — contrato {success,data,error}
+│   │   ├── jwt.ts        # signToken/verifyToken (HS256, access 15 min, refresh 7 días, jti aleatorio)
+│   │   ├── password.ts   # bcryptjs 12 rounds (hash/verify)
+│   │   ├── rateLimit.ts  # createLimiter por IP en memoria (ventana deslizante) — # ponytail: multi-instancia → Redis
+│   │   ├── auth.ts       # requireAuth (verifyAccessToken: firma+exp+denylist → c.get('userId')) + optionalAuth (C5d/C5g)
+│   │   ├── parseBody.ts  # parseBody(c, schema): lee JSON y valida con Zod → AppError 422
+│   │   └── storage.ts    # Blobs: writeBlob/readBlob/removeBlob (STORAGE_PATH o <server>/storage/uploads por import.meta.dirname)
+│   ├── routes/
+│   │   ├── auth.ts       # POST /auth/register, POST /auth/login (loginLimiter 5/min), POST /auth/refresh (C5f: rotación + reuso ⇒ revoca todas; refreshLimiter 10/min)
+│   │   ├── projects.ts   # CRUD /api/projects + publish/unpublish (JWT, propietario, data JSONB v3 validado por el contrato; plantillaId en POST)
+│   │   ├── assets.ts     # POST /api/assets (multipart, MIME magic bytes, dedupe hash) + GET list (?tipo, D6) + GET/:id + GET/:id/file (PÚBLICO, D1) + DELETE (JWT+propiedad; id no-UUID → 404 vía ids.ts)
+│   │   ├── gallery.ts    # GET /api/gallery (lista pública) y /api/gallery/:slug (data + visitas+1) — sin auth
+│   │   └── templates.ts  # GET /api/templates y /api/templates/:id (plantillas con data; visibilidad: sistema + propias, C4/C5d)
+│   └── schemas/
+│       ├── auth.ts       # registerSchema, loginSchema, refreshSchema (Zod)
+│       └── project.ts    # createProjectSchema (+plantillaId), updateProjectSchema, publishSchema, validateProjectData (→ contract), DEFAULT_PROJECT_DATA
+├── tests/               # node --test: auth (7), auth-refresh (8, C5f), projects (9), assets (9), gallery+plantillas (15) + infra = 67 tests
+├── db/schema.sql        # SQL canónico (A1) + db/seeds/*.json (plantillas de autoría, C5d)
+├── scripts/             # seed-templates.ts (C5d: upsert de db/seeds/*.json con dueño por login)
+├── prisma/              # schema.prisma espejo 1:1 + baseline 0_init + migración plantilla_propietario (C5d)
+├── storage/uploads/     # Blobs <assetId>.<ext> (gitignored, solo .gitkeep)
+└── .env.example         # DATABASE_URL, JWT_SECRET, PORT, PUBLIC_URL, STORAGE_PATH
+```
+
+### 6.2 Decisiones clave del backend
+
+- **Contrato uniforme:** toda respuesta es `{success, data, error}`; todo error pasa por `AppError` + `codes.ts` (validación con Zod en todos los inputs, nunca stack traces al cliente).
+- **Business-regla:** rutas que verifican propiedad → `404` (PROJECT_NOT_FOUND / ASSET_NOT_FOUND), nunca `403` (no enumerar recursos).
+- **Prisma 7 + tsx:** el server importa el validador de `contract/` (fuera de `server/`); `tsc → dist/` rompería la ruta relativa, así que producción corre con **tsx** y `build` = `tsc --noEmit` (chequeo). Alternativa futura: bundler (tsup/esbuild).
+- **JWT:** HS256 con `jti` aleatorio (fix C2 — dos sesiones en el mismo segundo colisionaban el unique `token_hash`), refresh hasheado en DB para rotación/revocación.
+- **Assets:** MIME detectado por magic bytes (`file-type`), nunca por extensión/header; tope 20 MB (413 `ASSET_TOO_LARGE`); dedupe por hash sha256 reutiliza el asset existente (200) — no hay content-addressed storage porque `asset.ruta` es `@unique` (nota ponytail en DATABASE.md §8 C3).
+- **Rate limit:** 5/min en login, 100/min general (en memoria por IP; a Redis cuando haya varias instancias).
+
+---
+
+## 7. Mapa de dependencias entre capas
+
+```
+engine/  ──(nada)───────────────────────────►  (0 deps; tres/ usa Three.js como peer)
+studio/  ──importa──►  @engine/index.js (Engine3D) + @engine/core/{validate,sky,daylight,noise,audio,sector}.js
+          ──usa──────►  contract/project-schema.js (vía Serializer)
+          ──npm──────►  three, lucide (dev: vite, vitest, typescript)
+server/  ──importa──►  contract/project-schema.js (vía schemas/project.ts)
+          ──npm──────►  hono, @hono/node-server, @hono/jwt, prisma, @prisma/adapter-pg, zod, bcryptjs, dotenv, file-type (dev: tsx, typescript)
+NUNCA:  engine ← studio;  engine ← server;  studio ← server (código).
+```
+
+---
+
+## 8. Convenciones que sostienen la arquitectura
+
+1. `core/` jamás importa Three.js; `three/` jamás contiene lógica de juego; `Engine3D` solo orquesta.
+2. El motor no depende del Studio ni del backend; solo se comunican por datos (`project.json` + API REST).
+3. Cero duplicación de validación de datos: el contrato es el único validador.
+4. Cada cosa nueva se documenta en su archivo respectivo (regla AGENTS.md).
+5. No hardcodear datos de juego: todo en `project.json`; solo config de infraestructura en código.
+6. Sin emojis como iconos de UI: lucide SVG inline.
+7. Tests obligatorios por feature (una prueba que falla = feature no cerrada).
+
+---
+
+## 9. Referencias
+
+- `ROADMAP.md` §12 (estado), §13 (arquitectura de capas), §14–§15 (fases y ruta crítica), §16 (deuda técnica).
+- `docs/ENGINE_COMPONENTS.md` — componentes del motor en detalle.
+- `docs/API_ENDPOINTS.md` — endpoints HTTP documentados.
+- `DESIGN.md` — design system del Studio.
+- `DATABASE.md` — esquema y plan de fases del backend (A1–C5).
+- `AGENTS.md` — reglas del proyecto y entorno WSL.

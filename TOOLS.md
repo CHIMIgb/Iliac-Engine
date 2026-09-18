@@ -3,7 +3,7 @@
 Cómo funcionan las herramientas de edición de RayCast Studio. Documento de referencia: **las herramientas escriben datos (`project.json`), el motor los lee** — ninguna llamada va del motor al Studio.
 
 - Ubicación del código: `studio/src/tools/` (lógica), `studio/src/viewport/` (pintado/picking), `engine/` (solo datos y render).
-- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo**; **tecla 9 = popover de Audio (MVP: bucles de ambiente)**; `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
+- Teclas 1–7 seleccionan herramienta; **tecla 8 = popover del Cielo**; **tecla 9 = popover de Audio (MVP: bucles de ambiente)**; `Ctrl+Shift+O` = **Mis proyectos** (C5e); `Delete` elimina la selección; el clic en vacío deja orbitar la cámara.
 
 ## Cámara del viewport
 
@@ -106,7 +106,7 @@ El popover del Cielo tiene **dos pestañas: «Clásico» y «Realista»** (F4.7)
 
 **Cómo funciona (engine/three/SkySystem.js)** — telón 2D, NO skybox 3D (como el de 1996): una imagen plana siempre de frente a la cámara, fija al girar el yaw; `set` elige carpeta, `frame` la franja (independientes); Y-shear por UV (el horizonte se clava al borde inferior al levantar la vista); sin z-test, dibujado primero (renderOrder -3) → la geometría lo tapa.
 
-**Assets no versionados:** `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/` y `demo/sky/`).
+**Assets no versionados:** `studio/` → `npm run setup:sky` (copia `assets/.../The Sky/` a `studio/public/sky/`).
 
 ### Pestaña «Realista» — cielo 3D con sol, luna y sombras (F4.7)
 
@@ -127,7 +127,7 @@ El popover del Cielo tiene **dos pestañas: «Clásico» y «Realista»** (F4.7)
 - `engine/three/SunSystem.js`: shader atmosférico oficial de Three (`three/addons/objects/Sky.js`) → atardeceres por dispersión Rayleigh; discos de **sol y luna** visibles (sprites opacos con alphaTest, `depthTest:false` + `renderOrder` negativo → se pintan DETRÁS del mundo: nunca se cuelan en interiores); **estrellas** (Points que se encienden de noche); **aurora boreal** (domo interior BackSide con `ShaderMaterial` GLSL procedural — adaptación del Shadertoy «Auroras» de nimitz: ray-march con ruido triangular de 5 octavas; **blending aditivo** + `depthTest:true` → translúcida y oculta tras los muros, visible a través de ventanas; máscara polar en -Z = polo norte de canto hasta el horizonte; paleta natural mezclada 65 % con `auroraColor` vía uniform `uColor`); dos `DirectionalLight` (sol con sombras + luna nocturna) + `HemisphereLight`.
 - Interiores: si el sector del jugador tiene techo real (`ceilTex !== 'sky'`) el sol baja a ×0.25 y el ambiente sube — Daggerfall-style, sin lightmapping.
 - `Engine3D._setupSun()` (firma por `sunSignature`); el reloj avanza en `update()`; **los ajustes sol/luna/estrellas/aurora se aplican EN CALIENTE vía `setWorld`** (sin reconstruir el sistema); `Renderer3D` activa/desactiva sombras y tiñe la niebla con la hora.
-- **Brújula HUD** (`engine/three/CompassOverlay.js`): **cinta de rumbo horizontal** (heading tape) centrada abajo del juego — marcas cada 5° (N/E/S/O destacados, números cada 30°), marcador central, se desliza con el rumbo del jugador (`headingDeg`): norte = 0°, y el norte del mundo coincide con el polo de la aurora. La dibuja el motor; la activa `Engine3D.setCompass(on, container?)` (el Studio la enciende al entrar en playtest anclada al viewport; la demo también).
+- **Brújula HUD** (`engine/three/CompassOverlay.js`): **cinta de rumbo horizontal** (heading tape) centrada abajo del juego — marcas cada 5° (N/E/S/O destacados, números cada 30°), marcador central, se desliza con el rumbo del jugador (`headingDeg`): norte = 0°, y el norte del mundo coincide con el polo de la aurora. La dibuja el motor; la activa `Engine3D.setCompass(on, container?)` (el Studio la enciende al entrar en playtest anclada al viewport).
 - **Luz de la aurora**: la cortina desprende su propio resplandor nocturno — una `DirectionalLight` (sin sombras) del color de `auroraColor`, intensidad `night × aurora × auroraIntensity × 0.3`, atenuada en interiores como sol/luna. La luz se ancla a la cámara en la **bóveda celeste lejana** (500 u, como el sol): las direccionales no renderizan su posición, así que no hay ningún punto de origen visible al mirar al cielo.
 
 **UI (tecla 8):** pestaña Realista = slider **Hora 0–24** (+ HH:MM), select **Avance del día** (Fijo / 10′ / 20′ / 60′), checkbox **Sombras del sol**, input **Inclinación solar (0–90°)**, slider **Intensidad del sol (×0.1–3)**, slider **Luz de la luna (0–100%)**, checkbox **Estrellas de noche**, checkbox **Aurora boreal**, slider **Intensidad aurora (×0.1–3)**, input **Color aurora** (picker nativo + etiqueta hex). Todo escribe `doc.setSky`. Cambiar de pestaña conserva los datos del otro estilo.
@@ -142,9 +142,9 @@ Escribe `project.audio[]` y `project.music`. **El Studio arranca SIN audio preca
 
 **Popover** (icono `volume-2`): lista de ambientes, cada uno con `ruta · volumen · Probar · Cambiar · ×`; botones «Añadir sonidos» y «Cargar sonidos». Modal compacta (260–340 px): las rutas largas se truncan con puntos suspensivos (tooltip = ruta completa). **Nunca hay un archivo seleccionado por defecto.**
 
-- **Añadir sonidos**: abre el diálogo del sistema para elegir el audio que se añade como ambiente. Si el archivo elegido ya está en `assets/audio/` se usa su ruta servida (`/assets/audio/<nombre>`); si no, se sube al vuelo y se usa.
-- **Cambiar** (por fila): mismo diálogo, cambia el audio de ese ambiente.
-- **Cargar sonidos**: abre el explorador de archivos (`<input type="file" multiple>`) y sube cada audio elegido al **dev server**, que lo guarda en `assets/audio/` del repo (el navegador no puede escribir disco; el middleware `assetsMiddleware` de `vite.config.ts` hace de puente: `POST /assets/audio/upload` escribe el archivo, `GET /assets/audio/list` devuelve la lista). Formatos: wav, mp3, mp4, ogg, oga, flac, m4a, aac, webm. Máx. 50 MB. La validación (nombre saneado, base64, tamaño, anti-traversal) vive en `studio/src/io/assetServer.ts` (lógica pura testeada).
+- **Añadir sonidos**: abre el diálogo del sistema para elegir el audio que se añade como ambiente. El archivo se sube a la API (`POST /api/assets`, tipo `audio`) si no estaba (dedupe por hash: re-elegir el mismo archivo no duplica nada). El def guarda la URL servida `/api/assets/<id>/file` (pública — el motor la carga sin sesión). **C5c: requiere sesión** (sin ella: toast + modal de Cuenta).
+- **Cambiar** (por fila): mismo diálogo, sube a la API y cambia el audio de ese ambiente.
+- **Cargar sonidos**: abre el explorador de archivos (`<input type="file" multiple>`) y sube cada audio a la API de assets (`POST /api/assets`, sesión obligatoria, dedupe por hash). La lista de audios de la cuenta se obtiene con `GET /api/assets?tipo=audio`. Formatos: wav, mp3, mp4, ogg, oga, flac, m4a, aac, webm. Máx. 20 MB por archivo. Los audios que ya no están en la cuenta se marcan en rojo en el popover.
 - **Eliminar** (`×`): quita el ambiente y **la modal permanece abierta** (`stopPropagation` para que el clic no llegue al cierre por clic-fuera).
 - **Preview**: «Probar» instancia un `AudioEngine` efímero del motor y suena 3 s (el clic es el gesto que desbloquea el autoplay) → cero lógica de audio duplicada en el Studio.
 - **Ciclo en playtest**: al entrar (`F5`/Playtest) `EditorViewport` llama `engine.resumeAudio()` → los `loop:true` arrancan en bucle; al salir, `engine.stopAudio()` (`AudioEngine.halt()`) los calla y el siguiente `resume()` los re-crea. Sin `audio[]` en el proyecto, todo es no-op (el audio es **opcional y nunca rompe el frame**).
@@ -163,11 +163,28 @@ Seters en `EditorState`: `addAudioDef` (id `audio_<n>` único) · `updateAudioDe
 
 Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · geometría 25 ms (vía rápida).
 
+**Camino caro (cambia el bloque `render`):** recrea el motor entero (`new Engine3D`). Dos reglas que no se pueden saltar:
+
+- La decisión barato/caro usa `renderSignature()` (`viewport/renderSignature.ts`): firma **estable** (claves ordenadas en profundidad). Un `JSON.stringify` a pelo era sensible al orden y Postgres (JSONB) devuelve las claves ordenadas por longitud+alfabeto → los mismos valores parecían un cambio y cada carga desde la API recreaba el motor.
+- El motor viejo se **libera ANTES** de crear el nuevo (`dispose()` → `createEngine()` → `load()`). `canvas.getContext()` devuelve el MISMO contexto: dos `WebGLRenderer` vivos sobre el mismo canvas corrompen el estado GL y el frame lanza; como `tm.update()`/`overlay.draw()` van al final del frame (tras `render()`), el fallo deja **todas las herramientas muertas**. Si el nuevo motor no carga, se avisa (`viewport.onError` → toast) y el viewport queda sin motor (el bucle lo tolera).
+
 **Limitaciones conocidas:**
 - El `ceilH` fijo de 50 m genera el "techo" gris sobre cada terreno (propuesta de fix: campo `noCeil` — idea 5, pendiente).
 - Texturas nuevas solo se cargan en un reload completo del viewport (el camino barato las reutiliza).
 - El pincel emite un `setFloorHeight` (notify) por celda tocada; el throttle lo amortigua — batching por frame pendiente si llegara a molestar.
 - Undo no captura todavía los trazos de pincel como una sola acción.
+
+## Cuenta — sesión backend (C5a)
+
+Botón de **Cuenta** en la toolbar (icono `user` / `user-check`). Sin sesión → abre el modal **Iniciar sesión / Registrarse**; con sesión → muestra el login en el tooltip y un clic **cierra sesión**.
+
+- Consume el backend real: `POST /auth/register` y `/auth/login` (proxy `/api`+`/auth` de Vite → `127.0.0.1:3000`, same-origin).
+- La sesión (user + tokens) vive en una **cookie** (`raycast_session`, 7 días) — no localStorage; el contrato `{success,data,error}` lo valida `api.ts` y los errores se muestran con `message` amigable.
+- **C5b+C5c (realizado):** con sesión el proyecto se guarda en la nube — Guardar (Ctrl+S) hace `PATCH /api/projects/:id` con `{nombre, data}` (reemplaza el árbol v3 completo; `data.meta.name` sincronizado con `nombre` de la DB), y si la cuenta está vacía se crea uno (`POST`). **C5c: la sesión es obligatoria** — sin sesión, Guardar/Exportar/Importar/sprites/audio muestran toast y abren el modal de Cuenta (`requireSession`); ya no hay guardado local (localStorage eliminado). Los assets (frames, audio) suben a la API (`POST /api/assets`) y el documento guarda su URL servida (`/api/assets/<id>/file`, pública). 401 → sesión expirada (logout + toast).
+- **C5d (realizado):** al abrir, el Studio pide el **documento de partida a la API** (`loadStartProject`): con sesión abre el último proyecto de la cuenta o crea el primero desde su plantilla (`tpl-studio`); **sin sesión no hay nada cargado** — el editor arranca con un documento vacío (solo grid y ejes) y sin peticiones, ni siquiera hace falta el backend. Si con sesión el backend falla (o la sesión caducó), **el editor abre igual vacío con un toast de aviso** — nunca se queda la pantalla en blanco. Al iniciar sesión, la nube toma el relevo: carga el último proyecto, sube lo que hayas dibujado en vacío o, si sigue vacío, crea el primer proyecto desde tu plantilla.
+- **Mis proyectos (C5e, realizado):** botón en la toolbar (`folder-open`) o `Ctrl+Shift+O` abre el **selector de proyectos** del usuario con sesión: lista con **nombre + fecha de edición** (`updatedAt`), acciones por fila **Abrir** (carga el árbol v3 completo del proyecto elegido) y **Borrar** (con **diálogo de confirmación**; al borrar la lista se refresca) + botón **Nuevo proyecto** (crea desde la plantilla personal y lo abre). Sin sesión el selector no aparece: `requireSession('ver tus proyectos')` pide iniciar sesión (toast + modal de Cuenta). Detalle: si el documento actual tiene **cambios sin guardar**, abrir otro pide confirmación antes de descartarlos (`dirty` flag en `main.ts`). Lógica de datos en `studio/src/io/MyProjects.ts` (testeable, sin DOM), UI en `studio/src/ui/ProjectPicker.ts` + `ConfirmDialog.ts`, `openProject(id)` reutilizado por el arranque (`initCloudProject`) y por el selector.
+- **Fix 2026-09-17 (detectado en la validación) — «al iniciar sesión dejan de funcionar todas las herramientas»:** tres bugs encadenados del flujo de carga. (a) Arrancar sin sesión daba `render: {}` (`fromProjectJson` pisaba el default del `EditorState` con un objeto vacío) → el motor inicial usaba los defaults del `Renderer3D` (fov 75 / far 200) y la primera carga desde la nube **siempre** entraba en el camino caro. (b) Ese camino creaba el `Engine3D` nuevo con el viejo aún vivo (dos `WebGLRenderer` sobre el mismo canvas) → frame roto y, con él, las herramientas. (c) `applyDoc` usaba `Object.assign(doc, state)`, que copiaba también `handlers` y dejaba el documento **sordo** (ni flag de cambios ni reload en vivo). Arreglos: `EditorState.applyFrom()` (copia solo datos), `renderSignature()` (firma estable del render), `Serializer` respeta el default sin `render`, y `EditorViewport.reload` libera el motor viejo antes de crear el nuevo (con `onError` → toast si falla). Tests: `studio/tests/render-signature.test.ts` + `viewport-reload.test.ts` + los nuevos casos de `serializer.test.ts`.
+
 
 ## Dónde está cada cosa
 
@@ -181,5 +198,12 @@ Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · 
 | Gizmos del editor (puntos, líneas, selección) | `studio/src/viewport/Overlay2D.ts` |
 | Cielo clásico (telón) y realista (día/noche): sun/moon/niebla | `engine/core/sky.js`, `engine/three/SkySystem.js`, `engine/core/daylight.js`, `engine/three/SunSystem.js` |
 | Toolbar/atajos 1–7 + teclas 8 (Cielo) y 9 (Audio) + throttle de reload | `studio/src/main.ts` |
+| Cliente API + sesión (C5a): `apiFetch`, `apiLogin`/`apiRegister`, tokens; modal Cuenta | `studio/src/io/api.ts`, `studio/src/io/session.ts`, `studio/src/ui/AuthModal.ts` |
+| Guardar/cargar en la nube (C5b): CRUD proyectos, PATCH data completo, manejo 401 | `studio/src/io/CloudProject.ts`, `main.ts` (saveCurrent/initCloudProject) |
+| Documento de partida (C5d): plantilla de la API con sesión, editor vacío sin sesión, aviso si el backend falla con sesión | `studio/src/io/StartProject.ts`, `main.ts` (arranque, initCloudProject) |
+| Selector Mis proyectos (C5e): lista/abrir/borrar por API, confirmación de borrado y de cambios sin guardar, `openProject(id)` | `studio/src/io/MyProjects.ts`, `studio/src/ui/ProjectPicker.ts`, `studio/src/ui/ConfirmDialog.ts`, `main.ts` (openProject/initCloudProject) |
+| Autoría de la plantilla (C5d): `npx vite-node scripts/export-template.ts` → `server/db/seeds/tpl-studio.json`; seed con `npm run seed:templates` | `studio/scripts/export-template.ts`, `server/src/scripts/seed-templates.ts` |
+| Assets por API (C5c): sprites/audio → `POST /api/assets`, listar por `?tipo`, URL servida `/api/assets/<id>/file`; sin localStorage | `studio/src/io/assetApi.ts`, `studio/src/io/api.ts` (apiUploadAsset/apiListAssets) |
+| Audio popover: puente API (C5c): `AudioAssetBridge` (requireSession/upload/listUrls) | `studio/src/tools/ToolManager.ts`, `main.ts` (inyecta bridge) |
 | Motor de audio (Web Audio: buses, espacial, ducking, loops) | `engine/core/audio.js`, `engine/core/music.js` |
 | Motor: alturas por vértice, BVH, mallas, slots y vía rápida | `engine/core/sector.js`, `engine/three/WorldMesh.js`, `engine/Engine3D.js` |

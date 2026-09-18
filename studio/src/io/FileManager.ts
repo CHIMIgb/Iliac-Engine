@@ -1,49 +1,19 @@
 /**
- * FileManager — persistencia local del proyecto.
+ * FileManager — exportar/importar el proyecto como archivo `.json`.
  *
- *  - Guardar: localStorage (autoguardado del estado de edición).
+ * C5c: NO hay guardado local. Guardar (proyecto, sprites, audio) vive en la API
+ * con sesión obligatoria; aquí solo quedan los archivos externos del usuario:
+ *
  *  - Exportar: descarga un project.json portable.
- *  - Importar: carga un project.json desde archivo.
+ *  - Importar: carga un project.json desde archivo (y el editor lo persiste).
+ *
+ * Ambos exigen sesión en main.ts (todo lo que guarda pasa por la API).
  */
 
 import { EditorState } from '../editor/EditorState';
 import { fromProjectJson, toProjectJson, validateProjectJson } from './Serializer';
 
-const STORAGE_KEY = 'raycast-studio:project';
-
 export type FileResult = { ok: true; state: EditorState } | { ok: false; error: string };
-
-/** Guarda el estado en localStorage. */
-export function saveToLocal(state: EditorState): void {
-  try {
-    const json = toProjectJson(state);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(json));
-  } catch (e) {
-    console.error('Error guardando en localStorage:', e);
-  }
-}
-
-/** Carga el estado desde localStorage. Devuelve null si no hay guardado. */
-export function loadFromLocal(): EditorState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const json = JSON.parse(raw) as Record<string, unknown>;
-    return fromProjectJson(json);
-  } catch (e) {
-    console.error('Error cargando de localStorage:', e);
-    return null;
-  }
-}
-
-/** Borra el guardado local (p. ej. si el proyecto quedó corrupto). */
-export function clearLocal(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {
-    console.error('Error limpiando localStorage:', e);
-  }
-}
 
 /** Descarga el proyecto actual como project.json. */
 export function exportJson(state: EditorState, filename?: string): void {

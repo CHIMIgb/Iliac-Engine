@@ -163,3 +163,15 @@ test('Engine3D.setWorld rechaza proyectos inválidos y conserva el mundo', () =>
   assert.equal(engine.setWorld(roto), false);
   assert.equal(engine.world, projectV3.world);
 });
+
+test('Engine3D.update con mundo vacío no lanza (editor sin sesión)', () => {
+  // Tal cual lo emite el Serializer del Studio: cámara por defecto, mundo vacío.
+  const vacio = {
+    meta: { name: 'Vacío', schemaVersion: 3, renderMode: '3d' },
+    camera: { posX: 0, posY: 0, posZ: 0.6 },
+    world: { vertices: [], sectors: [], walls: [] },
+  };
+  const engine = new Engine3D(vacio);
+  assert.doesNotThrow(() => engine.update({ dirX: 1, dirY: 0, speed: 2 }, 0.5));
+  assert.doesNotThrow(() => engine.update({ dirX: 0, dirY: 0, speed: 0, jump: true }, 0.5));
+});

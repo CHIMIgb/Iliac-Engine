@@ -12,10 +12,9 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 
 | Capa | Estado | Descripción |
 |------|--------|-------------|
-| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **108 tests** pasan. |
-| **Demo** (`demo/`) | ✅ Funcional | Consumidor mínimo: importa motor, define `project.json` v3, lanza loop. Mundo 2 pisos + exteriores, más variantes `rooms/`, `stairs/`, `terrain/`. |
-| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar (localStorage). **90 tests** pasan. |
-| **Backend** (`server/`) | ⏳ Visión | Hono + Prisma + PostgreSQL (pendiente, tras Hito). |
+| **Motor** (`engine/`) | ✅ **Validado F1–F2.6** | JS vanilla puro, aislado. Three.js + sector system: geometría poligonal, rampas/escaleras reales, sprites billboard, física cinemática, terreno procedural (Simplex noise). **192 tests** pasan. |
+| **Studio** (`studio/`) | ✅ **F3 + F4 Realizadas** | TypeScript + Vite + Vitest. Design System (Catppuccin Mocha) + **Level Editor interactivo**: viewport 3D orbit con grid y ejes, herramientas 1-6 (seleccionar/vértices/sectores/paredes/alturas/entidades), picking por ratón, alturas con rueda, **catálogo de entidades con bestiario de Daggerfall**, **generador de mazmorras**, guardar/exportar/importar, **C5b+C5c: guardar/cargar y assets por API (sesión obligatoria, sin guardado local)**, **C5d: arranque desde la API (editor vacío sin sesión)**, **C5f+C5g: renovación de sesión y logout real**. **257 tests** pasan. |
+| **Backend** (`server/`) | ✅ **A1–A3 + B1–B2 + C1–C4 + C5a–C5g** | Hono + Prisma 7 + PostgreSQL: DB `iliac_engine` (9 tablas + enums + seeds), auth JWT + bcrypt (rotación de refresh y logout con denylist `token_invalido`), CRUD proyectos (`data` JSONB v3), assets (blobs, `/file` público para el motor), galería/plantillas (con dueño desde C5d), contrato `{success,data,error}`. **76 tests** pasan. Detalle y fases en `DATABASE.md §8`. |
 
 **Contrato:** `project.json` schema v3 — el Studio escribe datos, el motor los lee. Sin duplicación de lógica.
 
@@ -43,23 +42,35 @@ El proyecto tiene **dos capas separadas** (ver `ROADMAP.md` §13):
 ## Comandos
 
 ```bash
-# Motor (JS vanilla) — 108 tests (Node --test)
+# TODO A LA VEZ: Studio (Vite :5173) + Backend (Hono :3000), misma terminal
+npm run dev
+
+# Motor (JS vanilla) — tests (Node --test)
 npm run test:engine
 
 # Studio (TypeScript + Vite)
 npm run studio:dev        # Dev server en http://localhost:5173
-npm run studio:test       # 90 tests (Vitest)
+npm run studio:test       # Tests (Vitest)
 npm run studio:typecheck  # tsc --noEmit
 npm run studio:build      # Typecheck + build producción en studio/dist
 
+# Backend (Node + Hono + Prisma)
+npm run server:dev        # Dev server en http://localhost:3000 (tsx watch)
+
 # Dentro de studio/
 cd studio
-npm run setup:textures    # Copia texturas SVG de ../demo/textures a public/textures (1 vez)
-npm test                  # 90 tests (Vitest)
+npm test                  # Tests (Vitest)
 npm run build             # Typecheck + build
+
+# Dentro de server/
+cd server
+npm run dev               # tsx watch http://localhost:3000
+npm run typecheck         # tsc --noEmit
+npm test                  # Tests (node --test + tsx)
+npm run build             # tsc → dist/
 ```
 
-> El motor F1/F2 se abre directo en el navegador (`demo/index.html`), sin build.
+> El motor se valida con el playtest del Studio (F5) y con `npm run test:engine`.
 
 ---
 
@@ -93,19 +104,6 @@ engine/
 
 Regla (AGENTS.md): `core/` nunca importa Three.js; `three/` nunca contiene lógica de juego; `Engine3D.js` solo orquesta.
 
-### Demo (`demo/`) — consumidor mínimo
-
-```
-demo/
-├── index.html                # Abrible directo (<script type="module">), sin build
-├── main.js                   # Importa Engine3D, define input (WASD + ratón) y arranca el loop
-├── project.js                # project.json v3 del mundo de ejemplo (2 pisos + montaña + pozos)
-├── textures/                 # Texturas SVG usadas por demo y Studio (setup:textures)
-├── rooms/                    # Variante: mundo de varias salas conectadas (main.js/project.js/index.html)
-├── stairs/                   # Variante: demo centrada en escaleras/peldaños
-└── terrain/                  # Variante: demo de terreno procedural (Simplex + sectores)
-```
-
 ### Studio (`studio/`) — TypeScript + Vite + Vitest
 
 ```
@@ -115,7 +113,7 @@ studio/
 ├── src/
 │   ├── main.ts               # Bootstrap: AppLayout + toolbar (atajos 1-6) + atajos globales + wiring del editor
 │   ├── style.css             # Design System completo: tokens CSS (Catppuccin Mocha) + componentes
-│   ├── sample-project.ts     # Proyecto de muestra para abrir al iniciar
+│   ├── sample-project.ts     # Autoría (C5d): genera la plantilla `tpl-studio`; no entra al runtime
 │   ├── engine.d.ts           # Declaración de tipos de Engine3D para el Studio (puente motor ↔ Studio)
 │   ├── editor/
 │   │   ├── types.ts          # Tipos del documento editable (sector/wall/sprite/entidad/colisión)
@@ -131,7 +129,11 @@ studio/
 │   │   └── EntityPreviewMesh.ts  # Cubos 3D de preview de entidades (color y caja según catálogo) — solo editor
 │   ├── io/
 │   │   ├── Serializer.ts     # project.json ↔ EditorState (export/import, schema v3)
-│   │   └── FileManager.ts    # Guardar/exportar/importar (localStorage + descarga JSON)
+│   │   ├── FileManager.ts    # Exportar/importar JSON (sin guardado local — C5c: el guardado va por API)
+│   │   ├── CloudProject.ts   # C5b: guardar/cargar el proyecto por API (nube = fuente de verdad)
+│   │   ├── StartProject.ts   # C5d: documento de partida desde la API (vacío sin sesión; plantilla con sesión)
+│   │   ├── assetApi.ts       # C5c: subir sprites/audio a la API + listar audios (POST /api/assets)
+│   │   ├── api.ts            # Cliente HTTP tipado (C5a–C5d): apiFetch + auth + CRUD + assets + plantillas
 │   ├── layout/
 │   │   ├── AppLayout.ts      # Layout de paneles (toolbar + viewport + statusbar, colapsables)
 │   │   ├── Toolbar.ts        # Toolbar superior con acciones (icono + label + atajo)
@@ -149,12 +151,31 @@ studio/
 │   │   └── assemble.ts       # assemble(): arma la mazmorra y mergeDungeon(): la vuelca al EditorState
 │   └── entities/
 │       └── entityCatalog.ts  # Catálogo de entidades colocables (NPCs + bestiario Daggerfall df_* en 6 categorías)
-├── public/textures/          # Texturas SVG copiadas por setup:textures (para el viewport del editor)
-└── tests/                    # 8 archivos · 90 tests (Vitest): tools, toolmanager, serializer, placement,
-                              # picking, entities, dungeons, camera-controls
+├── public/textures/          # Texturas SVG del viewport del editor (copia local, no versionada)
+└── tests/                    # 27 archivos · 257 tests (Vitest): tools, toolmanager, serializer, placement,
+                              # picking, entities, dungeons, camera-controls, api/sesión (C5)… + regresiones
+                              # de renderSignature / reload del viewport (un solo motor por canvas)
 ```
 
-### Tests del motor (`test/engine/`) — 19 archivos · 108 tests (Node --test)
+### Backend (`server/`) — Node + Hono + Prisma 7
+
+```
+server/
+├── package.json · tsconfig.json (strict) · prisma.config.ts · .env.example
+├── db/schema.sql              # SQL canónico (A1) — aplicado y verificado
+├── prisma/
+│   ├── schema.prisma          # Espejo 1:1 del SQL (A3): 9 modelos + 2 enums
+│   └── migrations/0_init/     # Baseline (la DB ya tenía las tablas de A1/A2)
+├── src/
+│   ├── app.ts                 # App Hono (logger + GET /) — testeable con app.request()
+│   ├── index.ts               # Arranque @hono/node-server en PORT (3000)
+│   └── db.ts                  # PrismaClient singleton con adapter PrismaPg
+├── storage/uploads/           # Blobs de assets (C3) — contenido no versionado
+└── tests/                     # 8 archivos · 76 tests (Node --test + tsx): schema (A3), app (B1),
+                               # auth, auth-refresh (C5f), auth-logout (C5g), projects, assets, gallery-templates (C4)
+```
+
+### Tests del motor (`test/engine/`) — 27 archivos · 192 tests (Node --test)
 
 ```
 test/engine/
@@ -176,10 +197,12 @@ test/engine/
 ```
 ROADMAP.md          # Plan maestro: fases F1–F13, §12 estado, §13 capas, §15 ruta crítica, §16 deuda
 DESIGN.md           # Design System del Studio (paleta Catppuccin, tipografía, componentes, layout)
-DATABASE.md         # Esquema Prisma/PostgreSQL del backend (visión)
+DATABASE.md         # Backend: esquema Prisma/PostgreSQL + plan por fases (A1–C5)
 DATABASE_MVP.md     # Esquema mínimo para el Hito (visión parcial)
 AGENTS.md           # Instrucciones para agentes (convenciones, entorno WSL, protocolo)
-docs/ENGINE_COMPONENTS.md  # Documentación técnica del motor (API, componentes, schema v3)
+docs/ARCHITECTURA.md        # Arquitectura del producto completo (todas las capas, flujo de datos)
+docs/API_ENDPOINTS.md       # Endpoints HTTP del backend, con ejemplos de petición/respuesta
+docs/ENGINE_COMPONENTS.md   # Documentación técnica del motor (API, componentes, schema v3)
 opencode.json       # Configuración de opencode (plugins, MCP)
 package.json        # Scripts raíz (test:engine, studio:*) + three
 ```
@@ -236,14 +259,27 @@ Ver `ROADMAP.md` §5 para esquema completo y `docs/ENGINE_COMPONENTS.md` para AP
 ## Demo rápida
 
 ```bash
-# Motor 3D (abrir demo/index.html en navegador)
-cd demo && npx serve -p 8080
-# → http://localhost:8080  (WASD + ratón, F11 fullscreen)
-
-# Studio (Level Editor interactivo)
-cd studio && npm run dev
-# → http://localhost:5173  (atajos 1-6 = herramientas; clic izq edita u orbita en vacío, clic der orbita, medio pan, WASD+QE pan, rueda zoom/alturas)
+# Todo: Studio + Backend a la vez (misma terminal)
+npm run dev
+# → Studio http://localhost:5173 (atajos 1-6 = herramientas; playtest F5 ejecuta el motor)
+# → Backend http://localhost:3000 (API)
 ```
+
+---
+
+## Cuenta de desarrollo (C5a)
+
+El Studio autentica contra el backend real (botón **Cuenta** en la toolbar). Cuenta creada para desarrollo local en la DB `iliac_engine`:
+
+| Campo | Valor |
+|---|---|
+| Nombre | Chimi GB |
+| Usuario (login) | `chimi` |
+| Contraseña | `raycast-2026` |
+
+> **Solo desarrollo local** — no usar en producción. La sesión se guarda en una **cookie** (`raycast_session`, 7 días = TTL del refresh token), no en localStorage.
+
+**Plantilla de arranque (C5d):** `tpl-studio` (el escenario de 100×100 con montaña y río) es la plantilla **personal de esta cuenta**: con la sesión de `chimi` el Studio abre ese mundo. **Sin sesión el editor arranca vacío** (solo grid, sin peticiones a la API) y al iniciar sesión se carga la cuenta; si el backend no responde, avisa y abre vacío igual (nunca pantalla en blanco). Se siembra con `npm run seed:templates` (en `server/`, idempotente; `SEED_OWNER_LOGIN` cambia el dueño).
 
 ---
 
@@ -261,6 +297,8 @@ cd studio && npm run dev
 
 - `ROADMAP.md` — Plan maestro (§12 estado, §13 arquitectura, §15 ruta crítica, §16 deuda técnica)
 - `DESIGN.md` — Design System (Catppuccin Mocha, componentes, layout, atajos)
-- `DATABASE.md` — Esquema Prisma/PostgreSQL (backend)
+- `DATABASE.md` — Backend: esquema Prisma/PostgreSQL + plan por fases A1–C5
+- `docs/ARCHITECTURA.md` — Arquitectura del producto completo (motor, contrato, studio, server)
+- `docs/API_ENDPOINTS.md` — Endpoints del backend documentados
 - `docs/ENGINE_COMPONENTS.md` — Documentación técnica del motor (API, componentes, schema v3)
 - `AGENTS.md` — Instrucciones para agentes (convenciones, WSL, protocolo)
