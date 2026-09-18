@@ -85,3 +85,30 @@ test('applyHeightsIfOnlyChange exige rebuild si cambió la topología', () => {
   WorldMesh.build(scene, asProject(oldWorld), {});
   assert.equal(WorldMesh.applyHeightsIfOnlyChange(scene, oldWorld, newWorld), false);
 });
+
+test('applyHeightsIfOnlyChange exige rebuild si un sprite ganó una anim (bug 2026-09-18)', () => {
+  const oldWorld = terrainWorld();
+  const newWorld = JSON.parse(JSON.stringify(oldWorld));
+  // Asignar una animación (Fase E) escribe anim, tex (primer frame) y scale.
+  newWorld.sprites = [
+    { id: 'sp_1', tex: 'sprite_blue', pos: { x: 1, y: 1, z: 0 }, scale: 1 },
+  ];
+  newWorld.sprites[0].anim = 'guard_idle';
+  newWorld.sprites[0].tex = 'guard_f0';
+  newWorld.sprites[0].scale = 1.8;
+  const scene = new THREE.Scene();
+  WorldMesh.build(scene, asProject(oldWorld), {});
+  assert.equal(WorldMesh.applyHeightsIfOnlyChange(scene, oldWorld, newWorld), false);
+});
+
+test('applyHeightsIfOnlyChange mantiene el atajo con sprites idénticos', () => {
+  const oldWorld = terrainWorld();
+  const newWorld = JSON.parse(JSON.stringify(oldWorld));
+  newWorld.sprites = [
+    { id: 'sp_1', tex: 'sprite_blue', pos: { x: 1, y: 1, z: 0 }, scale: 1 },
+  ];
+  oldWorld.sprites = JSON.parse(JSON.stringify(newWorld.sprites));
+  const scene = new THREE.Scene();
+  WorldMesh.build(scene, asProject(oldWorld), {});
+  assert.equal(WorldMesh.applyHeightsIfOnlyChange(scene, oldWorld, newWorld), true);
+});

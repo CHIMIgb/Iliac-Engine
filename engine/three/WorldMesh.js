@@ -105,7 +105,11 @@ export class WorldMesh {
       if (a.vertexIds.some((vid) => (newWorld.walls || []).some((w) => w.sectorFront === b.id || w.sectorBack === b.id))) return false;
       dirty.push(b.id);
     }
-    if (dirty.length === 0) return true; // sin cambios materiales visibles
+    // Sin cambios de alturas: el atajo solo parchea floorH, así que si algún
+    // sprite cambió (anim asignada en el Studio, tex, scale o pos), hay que
+    // reconstruir para que buildSprites materialice el billboard (regresión
+    // 2026-09-18: asignar una anim a una entidad dejaba invisible el sprite).
+    if (dirty.length === 0) return spritesSame(oldWorld, newWorld);
 
     // 4) Parchear los slots en el buffer mergeado.
     const byId = new Map(newWorld.sectors.map((s) => [s.id, s]));
@@ -211,4 +215,26 @@ export class WorldMesh {
     buildStairsMeshes(scene, world, textures);
     return buildSprites(scene, world, textures);
   }
+}
+
+/**
+ * ¿Los sprites de dos mundos son idénticos? El parche de alturas
+ * (applyHeightsIfOnlyChange) solo actualiza floorH, así que cualquier cambio
+ * en un sprite (anim/tex/scale/pos) exige rebuild: es lo que materializa el
+ * billboard animado al asignar una animación desde la Biblioteca.
+ */
+function spritesSame(oldWorld, newWorld) {
+  const a = oldWorld.sprites || [];
+  const b = newWorld.sprites || [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const o = a[i];
+    const n = b[i];
+    if (!o || !n) return false;
+    if (o.id !== n.id || o.anim !== n.anim || o.tex !== n.tex || o.scale !== n.scale) return false;
+    const op = o.pos || {};
+    const np = n.pos || {};
+    if (op.x !== np.x || op.y !== np.y || op.z !== np.z) return false;
+  }
+  return true;
 }

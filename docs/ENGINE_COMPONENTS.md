@@ -154,6 +154,7 @@ Encapsula la escena Three.js:
 - `WorldMesh.build(scene, project, textures)`: construye el mundo schema v3 (`vertices` + `sectors`) o no hace nada si faltan.
 - `WorldMesh.buildSectorWorld(scene, world, textures)`: para cada sector crea suelo, techo y paredes sólidas, **mergea geometrías por textura/material** para reducir draw calls, y luego añade escaleras y sprites.
 - `WorldMesh.clear(scene)`: limpia meshes y sprites anteriores, liberando geometrías y materiales.
+- `WorldMesh.applyHeightsIfOnlyChange(scene, oldWorld, newWorld)`: vía rápida de edición en vivo del Studio — si SOLO cambiaron alturas de piso (`floorH`) de sectores con slot registrado, parchea los `y` del buffer mergeado y recalcula normales. Devuelve `false` (exige rebuild) si cambió la topología/posición XY de vértices o **cualquier sprite** (`anim`/`tex`/`scale`/`pos`): asignar una animación a una entidad debe reconstruir el mundo para que `buildSprites` materialice el billboard (corrección 2026-09-18).
 
 ### 3.11 `three/GeometryMerge.js` — Merge de geometrías
 

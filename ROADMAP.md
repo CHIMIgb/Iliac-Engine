@@ -592,6 +592,7 @@ Esto permite iterrar más rápido:写代码, depurar, testear — sin la fricci�
 
 #### Fase E — Polish y producción (parcial) ✅
 - Leer settings de project.json, carga de texturas paralela, cache de texturas de color, manejo de webglcontextlost.
+- **Corrección 2026-09-18 (F5 Sprite Tool / Biblioteca):** asignar una anim a una entidad reconstruye el billboard — `WorldMesh.applyHeightsIfOnlyChange` ahora exige rebuild si cambió cualquier sprite (`anim`/`tex`/`scale`/`pos`). Antes el reload en vivo solo miraba alturas, el sprite animado nunca se materializaba y la entidad «desaparecía» en el playtest (solo se veía su caja de edición, oculta en modo juego).
 
 ### 15.5 Decisiones pendientes
 
