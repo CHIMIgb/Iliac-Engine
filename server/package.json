@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:status": "prisma migrate status",
     "seed:templates": "tsx src/scripts/seed-templates.ts",
+    "migrate:uploads": "tsx src/scripts/migrate-uploads.ts",
     "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.js\""
   },
   "dependencies": {

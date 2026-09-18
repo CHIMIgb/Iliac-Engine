@@ -1,10 +1,11 @@
 // routes/assets.ts — Subida/lectura/borrado de assets (DATABASE.md §8 C3).
 // El MIME se detecta por magic bytes (file-type), no por la extensión ni el
 // header del navegador; el `tipo` declarado debe coincidir con lo detectado.
-// El blob vive en storage/uploads/<assetId>.<ext> (ruta única por fila).
-// Dedupe por hash: re-subir el mismo archivo devuelve el asset existente (200)
-// sin escribir bytes duplicados (ruta es @unique en el esquema; dos filas no
-// pueden compartir archivo — ver nota ponytail en el plan C3).
+// El blob vive en storage/uploads/<userId>/<tipo>/<assetId>.<ext> (ruta única
+// por fila; ASSET_UPLOAD_PLAN.md §3).
+// Dedupe por hash POR USUARIO: re-subir el mismo archivo reutiliza la fila
+// existente (200) sin escribir bytes duplicados; dos cuentas que suban el
+// mismo contenido reciben filas y blobs independientes (aislamiento).
 // C5c: `GET /:id/file` es PÚBLICO (D1) y hay `GET /` (list, D6); el resto sigue
 // exigiendo JWT y propiedad.
 import { Buffer } from "node:buffer";
@@ -63,7 +64,7 @@ assetsRoutes.get("/:id/file", async (c) => {
   const asset = await prisma.asset.findUnique({ where: { id } });
   if (!asset) throw new AppError("ASSET_NOT_FOUND", { id });
   try {
-    const bytes = await readBlob(asset.id, asset.mime);
+    const bytes = await readBlob(asset.propietarioId, asset.tipo, asset.id, asset.mime);
     const inline = asset.mime.startsWith("image/");
     return c.body(new Uint8Array(bytes), 200, {
       "Content-Type": asset.mime,
@@ -149,8 +150,10 @@ assetsRoutes.post("/", async (c) => {
 
   const hash = createHash("sha256").update(buffer).digest("hex");
 
-  // Dedupe por hash: el mismo archivo ya existe → reutilizar (bytes y fila).
-  const existing = await prisma.asset.findFirst({ where: { hash } });
+  // Dedupe por hash POR USUARIO: el mismo usuario re-subiendo su archivo
+  // reutiliza la fila existente (bytes y fila). Otro usuario con el mismo
+  // contenido crea su propio asset (aislamiento multi-cuenta).
+  const existing = await prisma.asset.findFirst({ where: { hash, propietarioId: userId } });
   if (existing) {
     return ok(c, { asset: assetPayload(existing), reused: true });
   }
@@ -172,7 +175,7 @@ assetsRoutes.post("/", async (c) => {
     },
   });
 
-  await writeBlob(id, mime, buffer);
+  await writeBlob(userId, upload.tipo as TipoAsset, id, mime, buffer);
 
   return ok(c, { asset: assetPayload(asset), reused: false }, 201);
 });
@@ -191,7 +194,7 @@ assetsRoutes.delete("/:id", async (c) => {
   });
   if (count === 0) throw new AppError("ASSET_NOT_FOUND", { id: asset.id });
   try {
-    await removeBlob(asset.id, asset.mime);
+    await removeBlob(asset.propietarioId, asset.tipo, asset.id, asset.mime);
   } catch {
     // Archivo ya ausente: el borrado lógico (fila) es lo importante.
   }

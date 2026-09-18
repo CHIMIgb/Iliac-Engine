@@ -234,11 +234,49 @@ test("DELETE borra fila + archivo y luego GET → 404", { skip: !DB_UP && "DB no
   const after = await api(`/api/assets/${assetId}`, { token: ownerToken });
   assert.equal(after.status, 404);
 
-  // El blob ya no existe en el storage temporal.
-  const files = await readFile(path.join(storageTmp, `${assetId}.png`)).catch(() => null);
-  assert.equal(files, null, "archivo del blob eliminado del filesystem");
-  await access(path.join(storageTmp, `${assetId}.png`)).then(
+  // El blob ya no existe en el storage temporal: estructura <userId>/<tipo>/...
+  const owner = await prisma.usuario.findUnique({ where: { login: OWNER }, select: { id: true } });
+  assert.ok(owner, "owner existe");
+  const blob = path.join(storageTmp, owner!.id, "sprite", `${assetId}.png`);
+  assert.equal(await readFile(blob).catch(() => null), null, "archivo del blob eliminado del filesystem");
+  await access(blob).then(
     () => assert.fail("no debería existir"),
     () => undefined,
   );
+});
+
+// ── ASSET_UPLOAD_PLAN.md paso 5: aislamiento multi-usuario ─────
+// El dedupe por hash ahora es POR USUARIO: el mismo contenido subido por dos
+// cuentas crea filas y blobs independientes; borrar el de uno no rompe el
+// otro (la URL pública del asset del otro sigue sirviéndose).
+test("aislamiento: el mismo archivo en 2 cuentas → assets independientes y borrado aislado", { skip: !DB_UP && "DB no disponible" }, async () => {
+  // OWNER sube el PNG → fila propia.
+  const a = await upload("/api/assets", { token: ownerToken, form: pngForm("compartido.png") });
+  assert.equal(a.status, 201);
+  assert.equal(a.body.data?.reused, false);
+  const idA = a.body.data?.asset?.id;
+  assert.ok(idA, "owner recibe su asset");
+
+  // OTHER sube el MISMO contenido → NO reutiliza el de owner (aislamiento).
+  const b = await upload("/api/assets", { token: otherToken, form: pngForm("compartido.png") });
+  assert.equal(b.status, 201);
+  assert.equal(b.body.data?.reused, false, "no reutiliza asset ajeno");
+  const idB = b.body.data?.asset?.id;
+  assert.ok(idB, "other recibe el suyo");
+  assert.notEqual(idB, idA, "ids distintos: cada cuenta tiene su fila");
+
+  // Para OTHER, el asset de OWNER sigue siendo ajeno → 404.
+  const theirs = await api(`/api/assets/${idA}`, { token: otherToken });
+  assert.equal(theirs.status, 404);
+
+  // OTHER borra el suyo.
+  const del = await api(`/api/assets/${idB}`, { method: "DELETE", token: otherToken });
+  assert.equal(del.status, 200);
+  assert.equal(del.body.data?.deleted, true);
+
+  // El asset de OWNER sigue sirviéndose (el borrado ajeno no lo rompe).
+  const pub = await app.request(`/api/assets/${idA}/file`);
+  assert.equal(pub.status, 200);
+  const bytes = Buffer.from(await pub.arrayBuffer());
+  assert.deepEqual(bytes, PNG_1x1, "los bytes del otro usuario sobreviven");
 });

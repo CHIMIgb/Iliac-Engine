@@ -282,7 +282,7 @@ Reverte la transacción: `estado → EN_DESARROLLO` + borra la fila de `galeria`
 
 ## 6. Assets (`/api/assets`)
 
-Blobs en `storage/uploads/<assetId>.<ext>`. El **MIME se detecta por magic bytes** (`file-type`); el campo `tipo` debe coincidir con el contenido detectado.
+Blobs en `storage/uploads/<userId>/<tipo>/<assetId>.<ext>` — ordenado por usuario y tipo (ASSET_UPLOAD_PLAN.md, 2026-09-18); `asset.ruta` guarda la ruta relativa. El **MIME se detecta por magic bytes** (`file-type`); el campo `tipo` debe coincidir con el contenido detectado.
 
 > **C5c (2026-09-17):** solo la **metadata** (GET `/:id`), el **listado** (GET `/`) y el **borrado** (DELETE) exigen JWT. `GET /:id/file` es **PÚBLICO (D1)** — el motor del juego carga texturas/audio sin sesión; la galería pública servirá assets a anónimos.
 
@@ -298,7 +298,7 @@ Body `multipart/form-data`:
 
 **Correspondencia tipo → MIME aceptado:** `texture` → `image/png` \| `image/webp` · `sprite` → `image/png` · `audio` → `application/ogg` \| `audio/ogg` \| `audio/wav` \| `audio/mpeg` \| `audio/flac` \| `audio/mp4` \| `audio/x-m4a` \| `audio/aac` \| `video/webm` (C5c: mp3/flac/m4a/aac/webm añadidos — los formatos que ya admitía el middleware viejo del Studio) · `font` → `font/ttf` · `modelo` → `model/gltf-binary`.
 
-**Dedupe:** si el hash sha256 ya existe, NO se escribe nada y se devuelve el asset existente.
+**Dedupe (por usuario, ASSET_UPLOAD_PLAN.md 2026-09-18):** si el hash sha256 ya existe **en la misma cuenta**, NO se escribe nada y se devuelve el asset existente (`200 reused: true`). El mismo contenido en OTRA cuenta crea su propia fila y blob (`201 reused: false`, ids distintos) — aislamiento multi-cuenta: el borrado de un usuario no rompe el asset del otro.
 
 **201** (nuevo) o **200** (reutilizado):
 ```json
