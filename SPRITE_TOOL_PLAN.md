@@ -582,6 +582,68 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     las entidades respetan billboard (validate lo exige); suites verdes; commit y
 >     validación por sub-paso.
 >
+> > ⚠️ **Nota de nomenclatura:** la "Fase E" del ROADMAP/SPRITE_TOOL_PLAN es la de
+> > colocar animaciones en entidades (arriba, ⏳ pendiente). La tab **«Mis Sprites»**
+> > implementada el 2026-09-18 se etiqueta **Fase F** para no chocar con ella.
+>
+> - **Fase F — Tab «Mis Sprites»: sprites físicos de la cuenta en el Sprite Tool
+>   (decidida por el usuario el 2026-09-18: tab SEPARADA, no fusionada con la Biblioteca):**
+>   - **Objetivo (bug del usuario):** la Biblioteca mostraba «solo mocks» y no
+>     reflejaba lo que se guardaba; no había forma de ver los sprites subidos a la
+>     cuenta. Tras el backend C3 (ASSET_UPLOAD_PLAN cerrado ✅), `GET /api/assets
+>     ?tipo=sprite`, `DELETE /api/assets/:id` y `asset.ruta` ya existían → la Fase F
+>     es SOLO Studio + tests (cero backend, cero schema).
+>   - **F1 — Quitar mocks:** borrar `MOCK_FRAMES`/`mockTextureDataUrl`/
+>     `installMockSprites` y los 3 sprites del mundo mock (`npc_guardian`,
+>     `npc_lobo`, `prop_pocion`) de `sample-project.ts` — el proyecto inicial
+>     arranca sin texturas ni anims; la Biblioteca muestra solo lo guardado de
+>     verdad. Actualizar `landscape.test.ts` (test que exigía `mock_*` y ≥2 sprites
+>     del mundo).
+>   - **F2 — Helpers API:** `assetApi.listSpriteAssets()` (GET `?tipo=sprite`) y
+>     `assetApi.deleteSpriteAsset(id)` (DELETE por id); `api.apiDeleteAsset(id)`.
+>   - **F3 — Tab en el modal:** `STEPS` gana 'Mis Sprites' (5ª vista, index 4);
+>     `step5`+`mySpritesGrid` (hija del modal como la Biblioteca); `setStep(4)` →
+>     vista exclusiva con `renderMySpritesStep()` (cards con thumb del blob
+>     público `assetUrl(id)`, «Cargar al animador» y «Eliminar» con `confirm()`;
+>     mensaje de estado vacío / sin conexión a la API). Callbacks inyectados por
+>     main.ts: `onListMySprites`/`onDeleteSprite`.
+>   - **F4 — Botón Refrescar en la Biblioteca:** `refresh-cw` repinta la Biblioteca
+>     sin cambiar de tab (header `sprite-tool__library-header`).
+>   - **F5 — Wiring:** `main.ts` conecta `onListMySprites = () => listSpriteAssets()`
+>     y `onDeleteSprite = (id) => deleteSpriteAsset(id)` al abrir el modal; CSS para
+>     header/refrescar; docs (TOOLS.md nueva sección Sprites, ARCHITECTURA §5.3,
+>     ROADMAP §12 F5-Fase F, SPRITE_TOOL_PLAN historial). Tests: `asset-api.test.ts`
+>     gana listado/borrado de sprites de la cuenta.
+>   - **Aceptación:** la Biblioteca lista solo anims reales del proyecto (jamás
+>     mocks); la nueva tab «Mis Sprites» lista los PNG de la cuenta con thumbs;
+>     «Cargar al animador» reconstruye y salta al Paso 3; «Eliminar» pide
+>     confirmación y refresca; suite Studio 258/258.
+>   - ✅ **implementado 2026-09-18 (Studio 258/258 + typecheck OK).**
+>
+> - **Fase G — Botón «Eliminar» en la Biblioteca (2026-09-18):** limpieza de
+>   residuos de mocks. Al validar la Fase F, el usuario seguía viendo en su
+>   proyecto guardado en la nube `guard_idle`, `wolf_idle` y `potion_idle` (los
+>   sprites mock del commit 5c649f1, ya eliminados del código) y pidió poder
+>   quitarlos de la Biblioteca **y del mundo**.
+>   - **G1 — `EditorState.removeSpriteAnim(name)`:** borra la anim de
+>     `world.spriteAnims`, los sprites del mundo con `anim === name`, y las
+>     texturas de sus frames solo si quedan huérfanas (ni otra anim ni otro
+>     sprite `sp.tex` las usan). Devuelve `{ ok, removedSprites, removedTextures }`.
+>   - **G2 — UI:** icono papelera (`trash`, rojo en hover) en el head de cada
+>     card de la Biblioteca → `window.confirm` (avisa que también se eliminan
+>     los sprites del mundo y texturas huérfanas) → callback `onDeleteAnim`
+>     (nuevo, inyectado por main.ts) → al terminar repinta la Biblioteca.
+>   - **G3 — Wiring:** `main.ts` — `onDeleteAnim` hace `requireSession` →
+>     `doc.removeSpriteAnim(name)` → `saveCurrent(true)` (persiste la limpieza
+>     en la nube) → toast con el nº de sprites del mundo eliminados; si el
+>     guardado falla avisa que quedó en memoria (Ctrl+S).
+>   - **G4 — Tests (entities.test.ts, 2026-09-18):** borra anim + sprite + 2
+>     texturas huérfanas; conserva sprites/texturas compartidas; `ok:false`
+>     para anim inexistente sin mutar nada. Suite Studio 261/261.
+>   - **Aceptación:** al pulsar Eliminar en `guard_idle`/`wolf_idle`/
+>     `potion_idle` desaparecen de la Biblioteca y del viewport, el proyecto
+>     limpio se guarda en la nube y la Biblioteca se repinta al instante.
+>
 > - **Después de cerrar SPRITE_TOOL_PLAN.md (fases D/E) → Evolución UI del Studio con
 >   Tweakpane (look & feel técnico):** documentado en `DESIGN.md` §10 y vinculado en
 >   ROADMAP §12. Reemplaza componentes existentes + parte de la UX actual.

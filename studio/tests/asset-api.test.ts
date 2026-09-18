@@ -7,7 +7,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   assetUrl,
   dataUrlToBlob,
+  deleteSpriteAsset,
   listAudioUrls,
+  listSpriteAssets,
   uploadAudioFiles,
   uploadSpriteFrames,
 } from '../src/io/assetApi';
@@ -101,5 +103,30 @@ describe('assetApi · listado de audios', () => {
 describe('assetApi · assetUrl', () => {
   it('construye la URL pública del blob (D1: el motor la carga sin sesión)', () => {
     expect(assetUrl('abc')).toBe('/api/assets/abc/file');
+  });
+});
+
+describe('assetApi · sprites de la cuenta (tab «Mis Sprites», Fase F)', () => {
+  it('pide solo los de tipo sprite y devuelve los metadatos completos', async () => {
+    const fetchMock = mockFetch({
+      assets: [
+        { id: 's1', nombre: 'guard_f0.png', tipo: 'sprite' },
+        { id: 's2', nombre: 'wolf_f0.png', tipo: 'sprite' },
+      ],
+    });
+    const assets = await listSpriteAssets();
+    expect(assets).toHaveLength(2);
+    expect(assets[0]!.nombre).toBe('guard_f0.png');
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/assets?tipo=sprite');
+  });
+
+  it('deleteSpriteAsset borra por id (DELETE /api/assets/:id)', async () => {
+    const fn = vi.fn(async (_url: string, init: RequestInit) =>
+      ({ ok: true, json: async () => ({ success: true, data: { deleted: true }, error: null }) }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fn as unknown as typeof fetch);
+    await deleteSpriteAsset('s1');
+    expect(fn.mock.calls[0]![0]).toBe('/api/assets/s1');
+    expect(fn.mock.calls[0]![1].method).toBe('DELETE');
   });
 });

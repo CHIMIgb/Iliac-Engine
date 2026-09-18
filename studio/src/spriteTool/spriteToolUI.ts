@@ -20,8 +20,10 @@ import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { SpriteLibrarySnapshot, PixelImage, Rect } from './types';
+import { assetUrl } from '../io/assetApi';
+import type { AssetMeta } from '../io/api';
 
-const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Biblioteca'] as const;
+const STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Biblioteca', 'Mis Sprites'] as const;
 
 type CutMode = 'auto' | 'manual';
 
@@ -101,6 +103,9 @@ export class SpriteToolUI {
   // Paso 4 (Biblioteca, Fase D): sprites + animaciones guardados en el proyecto.
   private step4: HTMLDivElement;
   private libraryGrid: HTMLDivElement;
+  // Paso 5 (Mis Sprites, Fase F): sprites físicos de la cuenta (assets API).
+  private step5: HTMLDivElement;
+  private mySpritesGrid: HTMLDivElement;
   private footer: HTMLElement;
   private addFrameBtn: HTMLButtonElement;
   private addFrameMenu: HTMLDivElement;
@@ -125,6 +130,17 @@ export class SpriteToolUI {
 
   /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
   onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
+
+  /** Conectado por main.ts (Fase F): lista los sprites físicos de la cuenta
+   *  (GET /api/assets?tipo=sprite). null = no conectado a la API. */
+  onListMySprites: (() => Promise<AssetMeta[]>) | null = null;
+
+  /** Conectado por main.ts (Fase F): borra un sprite de la cuenta. */
+  onDeleteSprite: ((id: string) => Promise<void>) | null = null;
+
+  /** Conectado por main.ts (Fase G): elimina una animación guardada del
+   *  proyecto y los sprites del mundo que la usaban (persiste en la API). */
+  onDeleteAnim: ((name: string) => Promise<void> | void) | null = null;
 
   /** Sprites del mundo (los mismos que pueblan `spriteSelect` del Paso 3), para
    *  la fila de reasignación de la Biblioteca (D4): no se duplica la fuente de
@@ -153,7 +169,7 @@ export class SpriteToolUI {
     modal.appendChild(header);
 
     // Pestañas: Cargar inicial; Cortar/Animar se habilitan según el flujo;
-    // Biblioteca siempre accesible (solo lectura del proyecto, Fase D).
+    // Biblioteca y Mis Sprites siempre accesibles (solo lectura, Fase D/E).
     const tabs = document.createElement('div');
     tabs.className = 'sprite-tool__tabs';
     this.tabs = tabs;
@@ -161,7 +177,7 @@ export class SpriteToolUI {
       const btn = document.createElement('button');
       btn.className = 'sprite-tool__tab' + (i === 0 ? ' sprite-tool__tab--active' : '');
       btn.textContent = label;
-      btn.disabled = i !== 0 && i !== 3;
+      btn.disabled = i !== 0 && i !== 3 && i !== 4;
       btn.addEventListener('click', () => this.setStep(i));
       this.stepEls.push(btn);
       tabs.appendChild(btn);
@@ -506,12 +522,37 @@ export class SpriteToolUI {
 
     this.libraryGrid = document.createElement('div');
     this.libraryGrid.className = 'sprite-tool__library';
-    this.step4.appendChild(this.libraryGrid);
+    // Header con botón Refrescar: repinta la Biblioteca sin cambiar de tab
+    // (útil tras guardar animaciones en el Paso 3 y volver a mirarlas).
+    const libHeader = document.createElement('div');
+    libHeader.className = 'sprite-tool__library-header';
+    const libTitle = document.createElement('span');
+    libTitle.className = 'sprite-tool__library-name';
+    libTitle.textContent = 'Animaciones del proyecto';
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn btn--ghost btn--sm sprite-tool__refresh';
+    refreshBtn.title = 'Refrescar la Biblioteca';
+    refreshBtn.appendChild(Icon('refresh-cw', 14));
+    refreshBtn.addEventListener('click', () => this.renderLibraryStep());
+    libHeader.append(libTitle, refreshBtn);
+    this.step4.append(libHeader, this.libraryGrid);
+
+    // ── Paso 5: Mis Sprites (Fase F) ── sprites físicos subidos a la cuenta
+    // (GET /api/assets?tipo=sprite): solo lectura + 2 acciones (cargar al
+    // animador, eliminar). VIVE FUERA del wizardBody, igual que la Biblioteca.
+    this.step5 = document.createElement('div');
+    this.step5.className = 'sprite-tool__step';
+    this.step5.hidden = true;
+
+    this.mySpritesGrid = document.createElement('div');
+    this.mySpritesGrid.className = 'sprite-tool__library';
+    this.step5.appendChild(this.mySpritesGrid);
 
     body.append(this.step1, this.step2, this.step3);
     modal.appendChild(body);
-    // Biblioteca como hija directa del modal (no del wizard body).
+    // Biblioteca y Mis Sprites como hijas directas del modal (no del wizard body).
     modal.appendChild(this.step4);
+    modal.appendChild(this.step5);
 
     // Pie (solo visible en los pasos de corte/animación; la Biblioteca es
     // lectura exclusiva de lo guardado, sin acciones de corte ni animación).
@@ -605,25 +646,29 @@ export class SpriteToolUI {
 
   private setStep(i: number): void {
     // Paso 3 solo está disponible con frames (hoja cortada o sueltos);
-    // Paso 4 (Biblioteca) siempre accesible: muestra lo guardado en el proyecto.
+    // Paso 4 (Biblioteca) y Paso 5 (Mis Sprites) siempre accesibles.
     if (i === 2 && this.allFrames().length === 0) {
       this.nextBtn.disabled = true;
       return;
     }
     this.stepEls.forEach((el, j) => el.classList.toggle('sprite-tool__tab--active', j === i));
     const inLibrary = i === 3;
-    // La Biblioteca es una vista exclusiva: oculta SOLO el cuerpo del wizard
-    // y su footer (acciones de corte/animación). Las tabs se conservan como
-    // menú de navegación para volver a los pasos.
-    this.wizardBody.hidden = inLibrary;
-    this.footer.hidden = inLibrary;
-    this.step1.hidden = i !== 0 && !inLibrary;
-    this.step2.hidden = i !== 1 && !inLibrary;
-    this.step3.hidden = i !== 2 && !inLibrary;
+    const inMySprites = i === 4;
+    // Biblioteca y Mis Sprites son vistas exclusivas: ocultan SOLO el cuerpo
+    // del wizard y su footer (acciones de corte/animación). Las tabs se
+    // conservan como menú de navegación para volver a los pasos.
+    this.wizardBody.hidden = inLibrary || inMySprites;
+    this.footer.hidden = inLibrary || inMySprites;
+    this.step1.hidden = !inLibrary && !inMySprites && i !== 0;
+    this.step2.hidden = !inLibrary && !inMySprites && i !== 1;
+    this.step3.hidden = !inLibrary && !inMySprites && i !== 2;
     this.step4.hidden = !inLibrary;
+    this.step5.hidden = !inMySprites;
     this.stopPreview();
     if (inLibrary) {
       this.renderLibraryStep();
+    } else if (inMySprites) {
+      void this.renderMySpritesStep();
     } else if (i === 2) {
       this.renderStep3();
       this.previewElapsed = 0;
@@ -1174,7 +1219,25 @@ private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDi
   const meta = document.createElement('span');
   meta.className = 'sprite-tool__library-meta';
   meta.textContent = `${anim.frames.length} frame(s) · ${anim.fps ?? 8} fps · ${anim.loop === false ? 'una vez' : 'bucle'}`;
-  head.append(title, meta);
+  // Fase G: eliminar la animación del proyecto (y sus sprites del mundo).
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn--icon sprite-tool__library-delete';
+  delBtn.title = 'Eliminar esta animación del proyecto y sus sprites del mundo';
+  delBtn.appendChild(Icon('trash', 14));
+  delBtn.addEventListener('click', () => {
+    const ok = window.confirm(
+      `¿Eliminar la animación «${name}» del proyecto? También se eliminarán los sprites del mundo que la usan y sus texturas huérfanas.`,
+    );
+    if (!ok) return;
+    if (!this.onDeleteAnim) {
+      showToast('La Biblioteca no está conectada al proyecto', 'warning');
+      return;
+    }
+    Promise.resolve(this.onDeleteAnim(name))
+      .then(() => this.renderLibraryStep())
+      .catch(() => this.renderLibraryStep());
+  });
+  head.append(title, meta, delBtn);
   card.appendChild(head);
 
   const thumbs = document.createElement('div');
@@ -1314,6 +1377,133 @@ private async loadLibraryAnim(name: string): Promise<void> {
   this.setStep(2);
   const msgSkipped = skipped > 0 ? `, ${skipped} omitidos` : '';
   showToast(`Animación «${copyName}» cargada (${indexes.length} frames${msgSkipped})`, skipped > 0 ? 'warning' : 'success');
+}
+
+/** Pinta el Paso 5 (Mis Sprites, Fase F): sprites físicos subidos a la cuenta
+ *  (GET /api/assets?tipo=sprite) como cards con thumb + nombre + acciones
+ *  (cargar al animador, eliminar). Solo lectura; sin corte ni animación. */
+private async renderMySpritesStep(): Promise<void> {
+  this.mySpritesGrid.textContent = '';
+  if (!this.onListMySprites) {
+    this.mySpritesGrid.appendChild(this.libraryMessage('Mis Sprites no está conectado a la API.'));
+    return;
+  }
+  let assets: AssetMeta[];
+  try {
+    assets = await this.onListMySprites();
+  } catch (err) {
+    console.error('Error listando mis sprites:', err);
+    this.mySpritesGrid.appendChild(this.libraryMessage('No se pudieron cargar tus sprites. Revisa la conexión o vuelve a abrir el modal.'));
+    return;
+  }
+  if (assets.length === 0) {
+    this.mySpritesGrid.appendChild(this.libraryMessage(
+      'Aún no has subido sprites a tu cuenta. Cuando guardes frames en el Paso 3, aparecerán aquí.',
+    ));
+    return;
+  }
+  for (const asset of assets) {
+    this.mySpritesGrid.appendChild(this.renderMySpriteCard(asset));
+  }
+}
+
+/** Card de un sprite de la cuenta: thumb (URL pública del blob) + nombre +
+ *  acciones «Cargar al animador» (Fase F) y «Eliminar» (este borra de la
+ *  cuenta, no del proyecto). */
+private renderMySpriteCard(asset: AssetMeta): HTMLDivElement {
+  const card = document.createElement('div');
+  card.className = 'sprite-tool__library-card';
+
+  const head = document.createElement('div');
+  head.className = 'sprite-tool__library-head';
+  const title = document.createElement('span');
+  title.className = 'sprite-tool__library-name';
+  title.textContent = asset.nombre;
+  title.title = asset.nombre;
+  head.appendChild(title);
+  card.appendChild(head);
+
+  const thumbs = document.createElement('div');
+  thumbs.className = 'sprite-tool__library-thumbs';
+  const thumb = document.createElement('img');
+  thumb.className = 'sprite-tool__library-thumb';
+  thumb.src = assetUrl(asset.id);
+  thumb.alt = asset.nombre;
+  thumb.draggable = false;
+  thumbs.appendChild(thumb);
+  card.appendChild(thumbs);
+
+  const row = document.createElement('div');
+  row.className = 'sprite-tool__library-actions';
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'btn btn--secondary btn--sm';
+  loadBtn.textContent = 'Cargar al animador';
+  loadBtn.title = 'Reconstruye el frame desde el sprite de la cuenta y salta al Paso 3';
+  loadBtn.addEventListener('click', () => {
+    void this.loadMySprite(asset);
+  });
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn--danger btn--sm';
+  delBtn.textContent = 'Eliminar';
+  delBtn.title = 'Borra el sprite de tu cuenta (los proyectos que lo usen perderán la textura)';
+  delBtn.addEventListener('click', () => {
+    void this.deleteMySprite(asset);
+  });
+  row.append(loadBtn, delBtn);
+  card.appendChild(row);
+  return card;
+}
+
+/** Carga un sprite de la cuenta al animador (Fase F): descarga el blob
+ *  público (URL del middleware de assets), lo convierte a PixelImage y lo
+ *  añade como frame suelto con key derivada del nombre del asset (evitando
+ *  colisiones con `_2`, `_3`, …). Salta al Paso 3 como en D5. */
+private async loadMySprite(asset: AssetMeta): Promise<void> {
+  try {
+    const pixel = await this.loadPixelFromDataUrl(assetUrl(asset.id));
+    if (!pixel) {
+      showToast(`No se pudo decodificar «${asset.nombre}»`, 'error');
+      return;
+    }
+    const base = assetIdFromFileName(asset.nombre);
+    const taken = new Set(this.allFrames().map((f) => f.key));
+    let key = base;
+    let suffix = 2;
+    while (taken.has(key)) key = `${base}_${suffix++}`;
+    const dataUrl = this.pixelImageToDataUrl(pixel);
+    this.looseFrames.push({ key, dataUrl, w: pixel.width, h: pixel.height, pixel });
+    this.initAnimsIfNeeded();
+    this.nextBtn.disabled = false;
+    this.stepEls[2]!.disabled = false;
+    this.renderStep3();
+    this.setStep(2);
+    showToast(`Sprite «${asset.nombre}» cargado al animador (${key})`, 'success');
+  } catch (err) {
+    console.error('Error cargando sprite de la cuenta:', err);
+    showToast(`No se pudo cargar «${asset.nombre}»`, 'error');
+  }
+}
+
+/** Elimina un sprite de la cuenta (DELETE /api/assets/:id) con confirmación
+ *  del usuario y refresca la lista. Los proyectos que ya lo usen pierden la
+ *  textura (la URL del blob deja de servirse) — se avisa en el confirm. */
+private async deleteMySprite(asset: AssetMeta): Promise<void> {
+  if (!this.onDeleteSprite) {
+    showToast('Mis Sprites no está conectado a la API', 'warning');
+    return;
+  }
+  const ok = window.confirm(
+    `¿Eliminar «${asset.nombre}» de tu cuenta?\nLos proyectos que lo usen perderán esta textura.`,
+  );
+  if (!ok) return;
+  try {
+    await this.onDeleteSprite(asset.id);
+    showToast(`Sprite «${asset.nombre}» eliminado de la cuenta`, 'success');
+    void this.renderMySpritesStep();
+  } catch (err) {
+    console.error('Error eliminando sprite:', err);
+    showToast(`No se pudo eliminar «${asset.nombre}»`, 'error');
+  }
 }
 
 /** Decodifica una URL (dataURL o ruta del middleware) a PixelImage. Mismo

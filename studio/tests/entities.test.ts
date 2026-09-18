@@ -23,6 +23,63 @@ function makeRoom(): EditorState {
   return state;
 }
 
+describe('EditorState.removeSpriteAnim (Fase G — Eliminar de la Biblioteca)', () => {
+  function makeDoc(): EditorState {
+    const state = makeRoom();
+    // 3 anims mock + texturas de frames
+    state.setWorldTextures({
+      wolf_f0: 'data:a/wolf_f0', wolf_f1: 'data:a/wolf_f1',
+      guard_f0: 'data:a/guard_f0',
+      potion_f0: 'data:a/potion_f0', potion_f1: 'data:a/potion_f1',
+      shared_f0: 'data:a/shared_f0',
+    });
+    state.setSpriteAnims({
+      wolf_idle: { frames: ['wolf_f0', 'wolf_f1'], fps: 4, loop: true },
+      guard_idle: { frames: ['guard_f0'], fps: 4, loop: true },
+      potion_idle: { frames: ['potion_f0', 'potion_f1', 'shared_f0'], fps: 2, loop: false },
+    });
+    const guard = state.addSprite('guard_f0', 2, 2, 0, 'npc_guardian');
+    guard.anim = 'guard_idle';
+    const wolf = state.addSprite('wolf_f0', 3, 3, 0, 'npc_lobo');
+    wolf.anim = 'wolf_idle';
+    const potion = state.addSprite('potion_f0', 4, 4, 0, 'prop_pocion');
+    potion.anim = 'potion_idle';
+    // Sprite sin anim (debe conservarse) cuya tex no es de ningún frame.
+    state.addSprite('z_tex', 5, 5, 0, 'prop_otro');
+    return state;
+  }
+
+  it('borra la anim, los sprites del mundo que la usaban y sus texturas huérfanas', () => {
+    const state = makeDoc();
+    const r = state.removeSpriteAnim('wolf_idle');
+    expect(r).toEqual({ ok: true, removedSprites: 1, removedTextures: 2 });
+    expect(state.world.spriteAnims).not.toHaveProperty('wolf_idle');
+    expect(state.world.sprites.map((s) => s.id)).not.toContain('npc_lobo');
+    expect(state.world.sprites.map((s) => s.id)).toContain('npc_guardian');
+    expect(state.world.sprites.map((s) => s.id)).toContain('prop_pocion');
+    expect(state.world.textures).not.toHaveProperty('wolf_f0');
+    expect(state.world.textures).not.toHaveProperty('wolf_f1');
+  });
+
+  it('conserva las texturas compartidas por otras anims', () => {
+    const state = makeDoc();
+    state.removeSpriteAnim('potion_idle'); // comparte shared_f0 con nadie más → se borra
+    expect(state.world.textures).not.toHaveProperty('potion_f0');
+    expect(state.world.textures).not.toHaveProperty('potion_f1');
+    // shared_f0 no la usa ya ninguna anim tras el borrado → también se elimina
+    expect(state.world.textures).not.toHaveProperty('shared_f0');
+    expect(state.world.spriteAnims).not.toHaveProperty('potion_idle');
+  });
+
+  it('devuelve ok:false si la anim no existe y no muta nada', () => {
+    const state = makeDoc();
+    const before = state.snapshot();
+    expect(state.removeSpriteAnim('no_existe')).toEqual({ ok: false });
+    expect(state.world.sprites).toEqual(before.world.sprites);
+    expect(state.world.spriteAnims).toEqual(before.world.spriteAnims);
+  });
+});
+
 describe('entityCatalog', () => {
   it('tiene las seis categorías ordenadas (NPC, humano, animal, no muertos, daedra, criaturas)', () => {
     expect(ENTITY_CATEGORIES.map((c) => c.id)).toEqual([

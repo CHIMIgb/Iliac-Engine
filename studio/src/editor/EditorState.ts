@@ -343,6 +343,45 @@ export class EditorState {
     return true;
   }
 
+  /**
+   * Elimina una animación guardada de `world.spriteAnims` y su rastro en el
+   * mundo (botón Eliminar de la Biblioteca, Fase G): borra la anim, los
+   * sprites del mundo que la usaban (decisión del usuario 2026-09-18: los
+   * mocks antiguos deben salir también del viewport) y las texturas de sus
+   * frames que queden huérfanas (ni otra anim ni otro sprite las usan).
+   * Devuelve un resumen de lo borrado; `ok:false` si la anim no existe.
+   */
+  removeSpriteAnim(name: string):
+    | { ok: false }
+    | { ok: true; removedSprites: number; removedTextures: number } {
+    const anims = this.world.spriteAnims;
+    const anim = anims?.[name];
+    if (!anim) return { ok: false };
+    const frameKeys = anim.frames;
+    delete anims[name];
+
+    const removedSprites = this.world.sprites.filter((sp) => sp.anim === name).length;
+    if (removedSprites > 0) {
+      this.world.sprites = this.world.sprites.filter((sp) => sp.anim !== name);
+    }
+
+    // Frames huérfanos: texturas ya no referenciadas ni por las anims
+    // restantes ni por los sprites restantes (`sp.tex`).
+    const used = new Set<string>();
+    for (const a of Object.values(anims)) for (const k of a.frames) used.add(k);
+    for (const sp of this.world.sprites) if (sp.tex) used.add(sp.tex);
+    let removedTextures = 0;
+    for (const k of frameKeys) {
+      if (!used.has(k) && Object.prototype.hasOwnProperty.call(this.world.textures, k)) {
+        delete this.world.textures[k];
+        removedTextures++;
+      }
+    }
+
+    this.notify();
+    return { ok: true, removedSprites, removedTextures };
+  }
+
   // ─────────────────────────────────────────────────
   // Accesores
   // ─────────────────────────────────────────────────

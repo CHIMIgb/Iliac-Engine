@@ -66,25 +66,14 @@ describe('mapa por defecto 100×100 @ 2 m', () => {
     expect(spread).toBeGreaterThan(2);
   });
 
-  it('declara solo texturas mock (Fase D) y suelos de césped: el paisaje no depende de ellas', () => {
-    // Fase D: el proyecto inicial trae sprites mock (dataURLs SVG de colores)
-    // para que la Biblioteca del Sprite Tool se vea poblada sin backend.
-    expect(Object.keys(world.textures).length).toBeGreaterThan(0);
-    expect(Object.keys(world.textures).every((k) => k.startsWith('mock_'))).toBe(true);
-    expect(world.sectors.every((s) => s.floorTex === 'grass')).toBe(true);
-  });
-
-  it('Fase D (mock, D4): ≥2 sprites del mundo con anim y se puede reasignar entre ellos', () => {
-    // D4 necesita al menos 2 sprites del mundo animados para «reasignar una anim
-    // a OTRO sprite» en la Biblioteca; el mock los provee sin backend.
+  it('arranca sin texturas ni animaciones (Biblioteca dinámica, sin mocks)', () => {
+    // El proyecto inicial ya NO trae sprites mock: la Biblioteca del Sprite
+    // Tool muestra solo lo que el usuario guarda de verdad.
+    expect(Object.keys(world.textures).length).toBe(0);
     const doc = buildDefaultDoc();
-    const animated = doc.world.sprites.filter((s) => s.anim);
-    expect(animated.length).toBeGreaterThanOrEqual(2);
-    const a = animated[0]!;
-    const b = animated[1]!;
-    // La reasignación reutiliza el puente existente (main.ts → assignSpriteAnim).
-    expect(doc.assignSpriteAnim(a.id, b.anim ?? null)).toBe(true);
-    expect(doc.world.sprites.find((s) => s.id === a.id)?.anim).toBe(b.anim);
+    expect(doc.world.spriteAnims ?? {}).toEqual({});
+    expect(doc.world.sprites.length).toBe(0);
+    expect(world.sectors.every((s) => s.floorTex === 'grass')).toBe(true);
   });
 
   it('landscapeHeight es determinista para la misma semilla', () => {

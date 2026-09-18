@@ -26,7 +26,7 @@ import { ApiError, apiLogout } from './io/api';
 import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/CloudProject';
 import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
 import { openMyProject } from './io/MyProjects';
-import { listAudioUrls, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
+import { deleteSpriteAsset, listAudioUrls, listSpriteAssets, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -147,15 +147,22 @@ async function createNewProject(): Promise<void> {
  * Guarda el proyecto en la API. La sesión es obligatoria (C5c): sin ella se
  * avisa y se abre el modal de Cuenta, y el guardado se aborta.
  */
-async function saveCurrent(): Promise<void> {
-  if (!requireSession('guardar el proyecto')) return;
+/**
+ * Persiste el documento en la nube (C5c). Devuelve true solo si realmente se
+ * guardó; `silencioso` omite el toast de éxito (lo usa la Sprite Tool, que
+ * muestra su propio toast con el resumen de frames/animaciones).
+ */
+async function saveCurrent(silencioso = false): Promise<boolean> {
+  if (!requireSession('guardar el proyecto')) return false;
   try {
     if (!cloudProjectId) cloudProjectId = await createCloudProject(doc);
     else await saveCloudProject(doc, cloudProjectId);
     dirty = false;
-    showToast('Proyecto guardado en la nube', 'success');
+    if (!silencioso) showToast('Proyecto guardado en la nube', 'success');
+    return true;
   } catch (e) {
     handleApiFailure(e, 'guardar');
+    return false;
   }
 }
 
@@ -285,12 +292,25 @@ spriteTool.onSaveRequested = async (out, frameDataUrls) => {
     for (const r of uploaded) urls[r.key] = r.url!;
     doc.setWorldTextures(urls);
     doc.setSpriteAnims(out.spriteAnims);
+    // ASSET_UPLOAD_PLAN.md: persistir ya el proyecto (con las animaciones) —
+    // antes esto solo mutaba el doc en memoria y el toast de "Guardado" era
+    // engañoso si el usuario cerraba sin pulsar Ctrl+S.
+    const guardado = await saveCurrent(true);
     const reused = uploaded.filter((r) => r.reused).length;
-    showToast(
-      `Guardado: ${uploaded.length} frames${reused ? ` (${reused} ya existían)` : ''} + ` +
-        `${Object.keys(out.spriteAnims).length} animaciones`,
-      'success',
-    );
+    if (guardado) {
+      showToast(
+        `Guardado: ${uploaded.length} frames${reused ? ` (${reused} ya existían)` : ''} + ` +
+          `${Object.keys(out.spriteAnims).length} animaciones`,
+        'success',
+      );
+    } else {
+      const detalle = reused ? ` (${reused} ya existían)` : '';
+      showToast(
+        `Los frames se subieron (${uploaded.length}${detalle}) pero el proyecto NO se guardó. ` +
+          'Pulsa Ctrl+S para persistir las animaciones.',
+        'warning',
+      );
+    }
     if (failed.length > 0) {
       showToast(`No se subieron ${failed.length} frames: ${failed[0]!.error}`, 'warning');
     }
@@ -317,6 +337,32 @@ const spriteBtn = layout.toolbar.addAction({
       doc.world.sprites.map((s) => ({ id: s.id, label: `${s.id} (${s.tex})` })),
     );
     spriteTool.onProjectSnapshot = () => doc.getSpriteLibrarySnapshot();
+    // Fase F (tab «Mis Sprites»): los sprites físicos de la cuenta. Ambos
+    // callbacks necesitan sesión (la API de assets es privada) — si no hay
+    // sesión, listSpriteAssets lanza y la tab muestra su mensaje de error.
+    spriteTool.onListMySprites = () => listSpriteAssets();
+    spriteTool.onDeleteSprite = (id) => deleteSpriteAsset(id);
+    // Fase G (botón Eliminar de la Biblioteca): borra la anim del proyecto y
+    // sus sprites del mundo, y persiste. El doc ya notifica al viewport con
+    // su propio onChange; aquí solo se confirma el guardado en la nube.
+    spriteTool.onDeleteAnim = async (name) => {
+      if (!requireSession('eliminar la animación')) return;
+      const res = doc.removeSpriteAnim(name);
+      if (!res.ok) {
+        showToast('La animación no existe en el proyecto', 'error');
+        return;
+      }
+      const saved = await saveCurrent(true);
+      const extra = res.removedSprites
+        ? ` + ${res.removedSprites} sprite(s) del mundo`
+        : '';
+      showToast(
+        saved
+          ? `Eliminada «${name}»${extra}`
+          : `«${name}» eliminada en memoria pero el proyecto NO se guardó. Ctrl+S para persistir`,
+        saved ? 'success' : 'warning',
+      );
+    };
     spriteTool.open();
   },
 });

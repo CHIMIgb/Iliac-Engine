@@ -196,6 +196,11 @@ export function apiDeleteProject(id: string) {
   return apiFetch<{ deleted: boolean }>(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
+/** Elimina un asset propio (DELETE /api/assets/:id). */
+export function apiDeleteAsset(id: string) {
+  return apiFetch<{ deleted: boolean }>(`/api/assets/${id}`, { method: 'DELETE' });
+}
+
 // ── Plantillas (C5d: el documento de partida viene de la API) ──
 
 /** Resumen de una plantilla (la lista NO incluye `data`). */

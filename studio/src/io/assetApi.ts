@@ -11,7 +11,8 @@
  * sesión antes (main.ts lee `requireSession`, ToolManager preguntar por su
  * puente) y aquí no hay ningún camino local alternativo.
  */
-import { apiListAssets, apiUploadAsset } from './api';
+import { apiDeleteAsset, apiListAssets, apiUploadAsset } from './api';
+import type { AssetMeta } from './api';
 
 export interface UploadedAsset {
   /** Clave del frame (sprites) o nombre del archivo (audio). */
@@ -92,4 +93,17 @@ export async function uploadAudioFiles(
 export async function listAudioUrls(): Promise<string[]> {
   const { assets } = await apiListAssets('audio');
   return assets.map((a) => assetUrl(a.id));
+}
+
+/** Sprites físicos subidos a la cuenta (GET /api/assets?tipo=sprite) — los
+ *  PNG individuales que el usuario importó; se listan organizados en la tab
+ *  «Mis Sprites» del Sprite Tool. */
+export async function listSpriteAssets(): Promise<AssetMeta[]> {
+  const { assets } = await apiListAssets('sprite');
+  return assets;
+}
+
+/** Elimina un sprite de la cuenta (DELETE /api/assets/:id). */
+export async function deleteSpriteAsset(id: string): Promise<void> {
+  await apiDeleteAsset(id);
 }

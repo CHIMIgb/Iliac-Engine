@@ -153,6 +153,20 @@ Seters en `EditorState`: `addAudioDef` (id `audio_<n>` único) · `updateAudioDe
 
 ---
 
+## Sprites — Sprite Tool (botón de toolbar, sin tecla)
+
+Modal con 4 pasos + 2 bibliotecas (`STEPS = ['1 · Cargar', '2 · Cortar', '3 · Animar', 'Biblioteca', 'Mis Sprites']`):
+
+- **1 · Cargar**: sube una hoja PNG (o WebP) → `PixelImage` en memoria (no destructivo). Permite la hoja (modo cortar) **y** PNGs sueltos («Añadir frames desde archivo…», Fase C) que sobreviven al re-corte.
+- **2 · Cortar**: Auto (detecta cajas por transparencia, components conexas; sliders `minPixels`/`gapTolerance` + trim) o Manual (grilla cols×rows con spacing y trailing empty). Preview numerado en vivo; recorte a `<canvas>` → frames en memoria (`textureKeyFor(assetId,i)`).
+- **3 · Animar**: plantilla idle/walk/attack/death, arrastrar frames entre anims, quitar/añadir frames, preview ▶/⏸ (fps/loop), **espejo** de animaciones (`${name}_mirror`), **Generar anim desde frames sueltos**. «Guardar en el proyecto» sube los frames a la API (`POST /api/assets`, tipo `sprite`, sesión obligatoria) y fusiona texturas + animaciones en el documento (`doc.setWorldTextures` + `setSpriteAnims` + `saveCurrent`).
+- **Biblioteca** (Fase D, solo lectura con acción de borrado desde la Fase G): animaciones guardadas del **proyecto** (texturas + `spriteAnims` reales, jamás mocks — el proyecto inicial arranca vacío). Cards con mini-thumbs, «Asignar a sprite…» (D4), «Cargar al animador» (D5, reconstruye y salta al Paso 3) y **«Eliminar»** (Fase G, icono papelera: borra la animación del proyecto **y los sprites del mundo que la usaban**, más sus texturas huérfanas — con confirmación; de ahí salieron los residuos de mocks antiguos `guard_idle`/`wolf_idle`/`potion_idle`). Botón **Refrescar** (`refresh-cw`) para repintar sin cambiar de tab.
+- **Mis Sprites** (Fase F, solo lectura): **sprites físicos de la cuenta** vía `GET /api/assets?tipo=sprite` — los PNG individuales que has subido (cada frame guardado del Paso 3). Cards con thumb (URL pública del blob), «Cargar al animador» (reconstruye el frame y salta al Paso 3) y **«Eliminar»** (borra el asset de la cuenta con confirmación — ⚠️ los proyectos que lo usen pierden esa textura). Requiere sesión: si no la hay, la tab muestra su estado de error.
+
+Los datos viven SOLO en el proyecto (texturas + anims) y en la cuenta (assets API) — el modal no tiene estado duplicado. Ver `SPRITE_TOOL_PLAN.md` para la historia y `docs/ARCHITECTURA.md §5.3`.
+
+---
+
 ## Por qué va fluido (arquitectura del reload en vivo)
 
 `notify()` de cualquier mutación → `main.ts` dispara reload con **throttle** (`reloadMs()`: 120 ms normal, 250 ms con mundos >40k sectores; no debounce puro: el pincel muta cada frame y un debounce hambriento nunca dispara) → `EditorViewport.reload()` → `Engine3D.setWorld(project)`:

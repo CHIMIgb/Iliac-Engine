@@ -1043,6 +1043,32 @@ html, body, #app {
   padding: var(--space-2);
 }
 
+/* Header de Biblioteca / Mis Sprites: título + botón Refrescar. */
+.sprite-tool__library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.sprite-tool__refresh {
+  color: var(--text-muted);
+}
+
+.sprite-tool__refresh:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+/* Fase G: botón Eliminar de la Biblioteca (icono papelera, rojo en hover). */
+.sprite-tool__library-delete {
+  color: var(--text-muted);
+}
+
+.sprite-tool__library-delete:hover:not(:disabled) {
+  color: var(--accent-danger);
+}
+
 .sprite-tool__library-card {
   display: flex;
   flex-direction: column;

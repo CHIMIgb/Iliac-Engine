@@ -10,47 +10,15 @@
  * SIN texturas por defecto: el suelo usa el gris de fallback del motor
  * (0x555555). El color lo elige el usuario pintando texturas en el editor.
  *
- * Fase D (Biblioteca): aún no hay backend ni assets reales, así que el
- * proyecto inicial trae SPRITES MOCK (dataURLs SVG de color sólido) +
- * animaciones de ejemplo. Así la Biblioteca puede verse poblada y validarse;
- * el usuario puede borrarlos cargando su propio material.
+ * BIBLIOTECA DINÁMICA (sin mocks): el proyecto inicial NO trae sprites ni
+ * animaciones de ejemplo — la Biblioteca del Sprite Tool muestra lo que el
+ * usuario guarda realmente, y los sprites de su cuenta subidos a la API.
  */
 import { EditorState } from './editor/EditorState';
-import { placeTerrainAt, floorHeightAtPoint } from './tools/tools';
+import { placeTerrainAt } from './tools/tools';
 import { toProjectJson } from './io/Serializer';
 import { createNoise, fbm2 } from '@engine/core/noise.js';
 import type { EditableAudioDef, EditableMusicRef } from './editor/types';
-
-// ── Sprites mock (Fase D): SVG dataURL de color sólido, sin assets ──
-const MOCK_FRAMES: Record<string, string[]> = {
-  guard: ['#e05b5b', '#c94f46', '#b0433b', '#9a3c33'], // guardia rojo
-  wolf: ['#7a8ba6', '#6b7c97', '#5d6e88', '#526078'], // lobo azul-pizarra
-  potion: ['#8be08b', '#6fd47f', '#58c16e', '#44ac5d'], // poción verde
-};
-
-function mockTextureDataUrl(color: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="${color}"/></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-/** Puebla world.textures + world.spriteAnims con el set mock de la Fase D.
- *  Devuelve las claves de textura creadas. */
-function installMockSprites(doc: EditorState): string[] {
-  const textures: Record<string, string> = {};
-  const anims: Record<string, { frames: string[]; fps: number; loop: boolean }> = {};
-  const keys: string[] = [];
-  for (const [name, colors] of Object.entries(MOCK_FRAMES)) {
-    const frames = colors.map((color, i) => `mock_${name}_f${i}`);
-    frames.forEach((key, i) => {
-      textures[key] = mockTextureDataUrl(colors[i]!);
-      keys.push(key);
-    });
-    anims[`${name}_idle`] = { frames, fps: 4, loop: true };
-  }
-  doc.setWorldTextures(textures);
-  doc.setSpriteAnims(anims);
-  return keys;
-}
 
 const SIZE = 100;      // lado del mapa en metros
 const CELL = 2;        // tamaño de celda (2 m → 50×50 sectores, carga instantánea)
@@ -138,29 +106,9 @@ function buildDefaultDoc(): EditorState {
   // comporta como no-op si audio[] está vacío.
   doc.audio = [];
   doc.music = null;
-  // Fase D: sprites mock para que la Biblioteca del Sprite Tool se vea poblada.
-  // Guardián en la ladera, apoyado en el terreno (sprite, sin bucle de audio).
-  installMockSprites(doc);
-  const gz = floorHeightAtPoint(doc.world, 62, 60);
-  doc.addSprite('mock_guard_f0', 62, 60, gz, 'npc_guardian', {
-    entityType: 'npc', entityName: 'Guardián', collisionType: 'npc',
-  });
-  // El guardián usa la animación mock de guardia (Fase D).
-  doc.assignSpriteAnim('npc_guardian', 'guard_idle');
-
-  // Fase D (D4): más sprites del mundo mock para que «reasignar una anim a OTRO
-  // sprite» sea demostrable en la Biblioteca (el mundo no puede tener solo uno).
-  const wz = floorHeightAtPoint(doc.world, 38, 58);
-  doc.addSprite('mock_wolf_f0', 38, 58, wz, 'npc_lobo', {
-    entityType: 'npc', entityName: 'Lobo', collisionType: 'npc',
-  });
-  doc.assignSpriteAnim('npc_lobo', 'wolf_idle');
-
-  const pz = floorHeightAtPoint(doc.world, 56, 40);
-  doc.addSprite('mock_potion_f0', 56, 40, pz, 'prop_pocion', {
-    entityType: 'prop', entityName: 'Poción',
-  });
-  doc.assignSpriteAnim('prop_pocion', 'potion_idle');
+  // SIN sprites de ejemplo (Biblioteca dinámica): el proyecto arranca sin
+  // texturas ni animaciones; el usuario las crea con la Sprite Tool y se
+  // guardan en la biblioteca del proyecto + la cuenta.
 
   return doc;
 }
