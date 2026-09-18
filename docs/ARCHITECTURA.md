@@ -84,7 +84,7 @@ Vive en `contract/` como **JS vanilla puro** (`project-schema.js`, 216 líneas) 
     sectors:   [{ id, vertexIds[], floorH, ceilH, floorTex, ceilTex, wallTex, floorSlope? }]
     walls:     [{ id, a, b, sectorFront, sectorBack|null, tex?, solid?, portal? }]
     ramps?:    [{ id, sector, fromH, toH, axis }]
-    sprites?:  [{ id, tex, x, y, z?, scale?, type?, entityType?, collisionType?, collisionBox?, anim? }]
+    sprites?:  [{ id, tex, x, y, z?, scale?, type?, entityType?, collisionType?, collisionBox?, anim? }]  // z = altura del PIE (suelo); el billboard se dibuja apoyado (centro en z + scale/2)
     textures?: { [key]: ruta | color hex }
     spriteAnims?: { [id]: { frames: string[], fps?, loop? } }
     sky?:      { set, frame?, style: 'classic' } | { style: 'realista', hour, dayLengthSec, ... }

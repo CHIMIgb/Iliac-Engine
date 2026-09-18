@@ -10,6 +10,12 @@ import { animFrameIndex } from '../core/anims.js';
  *    animación: el material del Sprite cambia su `map` por frame según el
  *    reloj acumulado. La lógica de índice está en core/anims.js (pura).
  *
+ * Semántica de `sprite.pos.z` = altura del PIE del sprite (el suelo donde se
+ * apoya): las herramientas la escriben con `floorHeightAtPoint` y la caja de
+ * colisión del editor se dibuja con la base en `pos.z`. Por eso el billboard
+ * se centra en `pos.z + scale/2` (base en el suelo, no centro en el suelo —
+ * si no, la mitad del sprite quedaría enterrada en la pendiente).
+ *
  * buildSprites devuelve un `SpriteAnimator` con `update(dt)` para que el
  * orquestador (Engine3D) lo avance cada frame — o null si no hay sprites
  * animados (cero coste por frame en mundos sin animaciones).
@@ -43,8 +49,9 @@ export function buildSprites(scene, world, textures) {
       if (!firstTex) continue;
       const material = new THREE.SpriteMaterial({ map: firstTex });
       const s = new THREE.Sprite(material);
-      s.position.set(sprite.pos.x, sprite.pos.z, sprite.pos.y);
       const scale = sprite.scale ?? 1;
+      // Base apoyada en el suelo (pos.z = pie): centro elevado media altura.
+      s.position.set(sprite.pos.x, sprite.pos.z + scale / 2, sprite.pos.y);
       s.scale.set(scale, scale, 1);
       scene.add(s);
       animated.push({ sprite: s, animDef, clock: 0, last: -1 });
@@ -57,8 +64,9 @@ export function buildSprites(scene, world, textures) {
     if (!tex) continue;
     const material = new THREE.SpriteMaterial({ map: tex });
     const s = new THREE.Sprite(material);
-    s.position.set(sprite.pos.x, sprite.pos.z, sprite.pos.y);
     const scale = sprite.scale ?? 1;
+    // Base apoyada en el suelo (pos.z = pie): centro elevado media altura.
+    s.position.set(sprite.pos.x, sprite.pos.z + scale / 2, sprite.pos.y);
     s.scale.set(scale, scale, 1);
     scene.add(s);
   }

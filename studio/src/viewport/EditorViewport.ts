@@ -567,9 +567,12 @@ export class EditorViewport {
       };
     });
 
-    // Proyectar sprites (posición 3D) a pantalla.
+    // Proyectar sprites (posición 3D) a pantalla. La altura del sprite es la
+    // del PIE (pos.z); el billboard se dibuja con el centro elevado media
+    // escala, así que el picking proyecta el MISMO punto que se ve.
     const screenSprites = doc.world.sprites.map((sp) => {
-      _v3.set(sp.pos.x, sp.pos.z, sp.pos.y); // Three: x=altura=z del doc, z=profundidad=y del doc
+      const halfH = (sp.scale ?? 1) / 2;
+      _v3.set(sp.pos.x, sp.pos.z + halfH, sp.pos.y); // Three: x=altura=z del doc, z=profundidad=y del doc
       const p = _v3.clone().project(camera);
       return { id: sp.id, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h };
     });

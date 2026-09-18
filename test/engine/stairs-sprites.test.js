@@ -37,7 +37,8 @@ test('buildSprites genera un THREE.Sprite por sprite', () => {
   assert.equal(sprites.length, 1);
   assert.equal(sprites[0].position.x, 1);
   assert.equal(sprites[0].position.z, 2);
-  assert.equal(sprites[0].position.y, 0.5);
+  // pos.z = altura del PIE: el centro del billboard sube media escala.
+  assert.equal(sprites[0].position.y, 0.5 + 1.5 / 2);
   assert.equal(sprites[0].scale.x, 1.5);
 });
 

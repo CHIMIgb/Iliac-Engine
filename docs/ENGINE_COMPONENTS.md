@@ -176,7 +176,7 @@ Encapsula la escena Three.js:
 
 ### 3.15 `three/SpriteSystem.js` — Sprites billboard
 
-- `buildSprites(scene, world, textures)`: para cada sprite crea un `THREE.Sprite` siempre orientado a la cámara, con escala configurable.
+- `buildSprites(scene, world, textures)`: para cada sprite crea un `THREE.Sprite` siempre orientado a la cámara, con escala configurable. `sprite.pos.z` es la altura del **pie** (suelo): el billboard se dibuja apoyado, con el centro en `pos.z + scale/2` (misma disciplina que las cajas de colisión del editor).
 
 ### 3.16 `three/textures.js` — Texturas y materiales
 
