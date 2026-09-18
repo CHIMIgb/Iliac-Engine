@@ -1122,56 +1122,6 @@ html, body, #app {
   padding-top: var(--space-1);
 }
 
-/* Menú «Colocar en el mundo ▾» (Fase E, E2): dropdown absoluto bajo el botón.
-   El contenedor flex del paso 3 (assign) y de la Biblioteca son los ancestros
-   posicionados; right:0 lo alinea con el botón, que es el último de la fila. */
-.sprite-tool__assign,
-.sprite-tool__library-actions {
-  position: relative;
-  align-items: flex-start;
-}
-
-.sprite-tool__place-btn {
-  position: relative;
-}
-
-.sprite-tool__place-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  min-width: 180px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding: var(--space-1);
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-}
-
-.sprite-tool__place-item {
-  text-align: left;
-  padding: var(--space-1) var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.sprite-tool__place-item:hover {
-  background: var(--bg-hover);
-  color: var(--accent-primary);
-}
-
-.sprite-tool__place-menu .sprite-tool__library-meta {
-  padding: var(--space-1) var(--space-2);
-}
-
 .sprite-tool__thumb {
   display: flex;
   flex-direction: column;

@@ -27,8 +27,6 @@ import { createCloudProject, loadCloudMostRecent, saveCloudProject } from './io/
 import { createFromTemplate, isEmptyDoc, loadStartProject } from './io/StartProject';
 import { openMyProject } from './io/MyProjects';
 import { deleteSpriteAsset, listAudioUrls, listSpriteAssets, uploadAudioFiles, uploadSpriteFrames } from './io/assetApi';
-import { snap } from './tools/picking';
-import { floorHeightAtPoint } from './tools/tools';
 
 // ── Layout ─────────────────────────────────────────────────────
 const app = document.getElementById('app');
@@ -322,39 +320,31 @@ spriteTool.onSaveRequested = async (out, frameDataUrls) => {
   }
 };
 
-// Puente F5→6.4: asignar la animación activa a un sprite del mundo.
+// Puente F5→6.4: asignar la animación activa (o de la Biblioteca) a una
+// ENTIDAD del mundo. assignEntityAnim hace que la entidad adopte la animación
+// por completo: escribe anim, cambia su textura al primer frame y ajusta su
+// escala a la altura de su caja de colisión (flujo correcto de la Fase E:
+// las animaciones viven sobre entidades colocadas, no sobre sprites sueltos).
 spriteTool.onAssignSprite = (spriteId, anim) => {
-  if (!doc.assignSpriteAnim(spriteId, anim)) {
-    showToast('Sprite no encontrado', 'error');
+  if (!doc.assignEntityAnim(spriteId, anim)) {
+    showToast('Entidad o animación no encontrada', 'error');
     return;
   }
-  showToast(`Sprite ${spriteId} → anim «${anim}»`, 'success');
-};
-
-// E1 (Fase E del Sprite Tool): colocar un sprite NUEVO con tex+anim en el
-// punto de colocación — el centro del viewport proyectado al suelo (lo que el
-// usuario está mirando). Apoya en el terreno y alinea al grid igual que la
-// herramienta Entidades; deja el sprite seleccionado para mover/escalar. La
-// UI del botón «Colocar en el mundo ▾» llega en E2; aquí solo el puente.
-spriteTool.onPlaceSprite = (tex, anim) => {
-  const p = viewport.centerWorld();
-  if (!p) {
-    showToast('No se pudo calcular el punto de colocación', 'warning');
-    return;
-  }
-  const x = snap(p.x);
-  const z = snap(p.z);
-  const sp = doc.addSprite(tex, x, z, floorHeightAtPoint(doc.world, x, z), undefined, { anim });
-  toolManager.select({ kind: 'sprite', id: sp.id });
-  showToast(`Sprite ${sp.id} colocado con anim «${anim}»`, 'success');
+  const sp = doc.world.sprites.find((s) => s.id === spriteId);
+  showToast(`Entidad ${sp?.entityName ?? spriteId} → anim «${anim}»`, 'success');
 };
 
 const spriteBtn = layout.toolbar.addAction({
   icon: 'images', label: 'Sprites' /*, shortcut: '0' */,
   onClick: () => {
     markSpritesActive();
+    // El select de asignación de la Biblioteca lista las ENTIDADES del mundo
+    // (sprites con datos de entidad del catálogo), etiquetadas por su nombre
+    // legible. Los sprites decorativos sin entidad no se asignan animación.
     spriteTool.setWorldSprites(
-      doc.world.sprites.map((s) => ({ id: s.id, label: `${s.id} (${s.tex})` })),
+      doc.world.sprites
+        .filter((s) => s.entityType)
+        .map((s) => ({ id: s.id, label: `${s.entityName ?? s.id} (${s.id})` })),
     );
     spriteTool.onProjectSnapshot = () => doc.getSpriteLibrarySnapshot();
     // Fase F (tab «Mis Sprites»): los sprites físicos de la cuenta. Ambos

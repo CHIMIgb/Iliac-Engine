@@ -18,7 +18,6 @@ import { assetIdFromFileName, collectMissingFrameKeys, cropRegion, frameKeyFromF
 import { detectSprites } from './detectSprites';
 import { gridRects, cellSize } from './gridSlice';
 import { defaultAnimTemplate, buildSpriteAnims, reorderFrames, removeFrameIndices, availableFrames, mirrorAnimName, buildMirroredAnim, clampFps, MIN_FPS, MAX_FPS } from './animator';
-import { enabledPlaceAnims } from './place';
 import type { AnimSpec, SpriteAnimsOutput } from './animator';
 import type { SpriteLibrarySnapshot, PixelImage, Rect } from './types';
 import { assetUrl } from '../io/assetApi';
@@ -128,13 +127,6 @@ export class SpriteToolUI {
   private assignRow: HTMLDivElement;
   /** Conectado por main.ts: escribe `sprite.anim` en un sprite existente. */
   onAssignSprite: ((spriteId: string, anim: string) => void) | null = null;
-
-  /**
-   * Conectado por main.ts (E1): coloca un sprite NUEVO con tex+anim en el
-   * punto de colocación (centro del viewport) y lo selecciona. La UI del
-   * botón «Colocar en el mundo ▾» llega en E2; aquí solo vive el puente.
-   */
-  onPlaceSprite: ((tex: string, anim: string) => void) | null = null;
 
   /** Conectado por main.ts (Fase D1): lee las texturas + anims ya guardadas en el proyecto. */
   onProjectSnapshot: (() => SpriteLibrarySnapshot) | null = null;
@@ -495,14 +487,15 @@ export class SpriteToolUI {
 
     animMain.append(previewRow, framesTitle, this.step3FramesGrid, addFrameRow, this.addFrameMenu, this.step3Status);
 
-    // Puente hasta el Entity Builder (6.4): asignar la anim a un sprite del mundo.
+    // Puente hasta el Entity Builder (6.4): asignar la anim a una entidad del
+    // mundo (el select lista entidades con `entityType`, ver main.ts).
     this.assignRow = document.createElement('div');
     this.assignRow.className = 'sprite-tool__assign';
     this.assignRow.hidden = true;
-    const assignTitle = this.labeled('Asignar a sprite del mundo');
+    const assignTitle = this.labeled('Asignar a entidad del mundo');
     this.spriteSelect = document.createElement('select');
     this.spriteSelect.className = 'sprite-tool__input sprite-tool__select';
-    this.spriteSelect.title = 'El Entity Builder (futuro) permitirá colocar sprites animados; por ahora se asigna a uno existente.';
+    this.spriteSelect.title = 'Asigna la animación activa a una entidad colocada; la entidad adopta tex del primer frame y escala a su caja de colisión si la anim está guardada.';
     this.assignBtn = document.createElement('button');
     this.assignBtn.className = 'btn btn--secondary btn--sm';
     this.assignBtn.textContent = 'Asignar anim activa';
@@ -514,17 +507,6 @@ export class SpriteToolUI {
       this.onAssignSprite(sid, spec.name);
     });
     this.assignRow.append(assignTitle, this.spriteSelect, this.assignBtn);
-
-    // E2: botón «Colocar en el mundo ▾» — la UI del puente `onPlaceSprite`
-    // (E1). Despliega un menú con las anims GUARDADAS del proyecto: una anim
-    // local del animador aún no existe en `world.spriteAnims` hasta pulsar
-    // «Guardar en el proyecto», así que colocar antes sería un sprite invisible.
-    const placeBtn = document.createElement('button');
-    placeBtn.className = 'btn btn--secondary btn--sm sprite-tool__place-btn';
-    placeBtn.textContent = 'Colocar en el mundo ▾';
-    placeBtn.title = 'Crea un sprite NUEVO con la anim elegida, en el centro del viewport';
-    placeBtn.addEventListener('click', () => this.togglePlaceMenu(placeBtn));
-    this.assignRow.append(placeBtn);
 
     animLayout.append(animSide, animMain);
     this.step3.append(animLayout, this.assignRow);
@@ -1284,26 +1266,27 @@ private renderLibraryCard(snapshot: SpriteLibrarySnapshot, name: string): HTMLDi
   return card;
 }
 
-/** Fila de acción de la Biblioteca (D4+D5): select de sprites del mundo +
- *  botón «Asignar a sprite…» (D4) y botón «Cargar al animador» (D5). El
+/** Fila de acción de la Biblioteca (D4+D5): select de ENTIDADES del mundo +
+ *  botón «Asignar a entidad» (D4) y botón «Cargar al animador» (D5). El
  *  primero va conectado al callback `onAssignSprite` ya existente (→
- *  doc.assignSpriteAnim); el segundo llama a `loadLibraryAnim`. La parte de
- *  asignación depende de sprites del mundo; «Cargar al animador» siempre está. */
+ *  doc.assignEntityAnim: la entidad adopta la anim, su textura y su escala);
+ *  el segundo llama a `loadLibraryAnim`. La parte de asignación depende de
+ *  entidades en el mundo; «Cargar al animador» siempre está. */
 private renderLibraryAssignRow(animName: string): HTMLDivElement {
   const row = document.createElement('div');
   row.className = 'sprite-tool__library-actions';
   if (this.worldSpriteOptions.length === 0) {
     const hint = document.createElement('span');
     hint.className = 'sprite-tool__library-meta';
-    hint.textContent = 'No hay sprites en el mundo para asignar.';
+    hint.textContent = 'No hay entidades en el mundo. Colócalas con la herramienta Entidades.';
     row.appendChild(hint);
   } else {
     const select = document.createElement('select');
     select.className = 'sprite-tool__input sprite-tool__select';
-    select.title = 'Sprite del mundo que mostrará esta animación';
+    select.title = 'Entidad del mundo que mostrará esta animación';
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'Elegir sprite…';
+    placeholder.textContent = 'Elegir entidad…';
     select.appendChild(placeholder);
     for (const it of this.worldSpriteOptions) {
       const opt = document.createElement('option');
@@ -1313,11 +1296,11 @@ private renderLibraryAssignRow(animName: string): HTMLDivElement {
     }
     const btn = document.createElement('button');
     btn.className = 'btn btn--secondary btn--sm';
-    btn.textContent = 'Asignar a sprite…';
+    btn.textContent = 'Asignar a entidad';
     btn.addEventListener('click', () => {
       const sid = select.value;
       if (!sid) {
-        showToast('Elige un sprite primero', 'warning');
+        showToast('Elige una entidad primero', 'warning');
         return;
       }
       if (!this.onAssignSprite) {
@@ -1336,61 +1319,7 @@ private renderLibraryAssignRow(animName: string): HTMLDivElement {
     void this.loadLibraryAnim(animName);
   });
   row.appendChild(loadBtn);
-  // E2: colocar esta animación como un sprite NUEVO en el mundo.
-  const placeBtn = document.createElement('button');
-  placeBtn.className = 'btn btn--secondary btn--sm sprite-tool__place-btn';
-  placeBtn.textContent = 'Colocar en el mundo ▾';
-  placeBtn.title = 'Crea un sprite NUEVO con esta animación, en el centro del viewport';
-  placeBtn.addEventListener('click', () => this.togglePlaceMenu(placeBtn));
-  row.appendChild(placeBtn);
   return row;
-}
-
-// ── Fase E (E2): menú «Colocar en el mundo ▾» ────────────────────
-
-/**
- * Alterna el menú de colocación bajo el botón que lo abrió. El menú lista las
- * anims GUARDADAS del proyecto (`enabledPlaceAnims`, lógica pura en place.ts);
- * al elegir una se llama al puente `onPlaceSprite(tex, anim)` conectado por
- * main.ts (crea el sprite en el centro del viewport y lo selecciona).
- * Un solo menú a la vez: al abrir uno se cierra el anterior (si existe).
- */
-private togglePlaceMenu(anchor: HTMLButtonElement): void {
-  // Cierra el menú previo si el botón ya está abierto (toggle).
-  const alreadyOpen = anchor.nextElementSibling?.classList.contains('sprite-tool__place-menu');
-  const existing = this.overlay.querySelector('.sprite-tool__place-menu');
-  if (existing) existing.remove();
-  if (alreadyOpen) return;
-
-  const snapshot = this.getProjectSnapshot();
-  const anims = enabledPlaceAnims(snapshot);
-  const menu = document.createElement('div');
-  menu.className = 'sprite-tool__place-menu';
-  if (anims.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'sprite-tool__library-meta';
-    empty.textContent = 'Aún no hay animaciones guardadas. Guarda una en el Paso 3 para poder colocarla.';
-    menu.appendChild(empty);
-    anchor.after(menu);
-    return;
-  }
-  for (const { anim, tex } of anims) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'sprite-tool__place-item';
-    item.textContent = anim;
-    item.title = `Colocar sprite con la animación «${anim}»`;
-    item.addEventListener('click', () => {
-      menu.remove();
-      if (!this.onPlaceSprite) {
-        showToast('El Sprite Tool no está conectado al proyecto', 'warning');
-        return;
-      }
-      this.onPlaceSprite(tex, anim);
-    });
-    menu.appendChild(item);
-  }
-  anchor.after(menu);
 }
 
 /**

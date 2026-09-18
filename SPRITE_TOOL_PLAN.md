@@ -539,41 +539,65 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >     **colocar un sprite/entidad nuevo** con su anim (tex + anim) desde el editor.
 >     Esta fase crea ese flujo: **colocar, seleccionar, reasignar y arrastrar** anims
 >     a entidades, con **billboard garantizado en todas**.
+>     ▶ **Corregido 2026-09-18 (directiva del usuario):** el flujo NO es colocar
+>     sprites nuevos con anim desde la Sprite Tool. Las ENTIDADES se colocan con la
+>     herramienta Entidades (tamaño + colisión vienen del catálogo); la Sprite Tool
+>     ASIGNA la anim a una entidad ya colocada desde la Biblioteca, y la entidad
+>     adopta la animación por completo (`assignEntityAnim`: anim + tex del primer
+>     frame + escala a la altura de su caja de colisión). E1/E2 (colocación) se
+>     implementaron y se REVIRTIERON en el mismo día.
 >   - **Modelo ya listo:** `EditableSprite` tiene `billboard?` (default `true` en
 >     `addSprite`), `anim?`, `entityType/entityName/collisionType/collisionBox`;
 >     `world.spriteAnims` guarda las anims (`{ frames: string[], fps?, loop? }`);
 >     el motor renderiza TODOS los sprites del mundo como billboard 2D sobre 3D
 >     (`engine/three/SpriteSystem.js`, estilo Doom).
->   - **E1 — `addSprite` con anim + puente de colocación:** [MODIFICAR]
+> - **E1 — `addSprite` con anim + puente de colocación:** [MODIFICAR]
 >     `EditorState.addSprite(...)` para aceptar `anim?`; [MODIFICAR] `main.ts`:
 >     nuevo callback `spriteTool.onPlaceSprite(opts)` → crea un sprite nuevo en el
 >     punto de colocación (centro del viewport / sector activo), lo selecciona en el
 >     editor y le asigna tex+anim.
->     ✅ **implementado 2026-09-18** — `addSprite(..., { anim })` persiste
->     `sprite.anim` (billboard `true` por defecto, requisito E5) sin romper
->     llamadores (la clave va en el objeto `entity` ya existente); `EditorViewport`
->     gana `centerWorld()` (centro del canvas proyectado al plano suelo, reutiliza
->     el raycaster del picking); `spriteTool.onPlaceSprite(tex, anim)` conectado en
->     main.ts: coloca el sprite con `snap` + `floorHeightAtPoint` (misma disciplina
->     que la herramienta Entidades) y lo selecciona para mover/escalar. Sin
->     `saveCurrent` (mismo patrón que la Entidades: Ctrl+S persiste). La UI del
->     botón «Colocar en el mundo ▾» es E2. Tests en entities.test.ts (deja la suite
->     Studio en 263).
+>     ✅ **implementado 2026-09-18, CORREGIDO el mismo día (directiva del usuario:
+>     «elimina el botón y el puente»)** — el flujo de colocar sprites nuevos
+>     desechable resultó ser el rumbo equivocado: las animaciones viven sobre
+>     ENTIDADES colocadas con la herramienta Entidades (tamaño + colisión), nunca
+>     sobre sprites sueltos. Se revirtieron E1/E2 por completo (commit de
+>     corrección): `addSprite` vuelve sin `anim?`, se eliminaron `centerWorld()`,
+>     `onPlaceSprite`, `spriteTool/place.ts` + place.test.ts y los botones
+>     «Colocar en el mundo ▾» (Paso 3 y Biblioteca) con su CSS. El flujo REAL (ver
+>     E1b abajo) es: herramienta Entidades → colocar la entidad → asignar la anim
+>     desde la Biblioteca (select de ENTIDADES por nombre + botón
+>     «Asignar a entidad»).
+>   - **E1b — Asignar anim a ENTIDAD con adopción completa (el flujo correcto,
+>     resultado de la corrección):** [MODIFICAR] `EditorState` con
+>     `assignEntityAnim(spriteId, animId)` — la entidad ADOPTA la animación por
+>     completo: escribe `sprite.anim`, cambia `sprite.tex` al **primer frame** de
+>     la anim y ajusta `sprite.scale` a la **altura de su caja de colisión**
+>     (`collisionBox.h`) si la tiene. El billboard del motor ya se escala de forma
+>     uniforme y equitativa con `sprite.scale` (`engine/three/SpriteSystem.js`:
+>     `scale.set(scale, scale, 1)`), así la animación se adapta al tamaño de la
+>     entidad (un lobo de 0,9 m se ve de 0,9 m; un guardia de 1,8 m, de 1,8). El
+>     puente `spriteTool.onAssignSprite` (Paso 3 y Biblioteca) pasa de
+>     `assignSpriteAnim` (solo escribe `anim`, intacto) a `assignEntityAnim`.
+>     **Tolerante con anims sin guardar:** si la anim no está en
+>     `world.spriteAnims` (caso del Paso 3 con la anim local del animador aún
+>     sin «Guardar en el proyecto»), escribe solo `sprite.anim` — la adopción
+>     completa exige los frames de la anim guardada. La Biblioteca solo asigna
+>     anims guardadas, así que ahí siempre hay adopción completa.
+>     Tests en entities.test.ts (3 tests nuevos). Suite Studio **264**.
 >   - **E2 — Botón "Colocar en el mundo ▾":** en la Sprite Tool (Paso 3 junto a
 >     "Asignar anim activa" y en la Biblioteca de la Fase D) → lista de anims
 >     guardadas; al elegir una se crea la entidad (tex del frame + anim +
 >     `billboard: true`). El sprite aparece en el viewport (marcador 2D en
 >     `Overlay2D` + preview 3D) y queda seleccionado para mover/escalar con las
 >     herramientas existentes (ToolManager ya soporta selección kind `sprite`).
->     ✅ **implementado 2026-09-18** — botón «Colocar en el mundo ▾» en el Paso 3
->     (assignRow) y en cada card de la Biblioteca (renderLibraryAssignRow). El
->     menú lista las anims GUARDADAS del proyecto vía `enabledPlaceAnims`
->     (lógica pura en `spriteTool/place.ts`, testeada en place.test.ts: solo
->     anims cuyo primer frame es textura string; color puro o frame inexistente
->     → no colocable). Al elegir una → `onPlaceSprite(tex, anim)` (E1). No
->     coloca anims locales del animador: aún no existen en `world.spriteAnims`
->     hasta pulsar Guardar — colocar antes sería un sprite invisible. Suite
->     Studio **267** tests, typecheck + build OK.
+>     ❌ **implementado 2026-09-18 y REVERTIDO el mismo día (corrección de E1)** —
+>     el botón y su menú (`enabledPlaceAnims`, `place.ts`, CSS
+>     `.sprite-tool__place-*`) se eliminaron con la corrección de E1. La
+>     Biblioteca mantiene su fila de asignación, pero ahora con el select de
+>     ENTIDADES por nombre (`entityName` — ej. «Lobo (sp_x)» en vez de
+>     «sp_x (tex)») y el botón renombrado a **«Asignar a entidad»**
+>     (`main.ts` filtra `sprite.entityType`; si no hay entidades → «No hay
+>     entidades en el mundo. Colócalas con la herramienta Entidades.»).
 >   - **E3 — Inspector de sprite en el editor:** al seleccionar un sprite, panel con
 >     sus propiedades editables: tex, **anim (dropdown con TODAS las anims de
 >     `world.spriteAnims`)**, scale, pos, collisionType/collisionBox (reutilizar el
@@ -594,12 +618,14 @@ playtest (F5) muestra al guardia animado en la demo; validación del motor pasa 
 >   - **E7 — Tests:** `EditorState.addSprite` con anim + billboard true; selector de
 >     anims del inspector; validate con sprite.anim inexistente → error; regresión
 >     SpriteSystem del motor (anim + billboard).
->   - **Aceptación:** desde la Sprite Tool se coloca un sprite NUEVO con su anim;
->     aparece en viewport (2D + 3D billboard) y en playtest anima orientado a cámara
->     desde cualquier ángulo; el Inspector permite cambiarle la anim con dropdown de
->     todas las guardadas; drag & drop de una anim al viewport crea la entidad; todas
->     las entidades respetan billboard (validate lo exige); suites verdes; commit y
->     validación por sub-paso.
+>   - **Aceptación (tras la corrección):** desde la herramienta Entidades se coloca
+>     la entidad (tamaño + colisión); desde la Biblioteca de la Sprite Tool se le
+>     asigna una anim guardada por su NOMBRE de entidad (botón «Asignar a entidad»)
+>     y la entidad adopta la anim — cambia a la tex del primer frame y se escala a
+>     la altura de su caja de colisión — animando orientada a cámara en el playtest;
+>     el resto de E3-E7 pendientes: Inspector con dropdown de anims, validate que
+>     exige billboard en entidades, drag & drop de anim al viewport; suites verdes;
+>     commit y validación por sub-paso.
 >
 > > ⚠️ **Nota de nomenclatura:** la "Fase E" del ROADMAP/SPRITE_TOOL_PLAN es la de
 > > colocar animaciones en entidades (arriba, ⏳ pendiente). La tab **«Mis Sprites»**

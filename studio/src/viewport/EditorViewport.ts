@@ -513,20 +513,6 @@ export class EditorViewport {
 
   // ── Pick context (proyección 3D→2D con Three.js) ─────────────
 
-  /**
-   * Punto del suelo (y=0 del mundo Three) bajo el CENTRO del viewport, o null
-   * si no hay motor/la cámara no toca el plano. Ruta E1: la Sprite Tool lo usa
-   * como punto de colocación para sprites/entidades nuevas (colocas donde
-   * estás mirando). Reutiliza el raycaster del picking sin duplicar lógica.
-   */
-  centerWorld(): { x: number; z: number } | null {
-    if (!this.engine || !this.toolManager) return null;
-    // Centro del canvas en NDC = (0, 0); proyectamos ese rayo al plano suelo.
-    _raycaster.setFromCamera({ x: 0, y: 0 } as THREE.Vector2, this.engine.renderer.camera);
-    const intersect = _raycaster.ray.intersectPlane(_suelo, _target);
-    return intersect ? { x: _target.x, z: _target.z } : null;
-  }
-
   private _buildPickContext(clientX?: number, clientY?: number, shiftKey = false): PickContext {
     const px = this.lastCanvasX;
     const py = this.lastCanvasY;

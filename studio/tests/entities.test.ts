@@ -175,18 +175,44 @@ describe('tools · entidades', () => {
     expect(sp.entityType).toBeUndefined();
     expect(sp.collisionBox).toBeUndefined();
   });
+});
 
-  it('addSprite con entity.anim guarda la anim y mantiene billboard (E1, puente de colocación)', () => {
+describe('EditorState.assignEntityAnim (Fase E corregida — asignar anims a entidades)', () => {
+  // Escenario: entidad del catálogo ya colocada (con collisionBox) + una anim
+  // GUARDADA en world.spriteAnims (la Biblioteca solo asigna anims guardadas).
+  function setup() {
     const state = makeRoom();
-    const sp = state.addSprite('guard_f0', 1, 1, 0, undefined, { anim: 'idle' });
-    expect(sp.anim).toBe('idle');
-    expect(sp.billboard).toBe(true); // requisito E5: todo sprite de entidad es billboard
+    const def = getEntityDef('enemy_wolf')!; // Lobo: collisionBox h = 0.9
+    const id = placeEntityAt(state, 1, 1, def);
+    state.setSpriteAnims({
+      'lobo_idle': { frames: ['wolf_f0', 'wolf_f1'], fps: 4, loop: true },
+    });
+    return { state, id };
+  }
+
+  it('la entidad adopta la anim: anim, tex = primer frame y scale = altura de la caja', () => {
+    const { state, id } = setup();
+    expect(state.assignEntityAnim(id, 'lobo_idle')).toBe(true);
+    const sp = state.world.sprites.find((s) => s.id === id)!;
+    expect(sp.anim).toBe('lobo_idle');
+    expect(sp.tex).toBe('wolf_f0'); // primer frame de la anim
+    expect(sp.scale).toBe(sp.collisionBox!.h); // 0.9 — escala equitativa al tamaño
   });
 
-  it('addSprite sin entity.anim no deja rastro del campo (regresión E1)', () => {
-    const state = makeRoom();
-    const sp = state.addSprite('sprite_blue', 1, 1, 0);
-    expect(sp.anim).toBeUndefined();
+  it('anim no guardada → escribe anim pero NO adopta tex/escala (anim local del Paso 3)', () => {
+    const { state, id } = setup();
+    const sp = state.world.sprites.find((s) => s.id === id)!;
+    const texBefore = sp.tex;
+    const scaleBefore = sp.scale;
+    expect(state.assignEntityAnim(id, 'no_guardada')).toBe(true);
+    expect(sp.anim).toBe('no_guardada');
+    expect(sp.tex).toBe(texBefore); // sin frames guardados no hay primer frame que adoptar
+    expect(sp.scale).toBe(scaleBefore);
+  });
+
+  it('sprite inexistente → false', () => {
+    const { state } = setup();
+    expect(state.assignEntityAnim('sp_fantasma', 'lobo_idle')).toBe(false);
   });
 });
 

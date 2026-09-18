@@ -279,9 +279,6 @@ export class EditorState {
       entityName?: string;
       collisionType?: EditableSprite['collisionType'];
       collisionBox?: EditableSprite['collisionBox'];
-      /** Animación de `world.spriteAnims` que reproduce el sprite (E1): el
-       *  puente de colocación crea el sprite NUEVO ya animado. */
-      anim?: string;
     },
   ): EditableSprite {
     const sprite: EditableSprite = {
@@ -290,7 +287,6 @@ export class EditorState {
       pos: { x, y, z },
       scale: 1,
       billboard: true,
-      ...(entity?.anim ? { anim: entity.anim } : {}),
       ...(entity?.entityType ? { entityType: entity.entityType } : {}),
       ...(entity?.entityName ? { entityName: entity.entityName } : {}),
       ...(entity?.collisionType ? { collisionType: entity.collisionType } : {}),
@@ -343,6 +339,40 @@ export class EditorState {
     if (!sp) return false;
     if (anim === null) delete sp.anim;
     else sp.anim = anim;
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Asigna una animación a una ENTIDAD del mundo (Fase E, corrección del
+   * flujo: las animaciones viven sobre entidades, no como sprites sueltos).
+   *
+   * Si la animación está GUARDADA en `world.spriteAnims`, la entidad la
+   * adopta por completo:
+   *  - `sprite.anim` = nombre de la animación en `world.spriteAnims`.
+   *  - `sprite.tex`  = primer frame de la animación (el motor usa los frames
+   *    de la anim, pero el editor/preview debe mostrar esa textura ya).
+   *  - `sprite.scale` = altura de su caja de colisión (`collisionBox.h`) si la
+   *    tiene: el billboard del motor se escala de forma uniforme y equitativa
+   *    con `sprite.scale`, así la animación se adapta al tamaño de la entidad
+   *    (un lobo de 0,9 m de alto se ve de 0,9 m; un guardia de 1,8 m, de 1,8).
+   *
+   * Si la animación NO está guardada (p.ej. la anim local del animador en el
+   * Paso 3, aún sin «Guardar en el proyecto»), escribe solo `sprite.anim` —
+   * igual que `assignSpriteAnim` — y deja tex/escala como estaban: la adopción
+   * completa exige los frames de la anim guardada.
+   *
+   * false si la entidad no existe.
+   */
+  assignEntityAnim(spriteId: string, animId: string): boolean {
+    const sp = this.world.sprites.find((s) => s.id === spriteId);
+    if (!sp) return false;
+    sp.anim = animId;
+    const def = this.world.spriteAnims?.[animId];
+    if (def?.frames[0]) {
+      sp.tex = def.frames[0];
+      if (sp.collisionBox?.h) sp.scale = sp.collisionBox.h;
+    }
     this.notify();
     return true;
   }
