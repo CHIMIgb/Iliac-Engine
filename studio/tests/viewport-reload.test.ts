@@ -101,6 +101,26 @@ describe('EditorViewport.reload', () => {
     expect(log).toEqual(['create1', 'load1', 'setWorld1']);
   });
 
+  it('texturas nuevas en el mundo (frames de animación) ⇒ camino caro para recodificarlas', async () => {
+    const { viewport, log, creates } = setup();
+
+    await viewport.reload({ render: { fov: 80 }, world: { textures: { pared: '/api/a.png' } } });
+    await viewport.reload({ render: { fov: 80 }, world: { textures: { pared: '/api/a.png', wolf_f0: '/api/wolf_f0.png' } } });
+
+    expect(creates()).toBe(2);
+    expect(log).toEqual(['create1', 'load1', 'dispose1', 'create2', 'load2']);
+  });
+
+  it('world.textures con claves reordenadas ⇒ camino barato (misma firma)', async () => {
+    const { viewport, log, creates } = setup();
+
+    await viewport.reload({ render: { fov: 80 }, world: { textures: { a: '/x.png', b: '/y.png' } } });
+    await viewport.reload({ render: { fov: 80 }, world: { textures: { b: '/y.png', a: '/x.png' } } });
+
+    expect(creates()).toBe(1);
+    expect(log).toEqual(['create1', 'load1', 'setWorld1']);
+  });
+
   it('si el motor nuevo no carga, avisa y no deja un motor a medias', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { viewport, log } = setup({ loadFails: true });

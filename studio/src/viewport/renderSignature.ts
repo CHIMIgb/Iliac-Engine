@@ -16,6 +16,21 @@ export function renderSignature(render: unknown): string {
   return JSON.stringify(sortKeys(render ?? null));
 }
 
+/**
+ * worldTextureSignature — firma estable de `world.textures` (puro).
+ *
+ * `EditorViewport.reload` la usa además de la firma de `render`: el motor NO
+ * recodifica texturas nuevas en `setWorld` (limitación documentada en
+ * `Engine3D.js`), así que al guardar una animación (cuyos frames se suben con
+ * `setWorldTextures`) hay que recrear el motor para llevarlas al GPU — si no,
+ * `SpriteSystem` salta el sprite animado (textura ausente → invisible).
+ * Misma estabilidad que `renderSignature` frente al orden de claves de JSONB.
+ */
+export function worldTextureSignature(world: unknown): string {
+  const textures = (world as { textures?: unknown } | null)?.textures ?? null;
+  return JSON.stringify(sortKeys(textures));
+}
+
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (value && typeof value === 'object') {

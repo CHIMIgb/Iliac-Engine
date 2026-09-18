@@ -18,7 +18,7 @@ import { Engine3D } from '@engine/index.js';
 import * as THREE from 'three';
 import { CameraControls, CameraMode } from './CameraControls';
 import { Overlay2D } from './Overlay2D';
-import { renderSignature } from './renderSignature';
+import { renderSignature, worldTextureSignature } from './renderSignature';
 import { ToolManager, type PickContext } from '../tools/ToolManager';
 import { hiddenTerrainVertices } from '../tools/tools';
 import { buildEntityBoxes } from './EntityPreviewMesh';
@@ -104,7 +104,7 @@ export class EditorViewport {
   }
 
   async reload(project: unknown): Promise<void> {
-    const next = project as { render?: unknown };
+    const next = project as { render?: unknown; world?: unknown };
     // Cambios REALES en el bloque `render` (fov, fondo, niebla…) viven en el
     // constructor del Renderer3D: solo entonces hay que recrear el motor. La
     // comparación va por firma estable (insensible al orden de claves: JSONB
@@ -112,10 +112,17 @@ export class EditorViewport {
     const prevRender = (this.engine?.project as { render?: unknown } | null)?.render;
     const renderChanged = !!this.engine &&
       renderSignature(next.render) !== renderSignature(prevRender);
+    // Las texturas NUEVAS del mundo (p. ej. los frames al guardar una
+    // animación) no se recodifican en setWorld: solo un reload completo las
+    // lleva al GPU. Si cambian, toca recrear el motor o el sprite animado
+    // queda invisible (SpriteSystem salta texturas ausentes).
+    const prevWorld = (this.engine?.project as { world?: unknown } | null)?.world;
+    const texturesChanged = !!this.engine &&
+      worldTextureSignature(next.world) !== worldTextureSignature(prevWorld);
     // Camino barato (edición en vivo): si el motor ya está cargado, SOLO se
     // cambia el mundo. Recrear el Engine3D en cada pasada del pincel (renderer
     // + texturas + GPU) era lo que trababa los terrenos > 8 m.
-    if (!renderChanged && this.engine?.loaded && this.engine.setWorld(project as never)) {
+    if (!renderChanged && !texturesChanged && this.engine?.loaded && this.engine.setWorld(project as never)) {
       this._addEditorGrid();
       this._addEntityBoxes();
       this.last = performance.now();

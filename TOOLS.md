@@ -178,14 +178,13 @@ Los datos viven SOLO en el proyecto (texturas + anims) y en la cuenta (assets AP
 
 Costes por reload a 32 m: clonar 23 ms · validar 20 ms · índice BVH 48 ms · geometría 25 ms (vía rápida).
 
-**Camino caro (cambia el bloque `render`):** recrea el motor entero (`new Engine3D`). Dos reglas que no se pueden saltar:
+**Camino caro (cambia el bloque `render` o llegan texturas nuevas):** recrea el motor entero (`new Engine3D`). Dos reglas que no se pueden saltar:
 
-- La decisión barato/caro usa `renderSignature()` (`viewport/renderSignature.ts`): firma **estable** (claves ordenadas en profundidad). Un `JSON.stringify` a pelo era sensible al orden y Postgres (JSONB) devuelve las claves ordenadas por longitud+alfabeto → los mismos valores parecían un cambio y cada carga desde la API recreaba el motor.
+- La decisión barato/caro usa `renderSignature()` + `worldTextureSignature()` (`viewport/renderSignature.ts`): firmas **estables** (claves ordenadas en profundidad). Un `JSON.stringify` a pelo era sensible al orden y Postgres (JSONB) devuelve las claves ordenadas por longitud+alfabeto → los mismos valores parecían un cambio y cada carga desde la API recreaba el motor.
 - El motor viejo se **libera ANTES** de crear el nuevo (`dispose()` → `createEngine()` → `load()`). `canvas.getContext()` devuelve el MISMO contexto: dos `WebGLRenderer` vivos sobre el mismo canvas corrompen el estado GL y el frame lanza; como `tm.update()`/`overlay.draw()` van al final del frame (tras `render()`), el fallo deja **todas las herramientas muertas**. Si el nuevo motor no carga, se avisa (`viewport.onError` → toast) y el viewport queda sin motor (el bucle lo tolera).
 
 **Limitaciones conocidas:**
 - El `ceilH` fijo de 50 m genera el "techo" gris sobre cada terreno (propuesta de fix: campo `noCeil` — idea 5, pendiente).
-- Texturas nuevas solo se cargan en un reload completo del viewport (el camino barato las reutiliza).
 - El pincel emite un `setFloorHeight` (notify) por celda tocada; el throttle lo amortigua — batching por frame pendiente si llegara a molestar.
 - Undo no captura todavía los trazos de pincel como una sola acción.
 
